@@ -104,8 +104,9 @@ class GoogleDriveStorage(
     }
 
     override suspend fun write(path: RemotePath, data: Source): RemoteEntry {
-        ensureConfigured()
-        throw NotImplementedError("Google Drive write will be implemented in Task 7")
+        val (client, pathResolver) = ensureConfigured()
+        val uploader = dev.mimir.drive.upload.DriveUploader(client, pathResolver)
+        return uploader.upload(path, data)
     }
 
     override suspend fun delete(path: RemotePath) {
