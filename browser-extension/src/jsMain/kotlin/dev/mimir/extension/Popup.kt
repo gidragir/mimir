@@ -1,7 +1,6 @@
 package dev.mimir.extension
 
 import dev.mimir.core.BuildConfig
-import dev.mimir.core.NotImplementedCipher
 import kotlinx.browser.document
 
 fun main() {
@@ -9,11 +8,5 @@ fun main() {
     document.getElementById("message")?.textContent = decryptionMessage()
 }
 
-// Код шифрования из core собирается в расширение; пока он заглушка
-private fun decryptionMessage(): String =
-    try {
-        NotImplementedCipher.decryptName("")
-        ""
-    } catch (_: NotImplementedError) {
-        "Расшифровка ещё не реализована"
-    }
+// Пароль хранится в SecretStore только с этапа 2; до него шифр не создаётся
+private fun decryptionMessage(): String = "Расшифровка недоступна: нет пароля"
