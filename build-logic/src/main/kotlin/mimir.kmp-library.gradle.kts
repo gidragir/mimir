@@ -1,3 +1,4 @@
+import java.time.Duration
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 
 plugins {
@@ -16,8 +17,15 @@ kotlin {
         }
     }
     @OptIn(ExperimentalWasmDsl::class)
-    // Тесты wasm-библиотек идут в node: Karma+Chromium падает на import.meta (klib один для любого wasm-окружения)
-    wasmJs { nodejs() }
+    // Тесты wasm-библиотек идут в node: Karma+Chromium падает на import.meta (klib один для любого wasm-окружения).
+    // KotlinWasmNode не использует mocha (KGP игнорирует useMocha); задаём таймаут на уровне задачи Gradle.
+    wasmJs {
+        nodejs {
+            testTask {
+                timeout.set(Duration.ofMinutes(2))
+            }
+        }
+    }
 
     sourceSets {
         commonTest.dependencies {

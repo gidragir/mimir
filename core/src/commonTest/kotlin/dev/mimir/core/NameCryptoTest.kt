@@ -38,6 +38,14 @@ class NameCryptoTest {
     }
 
     @Test
+    fun `base32hex decode folds only ascii case`() {
+        assertContentEquals("foo".encodeToByteArray(), Base32Hex.decode("CPNMU"))
+        // U+212A KELVIN SIGN и U+0130 при lowercase превращаются в 'k' и 'i' — их принимать нельзя
+        assertFailsWith<CryptException> { Base32Hex.decode("\u212A0") }
+        assertFailsWith<CryptException> { Base32Hex.decode("\u01300") }
+    }
+
+    @Test
     fun `eme roundtrip for 1 to 8 blocks`() {
         val eme = Eme(ByteArray(32) { (it * 3 + 1).toByte() })
         val tweak = ByteArray(16) { (it + 100).toByte() }

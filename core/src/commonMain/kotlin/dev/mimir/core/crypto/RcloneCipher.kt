@@ -30,9 +30,15 @@ class RcloneCipher(
 
     override fun encryptName(segment: String): String {
         if (segment.isEmpty()) return ""
-        val raw = segment.encodeToByteArray()
+        val raw = try {
+            segment.encodeToByteArray(throwOnInvalidSequence = true)
+        } catch (e: CharacterCodingException) {
+            throw CryptException("invalid name encoding", e)
+        }
         val padLen = 16 - raw.size % 16
-        val padded = raw.copyOf(raw.size + padLen)
+        val paddedLen = raw.size + padLen
+        if (paddedLen > 16 * 128) throw CryptException("name segment exceeds 128 EME blocks")
+        val padded = raw.copyOf(paddedLen)
         padded.fill(padLen.toByte(), raw.size, padded.size)
         return Base32Hex.encode(nameEme.encrypt(nameTweak, padded))
     }

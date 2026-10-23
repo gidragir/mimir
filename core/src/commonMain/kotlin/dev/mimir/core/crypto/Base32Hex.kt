@@ -29,8 +29,12 @@ internal object Base32Hex {
         var bits = 0
         var pos = 0
         for (ch in text) {
-            val v = ALPHABET.indexOf(ch.lowercaseChar())
-            if (v < 0) throw CryptException("invalid base32 character")
+            val v = when (ch) {
+                in '0'..'9' -> ch - '0'
+                in 'a'..'v' -> ch - 'a' + 10
+                in 'A'..'V' -> ch - 'A' + 10
+                else -> throw CryptException("invalid base32 character")
+            }
             buffer = (buffer shl 5) or v
             bits += 5
             if (bits >= 8) {
