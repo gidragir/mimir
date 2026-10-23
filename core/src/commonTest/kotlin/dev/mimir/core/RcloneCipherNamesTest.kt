@@ -67,8 +67,10 @@ class RcloneCipherNamesTest {
     @Test
     fun `unencodable names are rejected instead of mangled`() {
         // одинокий суррогат иначе превратился бы в '?' (jvm) или U+FFFD (js) — разные имена слились бы в одно
-        assertFailsWith<CryptException> { cipher.encryptName("a\uD800") }
-        assertFailsWith<CryptException> { cipher.encryptName("a\uD801") }
+        val bad1 = charArrayOf('a', 0xD800.toChar()).concatToString()
+        val bad2 = charArrayOf('a', 0xD801.toChar()).concatToString()
+        assertFailsWith<CryptException> { cipher.encryptName(bad1) }
+        assertFailsWith<CryptException> { cipher.encryptName(bad2) }
         // сегмент, не помещающийся в 128 блоков EME
         assertFailsWith<CryptException> { cipher.encryptName("x".repeat(2048)) }
         assertEquals("x".repeat(2000), cipher.decryptName(cipher.encryptName("x".repeat(2000))))

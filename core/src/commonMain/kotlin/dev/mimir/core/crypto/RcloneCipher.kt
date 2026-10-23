@@ -30,6 +30,7 @@ class RcloneCipher(
 
     override fun encryptName(segment: String): String {
         if (segment.isEmpty()) return ""
+        if (hasUnpairedSurrogates(segment)) throw CryptException("invalid name encoding")
         val raw = try {
             segment.encodeToByteArray(throwOnInvalidSequence = true)
         } catch (e: CharacterCodingException) {
@@ -41,6 +42,22 @@ class RcloneCipher(
         val padded = raw.copyOf(paddedLen)
         padded.fill(padLen.toByte(), raw.size, padded.size)
         return Base32Hex.encode(nameEme.encrypt(nameTweak, padded))
+    }
+
+    private fun hasUnpairedSurrogates(s: String): Boolean {
+        var i = 0
+        while (i < s.length) {
+            val code = s[i].code
+            if (code in 0xD800..0xDBFF) {
+                if (i + 1 >= s.length || s[i + 1].code !in 0xDC00..0xDFFF) return true
+                i += 2
+            } else if (code in 0xDC00..0xDFFF) {
+                return true
+            } else {
+                i++
+            }
+        }
+        return false
     }
 
     override fun decryptName(segment: String): String {
