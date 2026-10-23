@@ -1,0 +1,21 @@
+# Gradle / Kotlin
+.gradle/
+build/
+.kotlin/
+local.properties
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Секреты и ключи
+mise.local.toml
+*.keystore
+*.jks
+
+# Рабочая область superpowers
+.superpowers/
+
+# Node
+node_modules/

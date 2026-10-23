@@ -1,0 +1,58 @@
+[tools]
+java = "temurin-27" # если в реестре mise нет — заменить на "openjdk-27"
+node = "lts"
+
+[tasks.build]
+description = "Собрать всё и прогнать тесты"
+run = "./gradlew build"
+run_windows = "gradlew.bat build"
+
+[tasks.test]
+description = "Прогнать все тесты"
+run = "./gradlew allTests"
+run_windows = "gradlew.bat allTests"
+
+[tasks.desktop]
+description = "Запустить десктопное приложение"
+run = "./gradlew :app-desktop:run"
+run_windows = "gradlew.bat :app-desktop:run"
+
+[tasks.android]
+description = "Установить Android-приложение на устройство"
+run = "./gradlew :app-android:installDebug"
+run_windows = "gradlew.bat :app-android:installDebug"
+
+[tasks.daemon]
+description = "Запустить демон"
+run = "./gradlew :daemon:run"
+run_windows = "gradlew.bat :daemon:run"
+
+[tasks.web]
+description = "Запустить web UI в режиме разработки"
+run = "./gradlew :web-ui:wasmJsBrowserDevelopmentRun"
+run_windows = "gradlew.bat :web-ui:wasmJsBrowserDevelopmentRun"
+
+[tasks.plugin]
+description = "Собрать плагин Obsidian"
+run = "./gradlew :obsidian-plugin:assemblePlugin"
+run_windows = "gradlew.bat :obsidian-plugin:assemblePlugin"
+
+[tasks.extension]
+description = "Собрать расширение браузера"
+run = "./gradlew :browser-extension:assembleExtension"
+run_windows = "gradlew.bat :browser-extension:assembleExtension"
+
+[tasks."package:msi"]
+description = "Собрать MSI (только Windows)"
+run = "./gradlew :app-desktop:packageMsi"
+run_windows = "gradlew.bat :app-desktop:packageMsi"
+
+[tasks."package:arch"]
+description = "Собрать uber-jar для пакета Arch"
+run = "./gradlew :app-desktop:packageUberJarForCurrentOS"
+run_windows = "gradlew.bat :app-desktop:packageUberJarForCurrentOS"
+
+[tasks."package:docker"]
+description = "Собрать Docker-образ демона"
+run = "docker build -f packaging/docker/Dockerfile -t mimir:dev ."
+run_windows = "docker build -f packaging/docker/Dockerfile -t mimir:dev ."

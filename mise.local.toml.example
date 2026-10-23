@@ -1,0 +1,8 @@
+# Скопируйте в mise.local.toml (файл в .gitignore) и заполните.
+# Для сборки и тестов ничего из этого не требуется.
+[env]
+# OAuth-клиент Google Cloud (один проект для всех клиентов Mimir)
+GOOGLE_OAUTH_CLIENT_ID = ""
+GOOGLE_OAUTH_CLIENT_SECRET = ""
+# Путь к Android SDK; если не задан, Android-таргеты пропускаются с предупреждением
+ANDROID_HOME = ""
