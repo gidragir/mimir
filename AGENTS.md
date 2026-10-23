@@ -28,6 +28,8 @@ Mimir — клиент синхронизации Obsidian-хранилища с
 - Gradle: Kotlin DSL, configuration cache и build cache включены — не ломать их.
 - **Android SDK необязателен**: без него `mise run build` обязан проходить, пропуская Android-таргеты с предупреждением `Android SDK not found: skipping Android targets`. Не добавлять безусловных ссылок на `:app-android` и Android-плагины.
 - **Секреты** только в `mise.local.toml` (в `.gitignore`) и GitHub Secrets. Сборка и тесты проходят без единого секрета.
+- **Docker-образ демона** строится на glibc-базе (`eclipse-temurin:27-jdk` / `27-jre`), а не на alpine: Kotlin/JS скачивает Node под glibc.
+- **Android**: нужны AGP ≥ 9.4 и compileSdk 37 (иначе jlink `JdkImageTransform` падает на JDK 27, а Compose 1.12 требует compileSdk 37).
 - Реальной синхронизации, шифрования и OAuth в скелете нет: заглушки бросают `NotImplementedError` с осмысленным сообщением.
 - Строка статуса до подключения — ровно `Mimir: not connected` (`SyncStatus.label()`).
 - Локальный HTTP API: `127.0.0.1:47821`, адрес/порт настраиваются; занятый порт → сообщение `Port <port> on <bind> is already in use`, код 2, без стектрейса.
