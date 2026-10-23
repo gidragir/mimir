@@ -20,4 +20,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "mimir"
 
-include(":core", ":drive", ":ui")
+include(":core", ":drive", ":ui", ":app-desktop")
