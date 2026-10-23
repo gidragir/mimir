@@ -1,0 +1,33 @@
+import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
+
+plugins {
+    kotlin("multiplatform")
+    id("mimir.android-support")
+    alias(libs.plugins.compose.multiplatform)
+    alias(libs.plugins.compose.compiler)
+}
+
+kotlin {
+    jvm("desktop")
+    @OptIn(ExperimentalWasmDsl::class)
+    wasmJs { browser() }
+
+    sourceSets {
+        commonMain.dependencies {
+            api(project(":core"))
+            implementation(project(":drive"))
+            implementation(libs.compose.runtime)
+            implementation(libs.compose.foundation)
+            implementation(libs.compose.material3)
+            implementation(libs.compose.ui)
+        }
+        val desktopTest by getting {
+            dependencies {
+                implementation(kotlin("test"))
+                implementation(libs.compose.ui.test)
+                implementation(libs.compose.ui.test.junit4)
+                implementation(compose.desktop.currentOs)
+            }
+        }
+    }
+}
