@@ -1,0 +1,10 @@
+packages:
+  - core
+  - drive
+  - ui
+  - app-desktop
+  - app-android
+  - web-ui
+  - daemon
+  - obsidian-plugin
+  - browser-extension

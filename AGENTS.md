@@ -41,6 +41,13 @@ Mimir — клиент синхронизации Obsidian-хранилища с
 - Коммиты — conventional-стиль, как в плане (`feat(core): …`, `chore: …`, `ci: …`).
 - Прогресс выполнения плана ведётся в `.superpowers/sdd/<план>/progress.md` (git-ignored); отклонения от плана записываются как `Ruling:`.
 
+## Релизы
+
+- Версионирование — changesets (`.changeset/`, `package.json` в каждом модуле только как носитель версии). Все модули в группе `fixed`: версия одна, `pnpm run version` синхронизирует её в `mimir.version` (`gradle.properties`); `pnpm run version:check` проверяет рассинхрон.
+- Изменение, влияющее на релиз, сопровождается `pnpm changeset`.
+- Поток: push в `main` → `changesets.yml` ведёт PR «chore: version packages» → после слияния `scripts/tag-release.mjs` ставит тег `v<версия>` и вызывает `release.yml` (matrix-сборка msi/apk/zip, Arch в контейнере, Docker в GHCR, публикация в GitHub Release).
+- Версию в `gradle.properties` руками не менять — только через changesets.
+
 ## Проектные скиллы (`.claude/skills/`)
 
 - `mimir-build-verify` — как собрать и проверить изменения на Arch, что делать без Android SDK.

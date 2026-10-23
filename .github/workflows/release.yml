@@ -1,0 +1,150 @@
+name: Release
+
+# Запускается вручную-тегом v* или из changesets.yml (workflow_call) после слияния «Version Packages».
+on:
+  push:
+    tags: ["v*"]
+  workflow_call:
+    inputs:
+      tag:
+        description: Тег релиза (v<версия>)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
+
+jobs:
+  # Параллельная сборка файловых артефактов на нужных платформах.
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: msi
+            os: windows-latest
+            task: :app-desktop:packageMsi
+            paths: app-desktop/build/compose/binaries/main/msi/*.msi
+          - name: apk
+            os: ubuntu-latest
+            task: :app-android:assembleRelease
+            paths: app-android/build/outputs/apk/release/*.apk
+            android: true
+          - name: obsidian-plugin
+            os: ubuntu-latest
+            task: :obsidian-plugin:zipPlugin
+            paths: obsidian-plugin/build/distributions/*.zip
+          - name: browser-extension
+            os: ubuntu-latest
+            task: :browser-extension:zipExtension
+            paths: browser-extension/build/distributions/*.zip
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - name: Tag matches mimir.version
+        run: |
+          version=$(sed -n 's/^mimir.version=//p' gradle.properties)
+          test "v$version" = "$TAG" || { echo "Tag $TAG != mimir.version $version"; exit 1; }
+      - uses: jdx/mise-action@v2
+      - uses: android-actions/setup-android@v3
+        if: matrix.android
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Decode Android keystore
+        if: matrix.android
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          # Без секрета APK собирается неподписанным (см. шаг ниже).
+          [ -n "$ANDROID_KEYSTORE_BASE64" ] || exit 0
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/mimir.keystore"
+          {
+            echo "MIMIR_KEYSTORE_PATH=$RUNNER_TEMP/mimir.keystore"
+            echo "MIMIR_KEYSTORE_PASSWORD=$ANDROID_KEYSTORE_PASSWORD"
+            echo "MIMIR_KEY_ALIAS=$ANDROID_KEY_ALIAS"
+            echo "MIMIR_KEY_PASSWORD=$ANDROID_KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+      - run: ./gradlew ${{ matrix.task }}
+      - name: Mark unsigned APK
+        if: matrix.android
+        run: |
+          [ -z "$MIMIR_KEYSTORE_PATH" ] || exit 0
+          for f in app-android/build/outputs/apk/release/*.apk; do
+            case "$f" in *-unsigned.apk) ;; *) mv "$f" "${f%.apk}-unsigned.apk" ;; esac
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: ${{ matrix.paths }}
+          if-no-files-found: error
+
+  arch:
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - run: pacman -Syu --noconfirm jdk-openjdk base-devel git
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - name: Build package
+        # build-arch.sh: packageUberJarForCurrentOS -> копирует jar -> makepkg под непривилегированным пользователем
+        run: .github/scripts/build-arch.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arch
+          path: packaging/arch/*.pkg.tar.zst
+          if-no-files-found: error
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - id: img
+        run: |
+          name=$(sed -n 's/^mimir.dockerImage=//p' gradle.properties)
+          owner=${GITHUB_REPOSITORY_OWNER,,}
+          echo "ref=ghcr.io/$owner/$name" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: packaging/docker/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.img.outputs.ref }}:${{ env.TAG }}
+            ${{ steps.img.outputs.ref }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  publish:
+    needs: [build, arch, docker]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          generate_release_notes: true
+          files: dist/*

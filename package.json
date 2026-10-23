@@ -1,0 +1,14 @@
+{
+  "name": "mimir-monorepo",
+  "private": true,
+  "packageManager": "pnpm@10.18.0",
+  "scripts": {
+    "changeset": "changeset",
+    "version": "changeset version && node scripts/sync-version.mjs",
+    "version:check": "node scripts/sync-version.mjs --check",
+    "release:tag": "node scripts/tag-release.mjs"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.29.0"
+  }
+}

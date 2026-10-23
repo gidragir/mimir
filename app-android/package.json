@@ -1,0 +1,6 @@
+{
+  "name": "@mimir/app-android",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Носитель версии модуля app-android для changesets; код собирается Gradle"
+}

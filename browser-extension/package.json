@@ -1,0 +1,6 @@
+{
+  "name": "@mimir/browser-extension",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Носитель версии модуля browser-extension для changesets; код собирается Gradle"
+}

@@ -1,0 +1,54 @@
+name: Changesets
+
+# Накапливает changeset'ы в PR «Version Packages»; после его слияния ставит тег v<версия>
+# и вызывает release.yml (тег, созданный GITHUB_TOKEN, сам по себе workflow не запускает).
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: changesets
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      published: ${{ steps.changesets.outputs.published }}
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      # Пока нет pnpm-lock.yaml; после его коммита убрать --no-frozen-lockfile и добавить cache: pnpm в setup-node.
+      - run: pnpm install --no-frozen-lockfile
+      - uses: changesets/action@v1
+        id: changesets
+        with:
+          version: pnpm run version
+          publish: pnpm run release:tag
+          title: "chore: version packages"
+          commit: "chore: version packages"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - id: tag
+        if: steps.changesets.outputs.published == 'true'
+        run: echo "tag=v$(sed -n 's/^mimir.version=//p' gradle.properties)" >> "$GITHUB_OUTPUT"
+
+  release:
+    needs: version
+    if: needs.version.outputs.published == 'true'
+    permissions:
+      contents: write
+      packages: write
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: ${{ needs.version.outputs.tag }}
+    secrets: inherit

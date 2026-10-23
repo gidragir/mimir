@@ -1,0 +1,6 @@
+{
+  "name": "@mimir/core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Носитель версии модуля core для changesets; код собирается Gradle"
+}

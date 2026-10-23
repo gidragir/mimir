@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      # Android SDK ставим только на Linux; на остальных ОС Android-таргеты пропускаются с предупреждением.
+      - uses: android-actions/setup-android@v3
+        if: runner.os == 'Linux'
+      - uses: gradle/actions/setup-gradle@v4
+      # Без секретов: сборка и тесты обязаны проходить без них.
+      - run: mise run build
+
+  changesets:
+    name: versions and changesets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      # Пока нет pnpm-lock.yaml; после его коммита убрать --no-frozen-lockfile и добавить cache: pnpm в setup-node.
+      - run: pnpm install --no-frozen-lockfile
+      - name: Versions of packages and gradle.properties are in sync
+        run: pnpm run version:check
+      - name: Changeset status (pull requests)
+        if: github.event_name == 'pull_request'
+        # Информативно: правки без релизного смысла (docs, ci) changeset не требуют.
+        continue-on-error: true
+        run: pnpm exec changeset status --since=origin/${{ github.base_ref }}
