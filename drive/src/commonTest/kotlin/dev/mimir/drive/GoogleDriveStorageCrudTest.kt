@@ -121,4 +121,58 @@ class GoogleDriveStorageCrudTest {
         driveStorage.delete(RemotePath("delete_me.txt"))
         assertEquals("file_del_1", deletedFileId)
     }
+
+    @Test
+    fun testListDeduplicatesDuplicateNamesKeepingMostRecent() = runTest {
+        val mockEngine = MockEngine { request ->
+            val jsonHeaders = headersOf(HttpHeaders.ContentType, "application/json")
+            when {
+                request.url.parameters["q"]?.contains("'root' in parents") == true -> {
+                    respond("""{"files":[{"id":"mimir_root","name":"Mimir","mimeType":"application/vnd.google-apps.folder"}]}""", HttpStatusCode.OK, jsonHeaders)
+                }
+                request.url.parameters["q"]?.contains("'mimir_root' in parents") == true -> {
+                    respond("""
+                        {
+                            "files": [
+                                {
+                                    "id": "file_old",
+                                    "name": "duplicate.txt",
+                                    "mimeType": "text/plain",
+                                    "size": "5",
+                                    "modifiedTime": "2026-10-23T10:00:00.000Z",
+                                    "md5Checksum": "old_hash",
+                                    "trashed": false
+                                },
+                                {
+                                    "id": "file_new",
+                                    "name": "duplicate.txt",
+                                    "mimeType": "text/plain",
+                                    "size": "15",
+                                    "modifiedTime": "2026-10-23T12:00:00.000Z",
+                                    "md5Checksum": "new_hash",
+                                    "trashed": false
+                                }
+                            ]
+                        }
+                    """.trimIndent(), HttpStatusCode.OK, jsonHeaders)
+                }
+                else -> respond("{}", HttpStatusCode.OK, jsonHeaders)
+            }
+        }
+
+        val http = HttpClient(mockEngine) {
+            install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+        }
+        val authClient = GoogleAuthClient(http, "client-id")
+        val storage = InMemoryTokenStorage(OAuthTokens("access", "refresh", 2000000000L))
+        val driveClient = DriveHttpClient(http, storage, authClient)
+        val resolver = DrivePathResolver(driveClient, "Mimir")
+        val driveStorage = GoogleDriveStorage(driveClient, resolver)
+
+        val entries = driveStorage.list(RemotePath(""))
+        assertEquals(1, entries.size)
+        assertEquals(RemotePath("duplicate.txt"), entries[0].path)
+        assertEquals(15L, entries[0].size)
+        assertEquals("new_hash", entries[0].revision)
+    }
 }

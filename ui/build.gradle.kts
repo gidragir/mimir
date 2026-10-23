@@ -23,6 +23,7 @@ kotlin {
             implementation(libs.compose.foundation)
             implementation(libs.compose.material3)
             implementation(libs.compose.ui)
+            implementation(compose.components.uiToolingPreview)
         }
         val desktopTest by getting {
             dependencies {
@@ -32,5 +33,11 @@ kotlin {
                 implementation(compose.desktop.currentOs)
             }
         }
+    }
+}
+
+dependencies {
+    if (dev.mimir.build.AndroidSdk.isAvailable(rootDir)) {
+        add("androidRuntimeClasspath", compose.uiTooling)
     }
 }

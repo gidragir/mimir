@@ -25,6 +25,17 @@ class AndroidSdkTest {
     }
 
     @Test
+    fun `available when system property android sdk path is set`() {
+        val prev = System.getProperty("android.sdk.path")
+        try {
+            System.setProperty("android.sdk.path", existingDir.path)
+            assertTrue(AndroidSdk.isAvailable(tmpRoot, emptyMap()))
+        } finally {
+            if (prev == null) System.clearProperty("android.sdk.path") else System.setProperty("android.sdk.path", prev)
+        }
+    }
+
+    @Test
     fun `not available when nothing configured`() =
         assertFalse(AndroidSdk.isAvailable(tmpRoot, emptyMap()))
 

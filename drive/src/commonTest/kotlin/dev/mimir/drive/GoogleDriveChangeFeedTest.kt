@@ -84,4 +84,76 @@ class GoogleDriveChangeFeedTest {
         assertEquals(false, changes.changes[0].isDeleted)
         assertTrue(changes.changes[1].isDeleted)
     }
+
+    @Test
+    fun testChangeFeedResolvesNestedPathAndKnownDeletedPath() = runTest {
+        val mockEngine = MockEngine { request ->
+            val jsonHeaders = headersOf(HttpHeaders.ContentType, "application/json")
+            when {
+                request.url.parameters["q"]?.contains("'root' in parents") == true -> {
+                    respond("""{"files":[{"id":"mimir_root","name":"Mimir","mimeType":"application/vnd.google-apps.folder"}]}""", HttpStatusCode.OK, jsonHeaders)
+                }
+                request.url.encodedPath == "/drive/v3/changes" -> {
+                    respond("""
+                        {
+                            "newStartPageToken": "tok2",
+                            "changes": [
+                                {
+                                    "fileId": "nested_file",
+                                    "removed": false,
+                                    "file": {
+                                        "id": "nested_file",
+                                        "name": "child.md",
+                                        "mimeType": "text/markdown",
+                                        "parents": ["subfolder_id"],
+                                        "trashed": false
+                                    }
+                                },
+                                {
+                                    "fileId": "known_deleted_id",
+                                    "removed": true
+                                }
+                            ]
+                        }
+                    """.trimIndent(), HttpStatusCode.OK, jsonHeaders)
+                }
+                request.url.encodedPath == "/drive/v3/files/subfolder_id" -> {
+                    respond("""
+                        {
+                            "id": "subfolder_id",
+                            "name": "subfolder",
+                            "mimeType": "application/vnd.google-apps.folder",
+                            "parents": ["mimir_root"],
+                            "trashed": false
+                        }
+                    """.trimIndent(), HttpStatusCode.OK, jsonHeaders)
+                }
+                else -> respond("""{"files":[]}""", HttpStatusCode.OK, jsonHeaders)
+            }
+        }
+
+        val http = HttpClient(mockEngine) {
+            install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+        }
+        val authClient = GoogleAuthClient(http, "client-id")
+        val storage = InMemoryTokenStorage(OAuthTokens("access", "refresh", 2000000000L))
+        val driveClient = DriveHttpClient(http, storage, authClient)
+        val resolver = DrivePathResolver(driveClient, "Mimir")
+        // Предварительно регистрируем известный файл
+        resolver.registerPath(
+            RemotePath("docs/old.md"),
+            dev.mimir.drive.api.GoogleDriveFile(id = "known_deleted_id", name = "old.md", mimeType = "text/markdown")
+        )
+
+        val driveStorage = GoogleDriveStorage(driveClient, resolver)
+        val changes = driveStorage.getChanges("tok1")
+
+        assertEquals(2, changes.changes.size)
+        // Вложенный файл восстановил путь через родительскую папку
+        assertEquals(RemotePath("subfolder/child.md"), changes.changes[0].path)
+        assertEquals(false, changes.changes[0].isDeleted)
+        // Удаленный файл восстановил свой зарегистрированный путь
+        assertEquals(RemotePath("docs/old.md"), changes.changes[1].path)
+        assertTrue(changes.changes[1].isDeleted)
+    }
 }

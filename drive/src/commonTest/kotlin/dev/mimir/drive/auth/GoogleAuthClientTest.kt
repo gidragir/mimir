@@ -1,5 +1,6 @@
 package dev.mimir.drive.auth
 
+import dev.mimir.drive.client.AuthRevokedException
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -14,6 +15,7 @@ import kotlin.time.Instant
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class GoogleAuthClientTest {
@@ -66,5 +68,23 @@ class GoogleAuthClientTest {
         val devCode = authClient.requestDeviceCode()
         assertEquals("dev123", devCode.device_code)
         assertEquals("ABCD-EFGH", devCode.user_code)
+    }
+
+    @Test
+    fun testRefreshTokensInvalidGrantThrowsAuthRevokedException() = runTest {
+        val mockEngine = MockEngine { _ ->
+            respond(
+                content = """{"error": "invalid_grant", "error_description": "Token has been expired or revoked."}""",
+                status = HttpStatusCode.BadRequest,
+                headers = headersOf(HttpHeaders.ContentType, "application/json")
+            )
+        }
+        val client = HttpClient(mockEngine) {
+            install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+        }
+        val authClient = GoogleAuthClient(client, "test-client-id", clock = fixedClock)
+        assertFailsWith<AuthRevokedException> {
+            authClient.refreshTokens("revoked_refresh")
+        }
     }
 }

@@ -5,12 +5,17 @@ import dev.mimir.drive.GoogleAuthConfig
 import dev.mimir.drive.api.GoogleDeviceCodeResponse
 import dev.mimir.drive.api.GoogleTokenResponse
 import dev.mimir.drive.api.GoogleUserInfo
+import dev.mimir.drive.client.AuthRevokedException
+import dev.mimir.drive.client.DriveAuthException
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.forms.submitForm
 import io.ktor.client.request.get
 import io.ktor.client.request.header
+import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
+import io.ktor.http.isSuccess
 import io.ktor.http.parameters
 import kotlin.time.Clock
 
@@ -48,7 +53,7 @@ class GoogleAuthClient(
         val response = httpClient.submitForm(
             url = "https://oauth2.googleapis.com/token",
             formParameters = form,
-        ).body<GoogleTokenResponse>()
+        ).ensureTokenSuccess()
 
         return toOAuthTokens(response, null)
     }
@@ -63,7 +68,7 @@ class GoogleAuthClient(
         val response = httpClient.submitForm(
             url = "https://oauth2.googleapis.com/token",
             formParameters = form,
-        ).body<GoogleTokenResponse>()
+        ).ensureTokenSuccess()
 
         return toOAuthTokens(response, refreshToken)
     }
@@ -73,10 +78,15 @@ class GoogleAuthClient(
             append("client_id", clientId)
             append("scope", GoogleAuthConfig.scopes.joinToString(" "))
         }
-        return httpClient.submitForm(
+        val response = httpClient.submitForm(
             url = "https://oauth2.googleapis.com/device/code",
             formParameters = form,
-        ).body<GoogleDeviceCodeResponse>()
+        )
+        if (!response.status.isSuccess()) {
+            val text = response.bodyAsText()
+            throw DriveAuthException(response.status, "Device code request failed (${response.status}): $text")
+        }
+        return response.body<GoogleDeviceCodeResponse>()
     }
 
     suspend fun pollDeviceToken(deviceCode: String): OAuthTokens {
@@ -89,17 +99,33 @@ class GoogleAuthClient(
         val response = httpClient.submitForm(
             url = "https://oauth2.googleapis.com/token",
             formParameters = form,
-        ).body<GoogleTokenResponse>()
+        ).ensureTokenSuccess()
 
         return toOAuthTokens(response, null)
     }
 
     suspend fun fetchAccount(accessToken: String): Account {
-        val info = httpClient.get("https://www.googleapis.com/oauth2/v3/userinfo") {
+        val response = httpClient.get("https://www.googleapis.com/oauth2/v3/userinfo") {
             header(HttpHeaders.Authorization, "Bearer $accessToken")
-        }.body<GoogleUserInfo>()
+        }
+        if (!response.status.isSuccess()) {
+            val text = response.bodyAsText()
+            throw DriveAuthException(response.status, "Fetch account failed (${response.status}): $text")
+        }
+        val info = response.body<GoogleUserInfo>()
 
         return Account(email = info.email ?: "", displayName = info.name)
+    }
+
+    private suspend fun HttpResponse.ensureTokenSuccess(): GoogleTokenResponse {
+        if (!status.isSuccess()) {
+            val text = bodyAsText()
+            if (text.contains("invalid_grant")) {
+                throw AuthRevokedException(status, "OAuth token was revoked or expired: $text")
+            }
+            throw DriveAuthException(status, "OAuth token request failed with status $status: $text")
+        }
+        return body<GoogleTokenResponse>()
     }
 
     private fun toOAuthTokens(response: GoogleTokenResponse, fallbackRefresh: String?): OAuthTokens {

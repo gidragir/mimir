@@ -27,13 +27,105 @@ class DrivePathResolver(
     private var rootFolderId: String? = null
     private val folderCache = mutableMapOf<String, String>()
     private val fileCache = mutableMapOf<String, GoogleDriveFile>()
+    private val idToPath = mutableMapOf<String, RemotePath>()
 
     suspend fun resolveRootFolderId(): String = mutex.withLock {
         rootFolderId?.let { return it }
         val id = findOrCreateFolder(parentFolderId = "root", folderName = rootFolderName)
         rootFolderId = id
         folderCache[""] = id
+        idToPath[id] = RemotePath("")
         id
+    }
+
+    suspend fun registerPath(path: RemotePath, file: GoogleDriveFile) {
+        mutex.withLock {
+            idToPath[file.id] = path
+            fileCache[path.value] = file
+            if (file.isDirectory) {
+                folderCache[path.value] = file.id
+            }
+        }
+    }
+
+    suspend fun resolvePathById(fileId: String): RemotePath? = mutex.withLock {
+        idToPath[fileId]
+    }
+
+    suspend fun invalidateById(fileId: String): RemotePath? = mutex.withLock {
+        val path = idToPath.remove(fileId)
+        if (path != null) {
+            fileCache.remove(path.value)
+            folderCache.remove(path.value)
+        }
+        path
+    }
+
+    suspend fun resolveRemotePathForFile(file: GoogleDriveFile): RemotePath? {
+        val rootId = resolveRootFolderId()
+        if (file.id == rootId) return RemotePath("")
+
+        mutex.withLock {
+            idToPath[file.id]?.let { return it }
+        }
+
+        if (file.parents.isEmpty()) return null
+        val parentId = file.parents.first()
+
+        val parentPath = if (parentId == rootId) {
+            RemotePath("")
+        } else {
+            resolveFolderPathById(parentId, rootId) ?: return null
+        }
+
+        val fullPath = if (parentPath.value.isEmpty()) {
+            RemotePath(file.name)
+        } else {
+            RemotePath("${parentPath.value}/${file.name}")
+        }
+
+        registerPath(fullPath, file)
+        return fullPath
+    }
+
+    private suspend fun resolveFolderPathById(folderId: String, rootId: String): RemotePath? {
+        mutex.withLock {
+            idToPath[folderId]?.let { return it }
+        }
+        if (folderId == rootId) return RemotePath("")
+
+        val parentFile = fetchFileById(folderId) ?: return null
+        if (!parentFile.isDirectory || parentFile.parents.isEmpty()) return null
+
+        val grandParentId = parentFile.parents.first()
+        val grandParentPath = if (grandParentId == rootId) {
+            RemotePath("")
+        } else {
+            resolveFolderPathById(grandParentId, rootId) ?: return null
+        }
+
+        val folderPath = if (grandParentPath.value.isEmpty()) {
+            RemotePath(parentFile.name)
+        } else {
+            RemotePath("${grandParentPath.value}/${parentFile.name}")
+        }
+
+        registerPath(folderPath, parentFile)
+        return folderPath
+    }
+
+    suspend fun fetchFileById(fileId: String): GoogleDriveFile? {
+        val response = client.executeWithRetry { token ->
+            client.httpClient.get("https://www.googleapis.com/drive/v3/files/$fileId") {
+                header(HttpHeaders.Authorization, "Bearer $token")
+                parameter("fields", "id,name,mimeType,size,modifiedTime,md5Checksum,parents,trashed")
+                parameter("supportsAllDrives", "false")
+            }
+        }
+        if (!response.status.isSuccess()) {
+            return null
+        }
+        return response.body<GoogleDriveFile>()
     }
 
     suspend fun resolvePath(path: RemotePath): GoogleDriveFile? {
@@ -63,6 +155,7 @@ class DrivePathResolver(
         val file = queryFileInFolder(parentFolderId, fileName) ?: return null
         mutex.withLock {
             fileCache[cacheKey] = file
+            idToPath[file.id] = path
             if (file.isDirectory) {
                 folderCache[cacheKey] = file.id
             }
@@ -99,7 +192,11 @@ class DrivePathResolver(
                 } else {
                     return null
                 }
-                mutex.withLock { folderCache[subPath] = folderId }
+                val segPath = RemotePath.of(currentSegments)
+                mutex.withLock {
+                    folderCache[subPath] = folderId
+                    idToPath[folderId] = segPath
+                }
                 currentParentId = folderId
             }
         }
@@ -110,25 +207,36 @@ class DrivePathResolver(
     suspend fun invalidate(path: RemotePath) {
         mutex.withLock {
             val key = path.value
-            fileCache.remove(key)
-            folderCache.remove(key)
-            // Инвалидируем все дочерние ключи
+            val file = fileCache.remove(key)
+            if (file != null) {
+                idToPath.remove(file.id)
+            }
+            val folderId = folderCache.remove(key)
+            if (folderId != null) {
+                idToPath.remove(folderId)
+            }
             val prefix = if (key.isEmpty()) "" else "$key/"
-            fileCache.keys.removeAll { it.startsWith(prefix) }
-            folderCache.keys.removeAll { it.startsWith(prefix) }
+            val fileKeysToRemove = fileCache.filterKeys { it.startsWith(prefix) }
+            for ((_, f) in fileKeysToRemove) {
+                idToPath.remove(f.id)
+            }
+            fileCache.keys.removeAll(fileKeysToRemove.keys)
+
+            val folderKeysToRemove = folderCache.filterKeys { it.startsWith(prefix) }
+            for ((_, id) in folderKeysToRemove) {
+                idToPath.remove(id)
+            }
+            folderCache.keys.removeAll(folderKeysToRemove.keys)
         }
     }
 
     suspend fun clearCache() {
         mutex.withLock {
             rootFolderId = null
-            folderCache.clearexhaustive()
+            folderCache.clear()
             fileCache.clear()
+            idToPath.clear()
         }
-    }
-
-    private fun <K, V> MutableMap<K, V>.clearexhaustive() {
-        clear()
     }
 
     private suspend fun queryFileInFolder(parentFolderId: String, fileName: String): GoogleDriveFile? {

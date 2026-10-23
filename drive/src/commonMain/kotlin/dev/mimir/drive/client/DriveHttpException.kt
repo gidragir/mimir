@@ -8,11 +8,17 @@ open class DriveHttpException(
     cause: Throwable? = null,
 ) : Exception(message, cause)
 
-class DriveAuthException(
+open class DriveAuthException(
     statusCode: HttpStatusCode,
     message: String,
     cause: Throwable? = null,
 ) : DriveHttpException(statusCode, message, cause)
+
+class AuthRevokedException(
+    statusCode: HttpStatusCode,
+    message: String,
+    cause: Throwable? = null,
+) : DriveAuthException(statusCode, message, cause)
 
 class DriveRateLimitException(
     statusCode: HttpStatusCode,

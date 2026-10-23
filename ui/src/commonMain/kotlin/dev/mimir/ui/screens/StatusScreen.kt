@@ -14,8 +14,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import dev.mimir.core.BuildConfig
+import dev.mimir.core.StubSyncEngine
 import dev.mimir.core.SyncEngine
 import dev.mimir.core.label
+import dev.mimir.ui.MimirTheme
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
 fun StatusScreen(engine: SyncEngine) {
@@ -28,5 +31,13 @@ fun StatusScreen(engine: SyncEngine) {
         Text(BuildConfig.APP_NAME, style = MaterialTheme.typography.headlineMedium)
         Text(status.label())
         Button(onClick = {}, enabled = false) { Text("Войти через Google") }
+    }
+}
+
+@Preview
+@Composable
+fun StatusScreenPreview() {
+    MimirTheme {
+        StatusScreen(StubSyncEngine())
     }
 }

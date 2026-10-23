@@ -168,13 +168,22 @@ class DriveUploader(
             val endByte = currentOffset + currentChunkSize - 1
             val chunkBytes = bytes.copyOfRange(currentOffset.toInt(), (currentOffset + currentChunkSize).toInt())
 
-            val uploadResponse = client.executeWithRetry { token ->
-                client.httpClient.put(sessionUri) {
-                    header(HttpHeaders.Authorization, "Bearer $token")
-                    header("Content-Range", "bytes $currentOffset-$endByte/$totalSize")
-                    header(HttpHeaders.ContentLength, currentChunkSize.toString())
-                    setBody(chunkBytes)
+            val uploadResponse = try {
+                client.executeWithRetry { token ->
+                    client.httpClient.put(sessionUri) {
+                        header(HttpHeaders.Authorization, "Bearer $token")
+                        header("Content-Range", "bytes $currentOffset-$endByte/$totalSize")
+                        header(HttpHeaders.ContentLength, currentChunkSize.toString())
+                        setBody(chunkBytes)
+                    }
                 }
+            } catch (e: Exception) {
+                val recoveredOffset = queryResumableStatus(sessionUri, totalSize)
+                if (recoveredOffset != null) {
+                    currentOffset = recoveredOffset
+                    continue
+                }
+                throw e
             }
 
             if (uploadResponse.status.value == 308) {
@@ -188,26 +197,37 @@ class DriveUploader(
             } else if (uploadResponse.status.isSuccess()) {
                 return uploadResponse.body<GoogleDriveFile>()
             } else {
-                // Пытаемся запросить статус сессии через query offset
-                val statusQuery = client.executeWithRetry { token ->
-                    client.httpClient.put(sessionUri) {
-                        header(HttpHeaders.Authorization, "Bearer $token")
-                        header("Content-Range", "bytes */$totalSize")
-                    }
-                }
-                if (statusQuery.status.value == 308) {
-                    val rangeHeader = statusQuery.headers["Range"]
-                    if (rangeHeader != null && rangeHeader.startsWith("bytes=0-")) {
-                        val lastAck = rangeHeader.removePrefix("bytes=0-").toLongOrNull() ?: 0L
-                        currentOffset = lastAck + 1
-                        continue
-                    }
+                val recoveredOffset = queryResumableStatus(sessionUri, totalSize)
+                if (recoveredOffset != null) {
+                    currentOffset = recoveredOffset
+                    continue
                 }
                 throw DriveHttpException(uploadResponse.status, "Resumable chunk upload failed: ${uploadResponse.bodyAsText()}")
             }
         }
 
         throw IllegalStateException("Resumable upload completed loop without final file response")
+    }
+
+    private suspend fun queryResumableStatus(sessionUri: String, totalSize: Long): Long? {
+        return try {
+            val statusQuery = client.executeWithRetry { token ->
+                client.httpClient.put(sessionUri) {
+                    header(HttpHeaders.Authorization, "Bearer $token")
+                    header("Content-Range", "bytes */$totalSize")
+                }
+            }
+            if (statusQuery.status.value == 308) {
+                val rangeHeader = statusQuery.headers["Range"]
+                if (rangeHeader != null && rangeHeader.startsWith("bytes=0-")) {
+                    (rangeHeader.removePrefix("bytes=0-").toLongOrNull() ?: -1L) + 1L
+                } else {
+                    0L
+                }
+            } else null
+        } catch (_: Exception) {
+            null
+        }
     }
 
     @Serializable

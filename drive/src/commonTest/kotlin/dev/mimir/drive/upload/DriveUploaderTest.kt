@@ -122,4 +122,68 @@ class DriveUploaderTest {
         assertEquals("resumed_hash", entry.revision)
         assertEquals(totalSize, entry.size)
     }
+
+    @Test
+    fun testResumableUploadRecoversFromIOExceptionDuringChunkUpload() = runTest {
+        var failedOnce = false
+        val mockEngine = MockEngine { request ->
+            val jsonHeaders = headersOf(HttpHeaders.ContentType, "application/json")
+            when {
+                request.url.parameters["q"]?.contains("'root' in parents") == true -> {
+                    respond("""{"files":[{"id":"mimir_root","name":"Mimir","mimeType":"application/vnd.google-apps.folder"}]}""", HttpStatusCode.OK, jsonHeaders)
+                }
+                request.url.parameters["uploadType"] == "resumable" -> {
+                    respond(
+                        content = "",
+                        status = HttpStatusCode.OK,
+                        headers = headersOf(HttpHeaders.Location, "https://upload.session.url/recoverable")
+                    )
+                }
+                request.url.toString() == "https://upload.session.url/recoverable" -> {
+                    val contentRange = request.headers["Content-Range"] ?: ""
+                    if (contentRange == "bytes */2048") {
+                        // Опрос смещения после исключения сети
+                        respond("", HttpStatusCode(308, "Resume Incomplete"), headersOf("Range", "bytes=0-1023"))
+                    } else if (contentRange.startsWith("bytes 0-1023/")) {
+                        if (!failedOnce) {
+                            failedOnce = true
+                            throw io.ktor.client.network.sockets.SocketTimeoutException("Network timeout")
+                        }
+                        respond("", HttpStatusCode(308, "Resume Incomplete"), headersOf("Range", "bytes=0-1023"))
+                    } else if (contentRange.startsWith("bytes 1024-")) {
+                        respond("""
+                            {
+                                "id": "recovered_file_id",
+                                "name": "recovered.bin",
+                                "mimeType": "application/octet-stream",
+                                "size": "2048",
+                                "modifiedTime": "2026-10-23T12:00:00.000Z",
+                                "md5Checksum": "rec_hash"
+                            }
+                        """.trimIndent(), HttpStatusCode.OK, jsonHeaders)
+                    } else {
+                        respond("Error", HttpStatusCode.BadRequest)
+                    }
+                }
+                else -> respond("""{"files":[]}""", HttpStatusCode.OK, jsonHeaders)
+            }
+        }
+
+        val http = HttpClient(mockEngine) {
+            install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+        }
+        val authClient = GoogleAuthClient(http, "client-id")
+        val storage = InMemoryTokenStorage(OAuthTokens("access", "refresh", 2000000000L))
+        val driveClient = DriveHttpClient(http, storage, authClient)
+        val resolver = DrivePathResolver(driveClient, "Mimir")
+        val uploader = DriveUploader(driveClient, resolver, resumableThresholdBytes = 1024, chunkSize = 1024)
+
+        val totalSize = 2048L
+        val data = ByteArray(totalSize.toInt()) { (it % 128).toByte() }
+        val buffer = Buffer().also { it.write(data) }
+
+        val entry = uploader.upload(RemotePath("recovered.bin"), buffer)
+        assertEquals("rec_hash", entry.revision)
+        assertEquals(totalSize, entry.size)
+    }
 }

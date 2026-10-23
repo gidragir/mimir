@@ -75,10 +75,18 @@ class GoogleDriveStorage(
             for (change in result.changes) {
                 val file = change.file
                 val isDeleted = change.removed || file?.trashed == true
-                val path = if (file != null) RemotePath(file.name) else RemotePath(change.fileId)
-                val entry = if (file != null && !isDeleted) toRemoteEntry(file, path) else null
-                changes.add(RemoteChange(path, isDeleted, entry))
-                pathResolver.invalidate(path)
+                if (isDeleted) {
+                    val path = pathResolver.resolvePathById(change.fileId)
+                        ?: pathResolver.invalidateById(change.fileId)
+                        ?: RemotePath(change.fileId)
+                    changes.add(RemoteChange(path, isDeleted = true, entry = null))
+                    pathResolver.invalidate(path)
+                } else if (file != null) {
+                    val path = pathResolver.resolveRemotePathForFile(file) ?: RemotePath(file.name)
+                    val entry = toRemoteEntry(file, path)
+                    changes.add(RemoteChange(path, isDeleted = false, entry = entry))
+                    pathResolver.registerPath(path, file)
+                }
             }
 
             pageToken = result.nextPageToken
@@ -118,12 +126,20 @@ class GoogleDriveStorage(
             }
 
             val list = response.body<GoogleDriveFileList>()
-            for (file in list.files) {
+            val deduplicated = list.files
+                .filter { !it.trashed }
+                .groupBy { it.name }
+                .mapValues { (_, candidates) ->
+                    candidates.maxByOrNull { it.modifiedTime ?: "" } ?: candidates.first()
+                }.values
+
+            for (file in deduplicated) {
                 val childPath = if (dir.value.isEmpty()) {
                     RemotePath(file.name)
                 } else {
                     RemotePath("${dir.value}/${file.name}")
                 }
+                pathResolver.registerPath(childPath, file)
                 result.add(toRemoteEntry(file, childPath))
             }
 
@@ -177,6 +193,7 @@ class GoogleDriveStorage(
             throw DriveHttpException(response.status, "Failed to delete file ${file.id}")
         }
         pathResolver.invalidate(path)
+        pathResolver.invalidateById(file.id)
     }
 
     private fun toRemoteEntry(file: GoogleDriveFile, path: RemotePath): RemoteEntry {

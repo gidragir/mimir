@@ -9,6 +9,9 @@ import dev.mimir.drive.auth.OAuthTokens
 import dev.mimir.drive.client.DriveHttpClient
 import dev.mimir.drive.path.DrivePathResolver
 import io.ktor.client.HttpClient
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.serialization.kotlinx.json.json
+import kotlinx.serialization.json.Json
 
 object GoogleDriveStorageProvider : RemoteStorageProvider {
     override val id = "gdrive"
@@ -19,7 +22,11 @@ object GoogleDriveStorageProvider : RemoteStorageProvider {
         val clientId = config["clientId"]
         val token = config["accessToken"]
         if (clientId != null && token != null) {
-            val httpClient = HttpClient()
+            val httpClient = HttpClient {
+                install(ContentNegotiation) {
+                    json(Json { ignoreUnknownKeys = true })
+                }
+            }
             val authClient = GoogleAuthClient(httpClient, clientId, config["clientSecret"])
             val storage = InMemoryTokenStorage(
                 OAuthTokens(
