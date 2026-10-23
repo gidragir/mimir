@@ -1,0 +1,26 @@
+plugins {
+    kotlin("jvm")
+    kotlin("plugin.serialization")
+    application
+}
+
+group = providers.gradleProperty("mimir.group").get()
+version = providers.gradleProperty("mimir.version").get()
+
+application {
+    mainClass = "dev.mimir.daemon.MainKt"
+}
+
+dependencies {
+    implementation(project(":core"))
+    implementation(libs.ktor.server.core)
+    implementation(libs.ktor.server.cio)
+    implementation(libs.ktor.server.content.negotiation)
+    implementation(libs.ktor.serialization.json)
+    runtimeOnly(libs.slf4j.simple)
+    testImplementation(kotlin("test"))
+    testImplementation(libs.ktor.server.test.host)
+}
+
+// Kotlin 2.4 генерирует байткод максимум для JVM 26, а JDK — 27: выравниваем javac по Kotlin
+tasks.withType<JavaCompile>().configureEach { options.release = 26 }
