@@ -6,3 +6,5 @@ GOOGLE_OAUTH_CLIENT_ID = ""
 GOOGLE_OAUTH_CLIENT_SECRET = ""
 # Путь к Android SDK; если не задан, Android-таргеты пропускаются с предупреждением
 ANDROID_HOME = ""
+# Chromium для js-тестов (Karma, headless). На Arch: sudo pacman -S chromium
+# CHROME_BIN = "/usr/bin/chromium"
