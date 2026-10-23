@@ -25,8 +25,11 @@ sealed interface VaultChange {
 
 interface LocalVault {
     suspend fun list(): List<LocalEntry>
+    suspend fun getEntry(relativePath: String): LocalEntry?
     suspend fun read(id: VaultFileId): Source
     suspend fun write(id: VaultFileId, data: Source)
+    suspend fun write(relativePath: String, data: Source): LocalEntry
     suspend fun delete(id: VaultFileId)
+    suspend fun deleteByPath(relativePath: String)
     fun changes(): Flow<VaultChange>
 }
