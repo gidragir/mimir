@@ -1,0 +1,15 @@
+**/build/
+**/.gradle/
+**/.kotlin/
+**/node_modules/
+.git/
+.github/
+.idea/
+.superpowers/
+.claude/
+docs/
+packaging/
+mise.local.toml
+local.properties
+*.keystore
+*.jks
