@@ -16,11 +16,8 @@ kotlin {
         }
     }
     @OptIn(ExperimentalWasmDsl::class)
-    wasmJs {
-        browser {
-            testTask { useKarma { useChromeHeadless() } }
-        }
-    }
+    // Тесты wasm-библиотек идут в node: Karma+Chromium падает на import.meta (klib один для любого wasm-окружения)
+    wasmJs { nodejs() }
 
     sourceSets {
         commonTest.dependencies {

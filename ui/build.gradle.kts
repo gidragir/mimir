@@ -10,7 +10,10 @@ plugins {
 kotlin {
     jvm("desktop")
     @OptIn(ExperimentalWasmDsl::class)
-    wasmJs { browser() }
+    wasmJs {
+        browser()
+        binaries.executable() // нужен проверке Compose UI tests (CMP-4906); входная точка живёт в :web-ui
+    }
 
     sourceSets {
         commonMain.dependencies {

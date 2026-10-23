@@ -1,6 +1,7 @@
 # Gradle / Kotlin
 .gradle/
-build/
+/build/
+/*/build/
 .kotlin/
 local.properties
 

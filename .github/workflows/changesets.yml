@@ -24,6 +24,8 @@ jobs:
         with:
           fetch-depth: 0
       - uses: pnpm/action-setup@v4
+        with:
+          version: 10.18.0 # не в package.json: поле packageManager ломает yarn, которым Kotlin/JS ставит npm-зависимости
       - uses: actions/setup-node@v4
         with:
           node-version: lts/*

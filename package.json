@@ -1,7 +1,6 @@
 {
   "name": "mimir-monorepo",
   "private": true,
-  "packageManager": "pnpm@10.18.0",
   "scripts": {
     "changeset": "changeset",
     "version": "changeset version && node scripts/sync-version.mjs",

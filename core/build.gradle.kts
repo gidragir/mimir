@@ -5,6 +5,7 @@ plugins {
 
 buildConfig {
     packageName("dev.mimir.core")
+    useKotlinOutput { internalVisibility = false } // BuildConfig нужен другим модулям
     buildConfigField("APP_NAME", providers.gradleProperty("mimir.appName"))
     buildConfigField("VERSION", providers.gradleProperty("mimir.version"))
     buildConfigField("APP_ID", providers.gradleProperty("mimir.appId"))
