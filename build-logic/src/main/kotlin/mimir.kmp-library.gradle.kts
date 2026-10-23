@@ -13,7 +13,12 @@ kotlin {
     jvm()
     js {
         browser {
-            testTask { useKarma { useChromeHeadless() } }
+            testTask {
+                useKarma { useChromeHeadless() }
+                if (System.getenv("CHROME_BIN") == null && file("/usr/bin/chromium").exists()) {
+                    environment("CHROME_BIN", "/usr/bin/chromium")
+                }
+            }
         }
     }
     @OptIn(ExperimentalWasmDsl::class)

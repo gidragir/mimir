@@ -7,11 +7,22 @@ import kotlin.time.Clock
 import kotlin.time.Instant
 
 /** Хранилище в памяти: для тестов и как образец адаптера. */
-class InMemoryRemoteStorage : RemoteStorage {
+class InMemoryRemoteStorage : ChangeFeedStorage {
     private class Stored(val bytes: ByteArray, val modifiedAt: Instant, val revision: String)
+    private data class ChangeRecord(val version: Long, val change: RemoteChange)
 
     private val files = LinkedHashMap<String, Stored>()
     private var revisionCounter = 0
+    private var changeVersion = 0L
+    private val changeHistory = mutableListOf<ChangeRecord>()
+
+    override suspend fun getLatestChangeToken(): String = changeVersion.toString()
+
+    override suspend fun getChanges(sinceToken: String): RemoteChangesResult {
+        val since = sinceToken.toLongOrNull() ?: 0L
+        val filtered = changeHistory.filter { it.version > since }.map { it.change }
+        return RemoteChangesResult(filtered, changeVersion.toString())
+    }
 
     override suspend fun list(dir: RemotePath): List<RemoteEntry> {
         val prefix = dir.segments
@@ -41,11 +52,15 @@ class InMemoryRemoteStorage : RemoteStorage {
     override suspend fun write(path: RemotePath, data: Source): RemoteEntry {
         val stored = Stored(data.readByteArray(), Clock.System.now(), "r${++revisionCounter}")
         files[path.value] = stored
-        return entry(path, stored)
+        val resultEntry = entry(path, stored)
+        changeHistory.add(ChangeRecord(++changeVersion, RemoteChange(path, isDeleted = false, entry = resultEntry)))
+        return resultEntry
     }
 
     override suspend fun delete(path: RemotePath) {
-        files.remove(path.value)
+        if (files.remove(path.value) != null) {
+            changeHistory.add(ChangeRecord(++changeVersion, RemoteChange(path, isDeleted = true, entry = null)))
+        }
     }
 
     private fun entry(path: RemotePath, stored: Stored) =

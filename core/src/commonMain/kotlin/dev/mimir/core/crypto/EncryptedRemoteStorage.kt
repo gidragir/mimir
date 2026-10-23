@@ -6,7 +6,26 @@ import kotlinx.io.Source
 class EncryptedRemoteStorage(
     private val inner: RemoteStorage,
     private val cipher: Cipher,
-) : RemoteStorage {
+) : ChangeFeedStorage {
+    override suspend fun getLatestChangeToken(): String {
+        val feed = inner as? ChangeFeedStorage
+            ?: throw UnsupportedOperationException("Inner storage does not support ChangeFeedStorage")
+        return feed.getLatestChangeToken()
+    }
+
+    override suspend fun getChanges(sinceToken: String): RemoteChangesResult {
+        val feed = inner as? ChangeFeedStorage
+            ?: throw UnsupportedOperationException("Inner storage does not support ChangeFeedStorage")
+        val raw = feed.getChanges(sinceToken)
+        val decryptedChanges = raw.changes.map { change ->
+            change.copy(
+                path = decrypt(change.path),
+                entry = change.entry?.decrypted(),
+            )
+        }
+        return RemoteChangesResult(decryptedChanges, raw.nextToken)
+    }
+
     override suspend fun list(dir: RemotePath): List<RemoteEntry> =
         inner.list(encrypt(dir)).map { it.decrypted() }
 
