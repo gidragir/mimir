@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Собирает пакет Arch: uber-jar app-desktop -> packaging/arch/mimir.jar -> makepkg.
+# pkgname и pkgver берутся из gradle.properties (единственный источник идентификаторов).
+# Запускается из корня репозитория; в CI — в контейнере archlinux:latest от root.
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+cd "$root"
+
+prop() { sed -n "s/^$1=//p" gradle.properties; }
+pkgname="$(prop mimir.pacmanName)"
+pkgver="$(prop mimir.version)"
+
+./gradlew :app-desktop:packageUberJarForCurrentOS --no-daemon --console=plain
+
+jar="$(ls app-desktop/build/compose/jars/*.jar | head -n 1)"
+cp "$jar" packaging/arch/mimir.jar
+
+cd packaging/arch
+sed -i -e "s/^pkgname=.*/pkgname=${pkgname}/" -e "s/^pkgver=.*/pkgver=${pkgver}/" PKGBUILD
+
+if [ "$(id -u)" -eq 0 ]; then
+    # makepkg отказывается работать от root: собираем под временным пользователем.
+    id builder >/dev/null 2>&1 || useradd -m builder
+    chown -R builder: .
+    su builder -c "makepkg -f --nodeps"
+else
+    makepkg -f
+fi
+ls ./*.pkg.tar.zst

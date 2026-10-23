@@ -19,3 +19,7 @@ mise.local.toml
 
 # Node
 node_modules/
+packaging/arch/mimir.jar
+packaging/arch/pkg/
+packaging/arch/src/
+packaging/arch/*.pkg.tar.zst

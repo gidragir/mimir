@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Mimir
+Comment=Obsidian vault sync with encryption over Google Drive
+Exec=mimir
+Icon=mimir
+Terminal=false
+Categories=Utility;

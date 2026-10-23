@@ -1,0 +1,18 @@
+# pkgname и pkgver подставляет .github/scripts/build-arch.sh из gradle.properties.
+pkgname=mimir
+pkgver=0.1.0
+pkgrel=1
+pkgdesc='Obsidian vault sync with encryption over Google Drive'
+arch=('x86_64')
+url='https://github.com/'
+license=('custom')
+depends=('java-runtime>=27')
+source=('mimir.jar' 'mimir.sh' 'mimir.desktop' 'mimir.svg')
+sha256sums=('SKIP' 'SKIP' 'SKIP' 'SKIP')
+
+package() {
+    install -Dm644 mimir.jar "${pkgdir}/usr/share/java/mimir/mimir.jar"
+    install -Dm755 mimir.sh "${pkgdir}/usr/bin/mimir"
+    install -Dm644 mimir.desktop "${pkgdir}/usr/share/applications/mimir.desktop"
+    install -Dm644 mimir.svg "${pkgdir}/usr/share/icons/hicolor/scalable/apps/mimir.svg"
+}
