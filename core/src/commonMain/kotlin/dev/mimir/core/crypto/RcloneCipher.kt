@@ -1,6 +1,9 @@
 package dev.mimir.core
 
+import kotlinx.io.Buffer
+import kotlinx.io.RawSource
 import kotlinx.io.Source
+import kotlinx.io.buffered
 
 /**
  * Шифр, бит-в-бит совместимый с rclone crypt (`filename_encryption = standard`,
@@ -10,7 +13,7 @@ import kotlinx.io.Source
 class RcloneCipher(
     password: String,
     password2: String? = null,
-    private val nonceSource: () -> ByteArray,
+    private val nonceSource: () -> ByteArray = ::randomNonce,
 ) : Cipher {
     private val dataKey: ByteArray
     private val nameEme: Eme
@@ -51,16 +54,120 @@ class RcloneCipher(
         }
     }
 
-    override fun encrypt(plain: Source): Source = throw NotImplementedError("content crypto pending")
+    override fun encrypt(plain: Source): Source {
+        val nonce = nonceSource()
+        require(nonce.size == NONCE_SIZE) { "nonce must be $NONCE_SIZE bytes" }
+        return EncryptingSource(plain, dataKey, nonce.copyOf()).buffered()
+    }
 
-    override fun decrypt(encrypted: Source): Source = throw NotImplementedError("content crypto pending")
+    override fun decrypt(encrypted: Source): Source = DecryptingSource(encrypted, dataKey).buffered()
 
     override fun toString(): String = "RcloneCipher"
 
     private companion object {
+        const val NONCE_SIZE = 24
         val DEFAULT_SALT = byteArrayOf(
             0xA8.toByte(), 0x0D, 0xF4.toByte(), 0x3A, 0x8F.toByte(), 0xBD.toByte(), 0x03, 0x08,
             0xA7.toByte(), 0xCA.toByte(), 0xB8.toByte(), 0x3E, 0x58, 0x1F, 0x86.toByte(), 0xB1.toByte(),
         )
     }
+}
+
+private const val NONCE_SIZE = 24
+private const val BLOCK_SIZE = 65536
+private val MAGIC = byteArrayOf('R'.code.toByte(), 'C'.code.toByte(), 'L'.code.toByte(), 'O'.code.toByte(), 'N'.code.toByte(), 'E'.code.toByte(), 0, 0)
+private const val HEADER_SIZE = 8 + NONCE_SIZE
+
+/** Nonce блока n: [base] + n как 192-битное little-endian число; переполнение отбрасывается (как у rclone). */
+internal fun nextNonce(base: ByteArray, n: Long): ByteArray {
+    val out = base.copyOf()
+    var carry = n
+    var i = 0
+    while (carry != 0L && i < out.size) {
+        val sum = (out[i].toInt() and 0xFF) + (carry and 0xFF)
+        out[i] = sum.toByte()
+        carry = (carry ushr 8) + (sum ushr 8)
+        i++
+    }
+    return out
+}
+
+/** Читает до [size] байт, пока источник не исчерпан; возвращает меньше только в конце. */
+private fun Source.readUpTo(size: Int): ByteArray {
+    val out = ByteArray(size)
+    var filled = 0
+    while (filled < size) {
+        val n = readAtMostTo(out, filled, size)
+        if (n < 0) break
+        filled += n
+    }
+    return if (filled == size) out else out.copyOf(filled)
+}
+
+private abstract class BlockSource : RawSource {
+    private val pending = Buffer()
+    private var finished = false
+
+    /** Следующий готовый кусок вывода или null в конце потока. */
+    protected abstract fun nextChunk(): ByteArray?
+
+    override fun readAtMostTo(sink: Buffer, byteCount: Long): Long {
+        require(byteCount >= 0) { "byteCount < 0: $byteCount" }
+        if (byteCount == 0L) return 0
+        if (pending.exhausted() && !finished) {
+            val chunk = nextChunk()
+            if (chunk == null) finished = true else pending.write(chunk)
+        }
+        if (pending.exhausted()) return -1
+        val n = minOf(byteCount, pending.size)
+        sink.write(pending, n)
+        return n
+    }
+
+    override fun close() {}
+}
+
+private class EncryptingSource(
+    private val plain: Source,
+    private val key: ByteArray,
+    private val nonce: ByteArray,
+) : BlockSource() {
+    private var block = 0L
+    private var headerSent = false
+
+    override fun nextChunk(): ByteArray? {
+        if (!headerSent) {
+            headerSent = true
+            return MAGIC + nonce
+        }
+        val data = plain.readUpTo(BLOCK_SIZE)
+        if (data.isEmpty()) return null
+        return SecretBox.seal(key, nextNonce(nonce, block++), data)
+    }
+
+    override fun close() = plain.close()
+}
+
+private class DecryptingSource(
+    private val encrypted: Source,
+    private val key: ByteArray,
+) : BlockSource() {
+    private var nonce: ByteArray? = null
+    private var block = 0L
+
+    override fun nextChunk(): ByteArray? {
+        val base = nonce ?: readHeader().also { nonce = it }
+        val data = encrypted.readUpTo(BLOCK_SIZE + SecretBox.TAG_SIZE)
+        if (data.isEmpty()) return null
+        return SecretBox.open(key, nextNonce(base, block++), data)
+    }
+
+    private fun readHeader(): ByteArray {
+        val header = encrypted.readUpTo(HEADER_SIZE)
+        if (header.size < HEADER_SIZE) throw CryptException("encrypted file header is truncated")
+        if (!header.copyOfRange(0, MAGIC.size).contentEquals(MAGIC)) throw CryptException("not an rclone crypt file")
+        return header.copyOfRange(MAGIC.size, HEADER_SIZE)
+    }
+
+    override fun close() = encrypted.close()
 }
