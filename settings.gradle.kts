@@ -20,4 +20,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "mimir"
 
-include(":core", ":drive", ":ui", ":app-desktop", ":daemon", ":web-ui", ":obsidian-plugin")
+include(":core", ":drive", ":ui", ":app-desktop", ":daemon", ":web-ui", ":obsidian-plugin", ":browser-extension")

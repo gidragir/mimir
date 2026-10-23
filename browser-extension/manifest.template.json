@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "${appName} Quick View",
+  "version": "${version}",
+  "description": "Quick view of encrypted Obsidian notes stored in Google Drive",
+  "action": { "default_popup": "popup.html" },
+  "icons": { "128": "icon-128.png" },
+  "permissions": ["identity"],
+  "host_permissions": ["https://drive.google.com/*", "https://www.googleapis.com/*"]
+}
