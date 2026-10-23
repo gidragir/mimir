@@ -24,3 +24,9 @@ dependencies {
 
 // Kotlin 2.4 генерирует байткод максимум для JVM 26, а JDK — 27: выравниваем javac по Kotlin
 tasks.withType<JavaCompile>().configureEach { options.release = 26 }
+
+// Web UI раздаётся демоном: бандл :web-ui попадает в ресурсы static/
+evaluationDependsOn(":web-ui")
+tasks.processResources {
+    from(project(":web-ui").tasks.named("wasmJsBrowserDistribution")) { into("static") }
+}

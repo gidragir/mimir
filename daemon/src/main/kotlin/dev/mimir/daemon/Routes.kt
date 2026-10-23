@@ -7,6 +7,7 @@ import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
 import io.ktor.server.application.install
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.server.http.content.staticResources
 import io.ktor.server.response.respond
 import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
@@ -23,6 +24,7 @@ fun Application.mimirRoutes(engine: SyncEngine) {
     install(ContentNegotiation) { json() }
     routing {
         get("/health") { call.respond(Health("ok", BuildConfig.VERSION)) }
+        staticResources("/", "static")
         get("/api/status") { call.respond(Status(engine.status.value.label())) }
     }
 }
