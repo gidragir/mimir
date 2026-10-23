@@ -9,7 +9,7 @@ if (AndroidSdk.isAvailable(rootDir)) {
     extensions.configure<KotlinMultiplatformExtension> {
         (this as ExtensionAware).extensions.configure<KotlinMultiplatformAndroidLibraryTarget>("androidLibrary") {
             namespace = "$group.${project.name.replace('-', '.')}"
-            compileSdk = 36
+            compileSdk = 37
             minSdk = 26
         }
     }

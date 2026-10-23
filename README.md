@@ -68,7 +68,7 @@ curl -s 127.0.0.1:47821/health
 
 ### Что проверяется только с SDK или в CI
 
-Задачи `:app-android:*` (в том числе `ManifestPermissionsTest` и `assembleDebug`) выполняются только при наличии Android SDK — локально без SDK и в CI на Linux с `setup-android`. MSI (`package:msi`) собирается и проверяется только на Windows-раннере в CI. Остальное (сборка, тесты, Docker, пакет Arch) проверяется на Arch.
+Задачи `:app-android:*` (в том числе `ManifestPermissionsTest` и `assembleDebug`) выполняются только при наличии Android SDK (проверены на Arch с SDK из Android Studio: `ANDROID_HOME=~/Android/Sdk`); без SDK они пропускаются, в CI на Linux идут с `setup-android`. MSI (`package:msi`) собирается и проверяется только на Windows-раннере в CI. Остальное (сборка, тесты, Docker, пакет Arch) проверяется на Arch.
 
 ### niri
 
@@ -85,7 +85,7 @@ curl -s 127.0.0.1:47821/health
 ## Версии
 
 - Kotlin 2.4.21, JDK 27, Gradle ≥ 9.8.
-- Откатов на JDK 25 нет. Но Kotlin 2.4 генерирует байткод максимум для JVM 26, поэтому в JVM-модулях `javac` запускается с `--release 26` (на JDK 27).
+- AGP 9.4.1 (9.1.0 не работает на JDK 27: его `jlink`-трансформация падает с «cannot find the build signature»), `compileSdk` 37 (требуют зависимости Compose 1.12). Откатов на JDK 25 нет. Но Kotlin 2.4 генерирует байткод максимум для JVM 26, поэтому в JVM-модулях `javac` запускается с `--release 26` (на JDK 27).
 - В корневом `package.json` нет поля `packageManager`: оно ломает yarn, которым Kotlin/JS ставит npm-зависимости; версия pnpm задаётся в `pnpm/action-setup` (CI).
 - Версии библиотек в `gradle/libs.versions.toml` выставлены без проверки сборкой; при первой синхронизации их, возможно, придётся поднять.
 - Linux: Arch, системная Java (`java-runtime>=27`). Windows: MSI per-user со вшитой JRE. Android: APK вне Google Play, `MANAGE_EXTERNAL_STORAGE`. Браузер: только Chromium, Manifest V3.

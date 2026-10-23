@@ -12,7 +12,7 @@ val keystorePath = providers.environmentVariable("MIMIR_KEYSTORE_PATH").orNull
 
 android {
     namespace = "${providers.gradleProperty("mimir.group").get()}.android"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = appId
@@ -50,5 +50,6 @@ dependencies {
     implementation(project(":ui"))
     implementation(libs.compose.ui)
     implementation(libs.activity.compose)
-    testImplementation(kotlin("test"))
+    testImplementation(libs.kotlin.test.junit)
+    testImplementation(libs.junit)
 }
