@@ -4,7 +4,7 @@
 
 Шифруются и содержимое, и имена файлов (формат совместим с rclone crypt, имена шифруются по сегментам пути). Заметки в Drive нечитаемы для Gemini и любых сервисов с доступом к Drive. Запасной выход: vault можно расшифровать обычным rclone, даже если Mimir перестанет существовать.
 
-Сейчас это **скелет**: модули собираются и запускаются, но реальной синхронизации, шифрования и OAuth нет — заглушки бросают `NotImplementedError`. Строка статуса до подключения: `Mimir: not connected`. Имя «Mimir» рабочее; все идентификаторы лежат в `gradle.properties`.
+Сейчас это **скелет с готовым шифрованием**: модули собираются и запускаются, шифр (`RcloneCipher`) реализован и совместим с rclone, но реальной синхронизации и OAuth нет — заглушки бросают `NotImplementedError`. Строка статуса до подключения: `Mimir: not connected`. Имя «Mimir» рабочее; все идентификаторы лежат в `gradle.properties`.
 
 Спека: [docs/superpowers/specs/2026-10-23-mimir-design.md](docs/superpowers/specs/2026-10-23-mimir-design.md). Руководство для агентов: [AGENTS.md](AGENTS.md).
 
@@ -13,7 +13,7 @@
 | Модуль | Назначение |
 |---|---|
 | `build-logic` | convention-плагины Gradle, определение Android SDK |
-| `core` | KMP (jvm, android, js, wasmJs): порты, реестр облаков, декоратор шифрования, заглушки |
+| `core` | KMP (jvm, android, js, wasmJs): порты, реестр облаков, декоратор шифрования, `RcloneCipher`, заглушки |
 | `drive` | адаптер Google Drive (заглушка) |
 | `ui` | общий Compose-интерфейс для desktop, Android и web |
 | `app-desktop` | запускалка для Windows и Linux, трей |
@@ -77,6 +77,22 @@ curl -s 127.0.0.1:47821/health
 ### Google Cloud
 
 Право `drive.file` привязано к **проекту Google Cloud**, а не к отдельному OAuth-клиенту. Все клиенты Mimir (desktop, Android, расширение браузера, web UI и демон) заводятся в одном проекте и видят одни и те же файлы. Запасной выход через rclone работает, если в rclone указать client ID того же проекта. Client ID и secret — в `mise.local.toml` при разработке и в GitHub Secrets при релизе.
+
+## Совместимость с rclone
+
+`RcloneCipher` (модуль `core`, чистый Kotlin на jvm, android, js и wasmJs) бит-в-бит совместим с rclone crypt в режиме `filename_encryption = standard`, `directory_name_encryption = true`, `filename_encoding = base32`:
+
+- Ключи: `scrypt(password, salt, N=16384, r=8, p=1, dkLen=80)`; соль — `password2` или стандартная соль rclone. Байты 0..31 — ключ данных, 32..63 — ключ имён, 64..79 — tweak имён.
+- Файл: `RCLONE\0\0` + nonce (24 байта) + блоки до 64 КиБ открытого текста в NaCl `secretbox` (XSalsa20-Poly1305, +16 байт тега на блок). Пустой файл — 32 байта заголовка.
+- Имя: каждый сегмент пути отдельно — UTF-8, PKCS#7 до 16 байт, EME на AES-256, base32hex в нижнем регистре без `=`.
+
+Расшифровать копию vault вручную (путь — локальная копия зашифрованной папки из Drive, пароль и соль — те же, что вводились в Mimir; `rclone obscure` превращает пароль в формат конфига rclone):
+
+```bash
+rclone copy ":crypt,remote=/путь/к/копии/из/Drive,password=$(rclone obscure 'пароль')[,password2=$(rclone obscure 'соль')]:" ./vault-plain
+```
+
+Оговорки (общие с rclone): размеры и время изменения файлов в Drive остаются видны; усечение файла ровно по границе блока не обнаруживается — у формата нет финального маркера. Первое получение ключей (scrypt) на js и wasm занимает порядка секунды, в проверках этапа — не дольше нескольких секунд вместе с запуском браузера. Golden-векторы лежат в `core/src/commonTest/kotlin/dev/mimir/core/RcloneVectors.kt`; их генерирует `scripts/gen-rclone-vectors.sh` (нужен rclone ≥ 1.60), а опциональный `RcloneInteropTest` (jvm) сверяется с живым rclone, если он есть в `PATH`.
 
 ## Релизы
 

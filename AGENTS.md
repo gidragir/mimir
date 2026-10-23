@@ -13,7 +13,7 @@ Mimir — клиент синхронизации Obsidian-хранилища с
 | Модуль | Назначение |
 |---|---|
 | `build-logic` | convention-плагины: `mimir.settings`, `mimir.android-support`, `mimir.kmp-library`; `AndroidSdk` |
-| `core` | чистый Kotlin (jvm, js, wasmJs, android): порты, реестр облаков, `EncryptedRemoteStorage`, заглушки |
+| `core` | чистый Kotlin (jvm, js, wasmJs, android): порты, реестр облаков, `EncryptedRemoteStorage`, `RcloneCipher`, заглушки |
 | `drive` | адаптер Google Drive (заглушка) |
 | `ui` | общий Compose-интерфейс (`MimirApp`, `StatusScreen`) |
 | `app-desktop`, `app-android`, `web-ui`, `daemon`, `obsidian-plugin`, `browser-extension` | тонкие точки входа (задачи 5–10 плана) |
@@ -30,7 +30,7 @@ Mimir — клиент синхронизации Obsidian-хранилища с
 - **Секреты** только в `mise.local.toml` (в `.gitignore`) и GitHub Secrets. Сборка и тесты проходят без единого секрета.
 - **Docker-образ демона** строится на glibc-базе (`eclipse-temurin:27-jdk` / `27-jre`), а не на alpine: Kotlin/JS скачивает Node под glibc.
 - **Android**: нужны AGP ≥ 9.4 и compileSdk 37 (иначе jlink `JdkImageTransform` падает на JDK 27, а Compose 1.12 требует compileSdk 37).
-- Реальной синхронизации, шифрования и OAuth в скелете нет: заглушки бросают `NotImplementedError` с осмысленным сообщением.
+- Шифрование реализовано (`RcloneCipher`, совместим с rclone crypt, чистый Kotlin в `core`; единственный `expect/actual` — источник случайности). Реальной синхронизации и OAuth ещё нет: заглушки бросают `NotImplementedError` с осмысленным сообщением. Пароль в `RcloneCipher` передаётся в открытом виде; golden-векторы `RcloneVectors.kt` генерирует `scripts/gen-rclone-vectors.sh` (нужен rclone), обычные сборка и тесты rclone не требуют.
 - Строка статуса до подключения — ровно `Mimir: not connected` (`SyncStatus.label()`).
 - Локальный HTTP API: `127.0.0.1:47821`, адрес/порт настраиваются; занятый порт → сообщение `Port <port> on <bind> is already in use`, код 2, без стектрейса.
 - Часы — `kotlin.time.Clock`; отдельного порта `Clock` нет.
