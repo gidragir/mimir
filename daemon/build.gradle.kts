@@ -22,8 +22,8 @@ dependencies {
     testImplementation(libs.ktor.server.test.host)
 }
 
-// Kotlin 2.4 генерирует байткод максимум для JVM 26, а JDK — 27: выравниваем javac по Kotlin
-tasks.withType<JavaCompile>().configureEach { options.release = 26 }
+// Kotlin 2.4 генерирует байткод для JVM 25, выравниваем javac по Kotlin
+tasks.withType<JavaCompile>().configureEach { options.release = 25 }
 
 // Web UI раздаётся демоном: бандл :web-ui попадает в ресурсы static/
 evaluationDependsOn(":web-ui")

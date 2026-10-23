@@ -1,10 +1,14 @@
 package dev.mimir.drive
 
+import dev.mimir.core.ChangeFeedStorage
+import dev.mimir.core.RemoteChange
+import dev.mimir.core.RemoteChangesResult
 import dev.mimir.core.RemoteEntry
 import dev.mimir.core.RemotePath
-import dev.mimir.core.RemoteStorage
+import dev.mimir.drive.api.GoogleDriveChangeList
 import dev.mimir.drive.api.GoogleDriveFile
 import dev.mimir.drive.api.GoogleDriveFileList
+import dev.mimir.drive.api.GoogleStartPageToken
 import dev.mimir.drive.client.DriveHttpClient
 import dev.mimir.drive.client.DriveHttpException
 import dev.mimir.drive.path.DrivePathResolver
@@ -23,12 +27,64 @@ import kotlin.time.Instant
 class GoogleDriveStorage(
     private val client: DriveHttpClient? = null,
     private val pathResolver: DrivePathResolver? = null,
-) : RemoteStorage {
+) : ChangeFeedStorage {
 
     private fun ensureConfigured(): Pair<DriveHttpClient, DrivePathResolver> {
         val c = client ?: throw NotImplementedError("Google Drive adapter is not configured")
         val r = pathResolver ?: throw NotImplementedError("Google Drive adapter is not configured")
         return c to r
+    }
+
+    override suspend fun getLatestChangeToken(): String {
+        val (client, _) = ensureConfigured()
+        val response = client.executeWithRetry { token ->
+            client.httpClient.get("https://www.googleapis.com/drive/v3/changes/startPageToken") {
+                header(HttpHeaders.Authorization, "Bearer $token")
+                parameter("supportsAllDrives", "false")
+            }
+        }
+        if (!response.status.isSuccess()) {
+            throw DriveHttpException(response.status, "Failed to get start page token")
+        }
+        return response.body<GoogleStartPageToken>().startPageToken
+    }
+
+    override suspend fun getChanges(sinceToken: String): RemoteChangesResult {
+        val (client, pathResolver) = ensureConfigured()
+        val changes = mutableListOf<RemoteChange>()
+        var pageToken: String? = sinceToken
+        var newStartToken: String? = null
+
+        do {
+            val response = client.executeWithRetry { token ->
+                client.httpClient.get("https://www.googleapis.com/drive/v3/changes") {
+                    header(HttpHeaders.Authorization, "Bearer $token")
+                    parameter("pageToken", pageToken)
+                    parameter("includeRemoved", "true")
+                    parameter("fields", "newStartPageToken,nextPageToken,changes(fileId,removed,file(id,name,mimeType,size,modifiedTime,md5Checksum,parents,trashed))")
+                }
+            }
+
+            if (!response.status.isSuccess()) {
+                throw DriveHttpException(response.status, "Failed to fetch changes for token: $pageToken")
+            }
+
+            val result = response.body<GoogleDriveChangeList>()
+            newStartToken = result.newStartPageToken
+
+            for (change in result.changes) {
+                val file = change.file
+                val isDeleted = change.removed || file?.trashed == true
+                val path = if (file != null) RemotePath(file.name) else RemotePath(change.fileId)
+                val entry = if (file != null && !isDeleted) toRemoteEntry(file, path) else null
+                changes.add(RemoteChange(path, isDeleted, entry))
+                pathResolver.invalidate(path)
+            }
+
+            pageToken = result.nextPageToken
+        } while (pageToken != null)
+
+        return RemoteChangesResult(changes, newStartToken ?: sinceToken)
     }
 
     override suspend fun list(dir: RemotePath): List<RemoteEntry> {
