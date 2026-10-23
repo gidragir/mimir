@@ -1,0 +1,8 @@
+{
+  "id": "${pluginId}",
+  "name": "${appName}",
+  "version": "${version}",
+  "minAppVersion": "1.5.0",
+  "description": "Encrypted Google Drive sync status for Mimir",
+  "isDesktopOnly": false
+}
