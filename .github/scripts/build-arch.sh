@@ -19,12 +19,13 @@ cp "$jar" packaging/arch/mimir.jar
 cd packaging/arch
 sed -i -e "s/^pkgname=.*/pkgname=${pkgname}/" -e "s/^pkgver=.*/pkgver=${pkgver}/" PKGBUILD
 
+# --nodeps: java-runtime нужен только при установке пакета, не при сборке (JDK может быть из mise).
 if [ "$(id -u)" -eq 0 ]; then
     # makepkg отказывается работать от root: собираем под временным пользователем.
     id builder >/dev/null 2>&1 || useradd -m builder
     chown -R builder: .
     su builder -c "makepkg -f --nodeps"
 else
-    makepkg -f
+    makepkg -f --nodeps
 fi
 ls ./*.pkg.tar.zst
