@@ -14,6 +14,11 @@ data class SyncRules(
         "**/.DS_Store",
     ),
 ) {
+    /** Служебные пути отсекаются всегда (и локально, и в плане по удалённому списку и индексу), правила пользователя — сверх них. */
     fun isExcluded(path: String): Boolean =
-        excludedGlobs.any { glob -> GlobMatcher.matches(glob, path) }
+        BUILTIN_EXCLUDES.any { GlobMatcher.matches(it, path) } || excludedGlobs.any { glob -> GlobMatcher.matches(glob, path) }
+
+    private companion object {
+        val BUILTIN_EXCLUDES = listOf(".git/**", "**/.git/**", "**/node_modules/**", "**/*.tmp", "**/*.crswap", "**/.mimir*")
+    }
 }
