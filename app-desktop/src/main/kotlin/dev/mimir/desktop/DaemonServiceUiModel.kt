@@ -1,5 +1,6 @@
 package dev.mimir.desktop
 
+import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncStatus
 import dev.mimir.daemon.ConflictFileEntry
 import dev.mimir.daemon.DaemonService
@@ -42,6 +43,7 @@ class DaemonServiceUiModel(
     private val _accountEmail = MutableStateFlow(service.accountEmail)
 
     override val status: StateFlow<SyncStatus> = service.status
+    override val progress: StateFlow<SyncProgress?> = service.progress
     override val vaultPath: StateFlow<String?> = _vaultPath
     override val isLocked: StateFlow<Boolean> = _isLocked
     override val lastSyncTime: StateFlow<Instant?> = _lastSyncTime

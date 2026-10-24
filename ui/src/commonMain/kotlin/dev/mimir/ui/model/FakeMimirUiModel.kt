@@ -1,5 +1,6 @@
 package dev.mimir.ui.model
 
+import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncStatus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -13,6 +14,7 @@ class FakeMimirUiModel(
     lastSyncTime: Instant? = null,
     accountEmail: String? = null,
     conflicts: List<UiConflictEntry> = emptyList(),
+    override val progress: MutableStateFlow<SyncProgress?> = MutableStateFlow(null),
     private val onTriggerSync: () -> Boolean = { true },
     private val onConfigureVault: (String) -> Unit = {},
     private val onUnlock: (String, Boolean) -> Unit = { _, _ -> },

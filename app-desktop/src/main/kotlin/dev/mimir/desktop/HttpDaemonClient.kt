@@ -1,5 +1,6 @@
 package dev.mimir.desktop
 
+import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncStatus
 import dev.mimir.daemon.BrowserLoginPoll
 import dev.mimir.daemon.ConflictFileEntry
@@ -8,6 +9,8 @@ import dev.mimir.daemon.DevicePoll
 import dev.mimir.daemon.InvalidPasswordException
 import dev.mimir.daemon.LoginMethod
 import dev.mimir.daemon.SyncNotConfiguredException
+import dev.mimir.daemon.SyncProgressDto
+import dev.mimir.daemon.toModel
 import dev.mimir.drive.api.GoogleDeviceCodeResponse
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -44,6 +47,7 @@ private data class StatusDto(
     val lastSyncAt: String? = null,
     val isLocked: Boolean = true,
     val accountEmail: String? = null,
+    val progress: SyncProgressDto? = null,
 )
 
 @Serializable
@@ -86,6 +90,7 @@ class HttpDaemonClient(
     pollInterval: Duration = 1.seconds,
 ) : DaemonService {
     private val _status = MutableStateFlow<SyncStatus>(SyncStatus.NotConfigured)
+    private val _progress = MutableStateFlow<SyncProgress?>(null)
     private val _conflicts = MutableStateFlow<List<ConflictFileEntry>>(emptyList())
 
     @Volatile
@@ -94,8 +99,7 @@ class HttpDaemonClient(
     override val status: StateFlow<SyncStatus> = _status
     override val conflictsFlow: StateFlow<List<ConflictFileEntry>> = _conflicts
 
-    // TODO(Task 11): заполнять из StatusDto.progress через SyncProgressDto.toModel()
-    override val progress: StateFlow<dev.mimir.core.SyncProgress?> = MutableStateFlow(null)
+    override val progress: StateFlow<SyncProgress?> = _progress
     override val vaultPath: String? get() = snapshot.vaultPath
     override val isLocked: Boolean get() = snapshot.isLocked
     override val lastSyncTime: Instant? get() = snapshot.lastSyncAt?.let { runCatching { Instant.parse(it) }.getOrNull() }
@@ -144,6 +148,7 @@ class HttpDaemonClient(
         try {
             val dto = get("/api/v1/status").body<StatusDto>()
             snapshot = dto
+            _progress.value = dto.progress?.let { runCatching { it.toModel() }.getOrNull() }
             _status.value = when (dto.status) {
                 "idle" -> SyncStatus.Idle
                 "syncing" -> SyncStatus.Syncing

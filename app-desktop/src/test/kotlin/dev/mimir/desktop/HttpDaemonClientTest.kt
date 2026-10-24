@@ -73,6 +73,20 @@ class HttpDaemonClientTest {
     }
 
     @Test
+    fun `parses progress from status`() = runBlocking {
+        replies["GET /api/v1/status"] = HttpStatusCode.OK to
+            """{"status":"syncing","label":"Mimir: syncing","isLocked":false,"progress":{"phase":"applying","startedAt":"2026-10-24T10:00:00Z","total":87,"done":12}}"""
+        replies["GET /api/v1/conflicts"] = HttpStatusCode.OK to """{"conflicts":[]}"""
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val client = client(scope)
+        withTimeout(5_000) { while (client.progress.value == null) delay(10) }
+        assertEquals(12, client.progress.value?.done)
+        replies["GET /api/v1/status"] = HttpStatusCode.OK to """{"status":"idle","label":"Mimir: idle","isLocked":false}"""
+        withTimeout(5_000) { while (client.progress.value != null) delay(10) }
+        scope.cancel()
+    }
+
+    @Test
     fun `an unreachable daemon keeps the last known state`() = runBlocking {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         val client = client(scope)

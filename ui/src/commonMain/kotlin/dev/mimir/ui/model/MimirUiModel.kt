@@ -1,5 +1,6 @@
 package dev.mimir.ui.model
 
+import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncStatus
 import kotlinx.coroutines.flow.StateFlow
 import kotlin.time.Instant
@@ -25,6 +26,7 @@ sealed interface UiBrowserPoll {
 /** Всё, что нужно интерфейсу от приложения; `ui` не знает, кто его реализует (демон в процессе, HTTP-клиент, заглушка). */
 interface MimirUiModel {
     val status: StateFlow<SyncStatus>
+    val progress: StateFlow<SyncProgress?>
     val vaultPath: StateFlow<String?>
     val isLocked: StateFlow<Boolean>
     val lastSyncTime: StateFlow<Instant?>
