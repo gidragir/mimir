@@ -13,14 +13,18 @@ import dev.mimir.drive.client.DriveHttpClient
 import dev.mimir.drive.client.DriveHttpException
 import dev.mimir.drive.path.DrivePathResolver
 import io.ktor.client.call.body
-import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
+import io.ktor.client.request.patch
+import io.ktor.client.request.setBody
+import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
+import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import kotlinx.io.Buffer
 import kotlinx.io.Source
+import kotlinx.serialization.Serializable
 import kotlin.time.Clock
 import kotlin.time.Instant
 
@@ -266,12 +270,15 @@ class GoogleDriveStorage(
         return uploader.upload(path, data)
     }
 
+    /** Файл переносится в корзину Drive, а не стирается: ошибочное удаление можно отменить в течение 30 дней. */
     override suspend fun delete(path: RemotePath) {
         val (client, pathResolver) = ensureConfigured()
         val file = pathResolver.resolvePath(path) ?: return
         val response = client.executeWithRetry { token ->
-            client.httpClient.delete("https://www.googleapis.com/drive/v3/files/${file.id}") {
+            client.httpClient.patch("https://www.googleapis.com/drive/v3/files/${file.id}") {
                 header(HttpHeaders.Authorization, "Bearer $token")
+                contentType(ContentType.Application.Json)
+                setBody(TrashRequest(trashed = true))
             }
         }
         if (!response.status.isSuccess() && response.status.value != 404) {
@@ -298,4 +305,7 @@ class GoogleDriveStorage(
             isDirectory = file.isDirectory,
         )
     }
+
+    @Serializable
+    private data class TrashRequest(val trashed: Boolean)
 }

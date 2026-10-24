@@ -15,13 +15,18 @@ import io.ktor.client.engine.mock.respond
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.content.OutgoingContent
 import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.test.runTest
 import kotlinx.io.readByteArray
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.boolean
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 
 class GoogleDriveStorageCrudTest {
@@ -80,8 +85,10 @@ class GoogleDriveStorageCrudTest {
     }
 
     @Test
-    fun testDeleteOperation() = runTest {
-        var deletedFileId: String? = null
+    fun testDeleteMovesFileToTrashInsteadOfPurging() = runTest {
+        var trashedFileId: String? = null
+        var trashBody: String? = null
+        var purged = false
         val mockEngine = MockEngine { request ->
             val jsonHeaders = headersOf(HttpHeaders.ContentType, "application/json")
             when {
@@ -105,8 +112,13 @@ class GoogleDriveStorageCrudTest {
                     """.trimIndent(), HttpStatusCode.OK, jsonHeaders)
                 }
                 request.url.encodedPath == "/drive/v3/files/file_del_1" && request.method.value == "DELETE" -> {
-                    deletedFileId = "file_del_1"
+                    purged = true
                     respond("", HttpStatusCode.NoContent)
+                }
+                request.url.encodedPath == "/drive/v3/files/file_del_1" && request.method.value == "PATCH" -> {
+                    trashedFileId = "file_del_1"
+                    trashBody = (request.body as OutgoingContent.ByteArrayContent).bytes().decodeToString()
+                    respond("""{"id":"file_del_1","trashed":true}""", HttpStatusCode.OK, jsonHeaders)
                 }
                 else -> respond("{}", HttpStatusCode.OK, jsonHeaders)
             }
@@ -122,7 +134,9 @@ class GoogleDriveStorageCrudTest {
         val driveStorage = GoogleDriveStorage(driveClient, resolver)
 
         driveStorage.delete(RemotePath("delete_me.txt"))
-        assertEquals("file_del_1", deletedFileId)
+        assertEquals("file_del_1", trashedFileId)
+        assertEquals(true, Json.parseToJsonElement(trashBody!!).jsonObject["trashed"]?.jsonPrimitive?.boolean)
+        assertFalse(purged)
     }
 
     @Test
