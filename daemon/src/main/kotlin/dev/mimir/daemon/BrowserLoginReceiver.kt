@@ -17,6 +17,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 
@@ -26,7 +27,8 @@ import kotlin.time.Duration.Companion.minutes
  */
 class BrowserLoginReceiver(private val timeout: Duration = 5.minutes) : AutoCloseable {
     private val result = CompletableDeferred<LoginCallback>()
-    private var server: EmbeddedServer<*, *>? = null
+    // Останавливается из двух потоков (finally в awaitCallback и close()): getAndSet гарантирует один stop().
+    private val server = AtomicReference<EmbeddedServer<*, *>?>(null)
 
     /** Ожидаемый `state`; задаётся до отдачи пользователю ссылки входа. */
     @Volatile
@@ -57,7 +59,7 @@ class BrowserLoginReceiver(private val timeout: Duration = 5.minutes) : AutoClos
             }
         }
         engine.start(wait = false)
-        server = engine
+        server.set(engine)
         port = kotlinx.coroutines.runBlocking { engine.engine.resolvedConnectors().first().port }
     }
 
@@ -73,8 +75,7 @@ class BrowserLoginReceiver(private val timeout: Duration = 5.minutes) : AutoClos
     }
 
     private fun stopServer(graceMillis: Long) {
-        val current = server ?: return
-        server = null
+        val current = server.getAndSet(null) ?: return
         current.stop(graceMillis, 1000)
     }
 

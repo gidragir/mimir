@@ -260,6 +260,19 @@ class BrowserLoginTest {
     }
 
     @Test
+    fun receiverStopsOnceFromConcurrentCloseAndAwait() = run {
+        val receiver = BrowserLoginReceiver(timeout = 100.milliseconds)
+        receiver.start()
+        val port = receiver.port
+        val closers = List(8) { Thread { receiver.close() } }
+        closers.forEach { it.start() }
+        assertNull(receiver.awaitCallback())
+        closers.forEach { it.join() }
+        receiver.close()
+        waitClosed(port)
+    }
+
+    @Test
     fun pollBeforeStartFails() = run {
         assertNotNull(runtime().pollBrowserLogin().let { it as? BrowserLoginPoll.Failed })
     }
