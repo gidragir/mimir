@@ -1,5 +1,7 @@
 package dev.mimir.core
 
+import dev.mimir.core.sync.ConflictResolver
+import dev.mimir.core.sync.DefaultConflictResolver
 import dev.mimir.core.sync.DefaultSyncEngine
 import dev.mimir.core.sync.InMemorySyncStateStore
 import dev.mimir.core.testing.InMemoryLocalVault
@@ -18,6 +20,8 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Clock
+import kotlin.time.Instant
 
 class SyncEngineProgressTest {
 
@@ -29,8 +33,9 @@ class SyncEngineProgressTest {
         val remote: InMemoryRemoteStorage = InMemoryRemoteStorage(),
         val store: InMemorySyncStateStore = InMemorySyncStateStore(),
         remoteStorage: RemoteStorage = remote,
+        conflictResolver: ConflictResolver = DefaultConflictResolver(),
     ) {
-        val engine = DefaultSyncEngine(vault, remoteStorage, store)
+        val engine = DefaultSyncEngine(vault, remoteStorage, store, conflictResolver)
     }
 
     @Test
@@ -229,6 +234,46 @@ class SyncEngineProgressTest {
         val p = assertNotNull(f.engine.progress.value)
         assertEquals(SyncPhase.Finished, p.phase)
         assertNotNull(p.finishedAt)
+    }
+
+    @Test
+    fun failedConflictCopyWriteDoesNotLoseLocalEdit() = runTest {
+        val now = Instant.parse("2026-10-24T12:00:00Z")
+        val fixedClock = object : Clock {
+            override fun now(): Instant = now
+        }
+        val f = Fixture(conflictResolver = DefaultConflictResolver(fixedClock))
+        f.vault.write("a.md", bufferOf("base"))
+        f.engine.syncNow()
+
+        f.vault.write("a.md", bufferOf("local edit"))
+        f.remote.write(RemotePath("a.md"), bufferOf("remote edit"))
+        val copyPath = ConflictResolver.generateConflictPath("a.md", now)
+        f.vault.failWriteFor += copyPath
+
+        f.engine.syncNow()
+
+        val local = assertNotNull(f.vault.getEntry("a.md"))
+        assertContentEqualsText("local edit", f.vault.read(local.id))
+        val problem = assertNotNull(f.engine.progress.value).problems.single()
+        assertEquals("a.md", problem.path)
+        assertEquals(SyncProblemKind.WriteFailed, problem.kind)
+
+        // следующий прогон не должен принять локальную правку за уже синхронизированную
+        f.engine.syncNow()
+
+        val again = assertNotNull(f.vault.getEntry("a.md"))
+        assertContentEqualsText("local edit", f.vault.read(again.id))
+        assertEquals(1, assertNotNull(f.engine.progress.value).problems.size)
+
+        f.vault.failWriteFor -= copyPath
+        f.engine.syncNow()
+
+        val copy = assertNotNull(f.vault.getEntry(copyPath))
+        assertContentEqualsText("local edit", f.vault.read(copy.id))
+        val main = assertNotNull(f.vault.getEntry("a.md"))
+        assertContentEqualsText("remote edit", f.vault.read(main.id))
+        assertTrue(assertNotNull(f.engine.progress.value).problems.isEmpty())
     }
 
     private fun assertContentEqualsText(expected: String, source: Source) =

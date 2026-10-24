@@ -218,11 +218,16 @@ class DefaultSyncEngine(
                 val remoteFresh = remoteStorage.read(action.remoteEntry.path)
                 val remoteBytes = remoteFresh.readByteArray()
                 val remoteHash = Sha256.digest(remoteBytes).toHex()
-                val mainLocalEntry = writeLocal(outcome.mainPath, remoteBytes)
 
+                // Сначала локальная копия конфликта, и только потом перезапись основного файла:
+                // если копию записать не удалось, локальная правка остаётся на месте
+                // (следующий прогон снова увидит конфликт). Упадёт запись основного файла —
+                // в худшем случае появится лишняя копия, но не потеря данных.
                 val conflictBytes = outcome.conflictSource.readByteArray()
                 val conflictHash = Sha256.digest(conflictBytes).toHex()
                 val conflictLocalEntry = writeLocal(outcome.conflictPath, conflictBytes)
+
+                val mainLocalEntry = writeLocal(outcome.mainPath, remoteBytes)
 
                 val conflictRemotePath = RemotePath(outcome.conflictPath)
                 val conflictRemoteEntry = remoteStorage.write(conflictRemotePath, Buffer().also { it.write(conflictBytes) })
