@@ -98,6 +98,7 @@ private fun runDesktop(config: DaemonConfig) = application {
 
     val folderPicker = remember { defaultFolderPicker() }
     val browserOpener = remember { SystemBrowserOpener() }
+    val compositorFocus = remember { CompositorFocus(title = BuildConfig.APP_NAME) }
 
     Window(
         // Без трея окно — единственный способ достучаться до приложения, поэтому закрытие завершает его.
@@ -117,6 +118,8 @@ private fun runDesktop(config: DaemonConfig) = application {
                     window.extendedState = java.awt.Frame.NORMAL
                     window.toFront()
                     window.requestFocus()
+                    // Wayland не пускает фокус от клиента: просим композитор (niri) сам.
+                    Thread { compositorFocus.focusWindow() }.apply { isDaemon = true }.start()
                 },
             ) { MimirApp(current) }
         } else {
