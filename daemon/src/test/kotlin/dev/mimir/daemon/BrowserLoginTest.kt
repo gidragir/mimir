@@ -37,6 +37,7 @@ class BrowserLoginTest {
     private val browser = HttpClient(CIO)
     private var runtime: DaemonRuntime? = null
     private var tokenFails = false
+    private var tokenError: Throwable? = null
     private val tokenRequests = mutableListOf<String>()
 
     @AfterTest
@@ -52,6 +53,7 @@ class BrowserLoginTest {
         val google = HttpClient(
             MockEngine { request ->
                 if (tokenFails) throw IOException("network down")
+                tokenError?.let { throw it }
                 val body = when {
                     request.url.encodedPath.endsWith("/token") -> {
                         tokenRequests += request.url.toString()
@@ -167,6 +169,40 @@ class BrowserLoginTest {
 
         assertEquals(BrowserLoginPoll.Failed("Не удалось связаться с Google"), awaitNotPending(runtime))
         assertNull(runtime.tokenStorage.load())
+    }
+
+    @Test
+    fun unresolvedHostFailsAsNetworkError() = run {
+        val runtime = runtime()
+        tokenError = java.nio.channels.UnresolvedAddressException()
+        val url = runtime.startBrowserLogin()
+
+        browser.get("http://127.0.0.1:${port(url)}/callback?code=c&state=${state(url)}")
+
+        assertEquals(BrowserLoginPoll.Failed("Не удалось связаться с Google"), awaitNotPending(runtime))
+    }
+
+    @Test
+    fun googleRejectionFailsAsRejected() = run {
+        val runtime = runtime()
+        tokenError = dev.mimir.drive.client.DriveAuthException(HttpStatusCode.BadRequest, "invalid_request")
+        val url = runtime.startBrowserLogin()
+
+        browser.get("http://127.0.0.1:${port(url)}/callback?code=c&state=${state(url)}")
+
+        assertEquals(BrowserLoginPoll.Failed("Google не принял вход"), awaitNotPending(runtime))
+    }
+
+    @Test
+    fun localSaveFailureIsNotReportedAsNetworkError() = run {
+        val runtime = runtime()
+        // account.json — непустой каталог: атомарная запись аккаунта падает с IOException после обмена кода.
+        Files.createDirectories(configDir.resolve("account.json").resolve("x"))
+        val url = runtime.startBrowserLogin()
+
+        browser.get("http://127.0.0.1:${port(url)}/callback?code=c&state=${state(url)}")
+
+        assertEquals(BrowserLoginPoll.Failed("Не удалось сохранить вход"), awaitNotPending(runtime))
     }
 
     @Test

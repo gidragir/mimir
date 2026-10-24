@@ -11,6 +11,7 @@ import dev.mimir.core.sync.DefaultSyncEngine
 import dev.mimir.drive.GoogleDriveStorage
 import dev.mimir.drive.api.GoogleDeviceCodeResponse
 import dev.mimir.drive.client.DriveAuthException
+import dev.mimir.drive.client.DriveHttpException
 import dev.mimir.drive.auth.GoogleAuthClient
 import dev.mimir.drive.auth.GoogleAuthClients
 import dev.mimir.drive.auth.LoginCallback
@@ -235,15 +236,27 @@ class DaemonRuntime(
                 null -> BrowserLoginPoll.Failed("Время ожидания истекло")
                 LoginCallback.Denied -> BrowserLoginPoll.Failed("Вход отменён")
                 is LoginCallback.Invalid -> BrowserLoginPoll.Failed("Вход не удался")
-                is LoginCallback.Code -> try {
-                    val tokens = client.exchangeAuthorizationCode(callback.code, request.verifier, request.redirectUri)
-                    BrowserLoginPoll.Authorized(completeLogin(tokens, client))
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: IOException) {
-                    BrowserLoginPoll.Failed("Не удалось связаться с Google")
-                } catch (e: Exception) {
-                    BrowserLoginPoll.Failed("Google не принял вход")
+                is LoginCallback.Code -> {
+                    val tokens = try {
+                        client.exchangeAuthorizationCode(callback.code, request.verifier, request.redirectUri)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: DriveHttpException) {
+                        logger.warning("Google rejected the authorization code: ${e.javaClass.simpleName}, HTTP ${e.statusCode}")
+                        null.also { state.value = BrowserLoginPoll.Failed("Google не принял вход") }
+                    } catch (e: Exception) {
+                        logger.warning("Token exchange failed: ${e.javaClass.name}")
+                        null.also { state.value = BrowserLoginPoll.Failed("Не удалось связаться с Google") }
+                    }
+                    if (tokens == null) return@launch
+                    try {
+                        BrowserLoginPoll.Authorized(completeLogin(tokens, client))
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        logger.warning("Saving sign-in failed: ${e.javaClass.name}")
+                        BrowserLoginPoll.Failed("Не удалось сохранить вход")
+                    }
                 }
             }
         }
