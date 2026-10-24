@@ -184,6 +184,25 @@ class SyncEngineIoBudgetTest {
         assertEquals(0, f.remote.writeCalls)
     }
 
+    @Test
+    fun reconcileWithoutBaseAndDifferentContentIsConflictNeverUpload() = runTest {
+        val f = Fixture()
+        f.vault.write("both.md", bufferOf("local version"))
+        f.inner.write(RemotePath("both.md"), bufferOf("remote version"))
+
+        f.engine.syncNow()
+
+        assertEquals("remote version", f.vault.text("both.md"))
+        assertEquals("remote version", f.inner.read(RemotePath("both.md")).readByteArray().decodeToString())
+        val copy = f.vault.list().single { it.relativePath.startsWith("both (conflicted copy") }
+        assertEquals("local version", f.vault.text(copy.relativePath))
+        assertEquals("local version", f.inner.read(RemotePath(copy.relativePath)).readByteArray().decodeToString())
+        assertEquals(2, f.remote.readCalls)
+        assertEquals(1, f.remote.writeCalls)
+        val p = assertNotNull(f.engine.progress.value)
+        assertEquals(listOf(SyncItemAction.Conflict), p.completed.map { it.action })
+    }
+
     private companion object {
         const val N = 50
         const val K = 3

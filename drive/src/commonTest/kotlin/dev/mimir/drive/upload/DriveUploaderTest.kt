@@ -200,6 +200,41 @@ class DriveUploaderTest {
     /** Запись PUT-запроса к resumable-сессии: заголовок Content-Range и копия тела. */
     private class SessionPut(val contentRange: String, val body: ByteArray)
 
+    @Test
+    fun uploadRequestsAskForMd5ChecksumInFields() = runTest {
+        val h = harness(threshold = 1024, chunk = 256 * 1024) { put -> ackOrFinish(put) }
+
+        h.uploader.upload(RemotePath("small.md"), Buffer().also { it.write(sourceBytes(10)) })
+        h.uploader.upload(RemotePath("large.bin"), Buffer().also { it.write(sourceBytes(4096)) })
+
+        val multipartFields = io.ktor.http.Url(h.multipartRequests.single()).parameters["fields"].orEmpty()
+        assertTrue("md5Checksum" in multipartFields.split(','), "multipart fields: '$multipartFields'")
+        val initFields = h.resumableInits.single().url.parameters["fields"].orEmpty()
+        assertTrue("md5Checksum" in initFields.split(','), "resumable init fields: '$initFields'")
+    }
+
+    @Test
+    fun uploadWithoutMd5ReportsNoRevisionInsteadOfFileId() = runTest {
+        val engine = MockEngine { request ->
+            val jsonHeaders = headersOf(HttpHeaders.ContentType, "application/json")
+            when {
+                request.url.parameters["q"]?.contains("'root' in parents") == true ->
+                    respond("""{"files":[{"id":"mimir_root","name":"Mimir","mimeType":"application/vnd.google-apps.folder"}]}""", HttpStatusCode.OK, jsonHeaders)
+                request.url.parameters["uploadType"] == "multipart" ->
+                    respond("""{"id":"file_id","name":"f","mimeType":"application/octet-stream"}""", HttpStatusCode.OK, jsonHeaders)
+                else -> respond("""{"files":[]}""", HttpStatusCode.OK, jsonHeaders)
+            }
+        }
+        val http = HttpClient(engine) { install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
+        val authClient = GoogleAuthClient(http, GoogleClientCredentials(GoogleClientKind.Device, "client-id", null))
+        val driveClient = DriveHttpClient(http, InMemoryTokenStorage(OAuthTokens("access", "refresh", 2000000000L)), GoogleAuthClients(null, authClient))
+        val uploader = DriveUploader(driveClient, DrivePathResolver(driveClient, "Mimir"))
+
+        val entry = uploader.upload(RemotePath("f"), Buffer().also { it.write(sourceBytes(3)) })
+
+        assertNull(entry.revision)
+    }
+
     private class Harness(
         val uploader: DriveUploader,
         val multipartRequests: List<String>,

@@ -86,7 +86,9 @@ class DriveUploader(
             path = path,
             size = uploadedFile.size ?: sentBytes,
             modifiedAt = instant,
-            revision = uploadedFile.md5Checksum ?: uploadedFile.id,
+            // Ревизия — только md5, как в листинге (`listAll`); id файла не меняется при записи и дал бы
+            // расхождение с листингом, то есть ложное «удалённый изменён» на следующем прогоне.
+            revision = uploadedFile.md5Checksum,
             isDirectory = false,
         )
     }
@@ -105,9 +107,9 @@ class DriveUploader(
         val metadataJson = json.encodeToString(metadata)
 
         val url = if (existingFile != null) {
-            "https://www.googleapis.com/upload/drive/v3/files/${existingFile.id}?uploadType=multipart"
+            "https://www.googleapis.com/upload/drive/v3/files/${existingFile.id}?uploadType=multipart&fields=$UPLOADED_FILE_FIELDS"
         } else {
-            "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart"
+            "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=$UPLOADED_FILE_FIELDS"
         }
 
         val parts = formData {
@@ -151,9 +153,9 @@ class DriveUploader(
         val metadataJson = json.encodeToString(metadata)
 
         val initUrl = if (existingFile != null) {
-            "https://www.googleapis.com/upload/drive/v3/files/${existingFile.id}?uploadType=resumable"
+            "https://www.googleapis.com/upload/drive/v3/files/${existingFile.id}?uploadType=resumable&fields=$UPLOADED_FILE_FIELDS"
         } else {
-            "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable"
+            "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=$UPLOADED_FILE_FIELDS"
         }
 
         val initResponse = client.executeWithRetry { token ->
@@ -315,6 +317,12 @@ class DriveUploader(
     }
 
     private companion object {
+        /**
+         * Поля файла в ответе на отправку — те же, что даёт листинг. Без `fields` Drive v3 возвращает только
+         * kind, id, name и mimeType; для resumable поля из запроса открытия сессии действуют и на итоговый ответ.
+         */
+        const val UPLOADED_FILE_FIELDS = "id,name,mimeType,size,modifiedTime,md5Checksum"
+
         /** Подряд идущие сбои одного блока, после которых загрузка прекращается. */
         const val MAX_CHUNK_RECOVERIES = 5
     }

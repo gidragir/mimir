@@ -270,6 +270,33 @@ class SyncPlanBuilderTest {
         assertTrue(spy.calls.isEmpty())
     }
 
+    // та же ревизия, но другой размер — удалённый изменён
+    @Test
+    fun sameRevisionWithDifferentSizeIsRemoteChange() = runTest {
+        val spy = LocalHashSpy()
+        val plan = plan(
+            listOf(local("note.md")),
+            listOf(remote("note.md", size = 101L)),
+            SyncIndex().withRecord(base("note.md")),
+            spy,
+        )
+
+        assertIs<SyncAction.Download>(plan.actions.single())
+        assertTrue(spy.calls.isEmpty())
+    }
+
+    // L нет, та же ревизия, сменился только mtime удалённого → R не изменён → DeleteRemote
+    @Test
+    fun localDeletedRemoteMtimeOnlyChangedDeletesRemote() = runTest {
+        val plan = plan(
+            emptyList(),
+            listOf(remote("note.md", mtime = t1)),
+            SyncIndex().withRecord(base("note.md")),
+        )
+
+        assertIs<SyncAction.DeleteRemote>(plan.actions.single())
+    }
+
     // L нет, R не изменён → DeleteRemote
     @Test
     fun localDeletedRemoteUnchangedDeletesRemote() = runTest {
