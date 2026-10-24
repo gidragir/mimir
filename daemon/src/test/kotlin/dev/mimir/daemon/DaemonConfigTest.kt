@@ -164,6 +164,38 @@ class DaemonConfigTest {
     }
 
     @Test
+    fun `empty Google client env variables are treated as absent`() {
+        val dir = createTempDirectory("mimir-config")
+        dir.resolve("config.json").writeText(
+            """{"googleDesktopClientId":"fileD","googleDesktopClientSecret":"fileDSec",
+               "googleDeviceClientId":"fileV","googleDeviceClientSecret":"fileVSec"}""",
+        )
+        val config = DaemonConfig.load(
+            dir.toString(),
+            mapOf(
+                "MIMIR_GOOGLE_DESKTOP_CLIENT_ID" to "",
+                "MIMIR_GOOGLE_DESKTOP_CLIENT_SECRET" to "",
+                "MIMIR_GOOGLE_DEVICE_CLIENT_ID" to "",
+                "MIMIR_GOOGLE_DEVICE_CLIENT_SECRET" to "",
+            ),
+        )
+        assertEquals("fileD", config.googleDesktopClientId)
+        assertEquals("fileDSec", config.googleDesktopClientSecret)
+        assertEquals("fileV", config.googleDeviceClientId)
+        assertEquals("fileVSec", config.googleDeviceClientSecret)
+
+        val legacy = DaemonConfig.fromEnv(
+            mapOf(
+                "MIMIR_GOOGLE_CLIENT_ID" to "old",
+                "MIMIR_GOOGLE_DEVICE_CLIENT_ID" to "",
+                "MIMIR_GOOGLE_CLIENT_SECRET" to "",
+            ),
+        )
+        assertEquals("old", legacy.googleDeviceClientId)
+        assertNull(legacy.googleDeviceClientSecret)
+    }
+
+    @Test
     fun `legacy config json keys are device alias`() {
         val dir = createTempDirectory("mimir-config")
         dir.resolve("config.json").writeText("""{"googleClientId":"old","googleClientSecret":"oldSec"}""")

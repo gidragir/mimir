@@ -115,10 +115,10 @@ private fun DaemonConfig.applyEnv(env: Map<String, String>): DaemonConfig {
         token = env["MIMIR_TOKEN"] ?: token,
         password = env["MIMIR_PASSWORD"] ?: password,
         passwordFile = env["MIMIR_PASSWORD_FILE"] ?: passwordFile,
-        googleDesktopClientId = env["MIMIR_GOOGLE_DESKTOP_CLIENT_ID"] ?: googleDesktopClientId,
-        googleDesktopClientSecret = env["MIMIR_GOOGLE_DESKTOP_CLIENT_SECRET"] ?: googleDesktopClientSecret,
-        googleDeviceClientId = env["MIMIR_GOOGLE_DEVICE_CLIENT_ID"] ?: legacyId ?: googleDeviceClientId,
-        googleDeviceClientSecret = env["MIMIR_GOOGLE_DEVICE_CLIENT_SECRET"] ?: legacySecret ?: googleDeviceClientSecret,
+        googleDesktopClientId = env.nonEmpty("MIMIR_GOOGLE_DESKTOP_CLIENT_ID") ?: googleDesktopClientId,
+        googleDesktopClientSecret = env.nonEmpty("MIMIR_GOOGLE_DESKTOP_CLIENT_SECRET") ?: googleDesktopClientSecret,
+        googleDeviceClientId = env.nonEmpty("MIMIR_GOOGLE_DEVICE_CLIENT_ID") ?: legacyId ?: googleDeviceClientId,
+        googleDeviceClientSecret = env.nonEmpty("MIMIR_GOOGLE_DEVICE_CLIENT_SECRET") ?: legacySecret ?: googleDeviceClientSecret,
         syncIntervalSeconds = interval,
         rootFolder = env["MIMIR_ROOT_FOLDER"] ?: rootFolder,
     )
@@ -128,8 +128,11 @@ private val configLogger = java.util.logging.Logger.getLogger(DaemonConfig::clas
 
 /** Значение устаревшей переменной; предупреждает, только если новая переменная не задана. */
 private fun deprecatedEnv(env: Map<String, String>, old: String, new: String): String? {
-    val value = env[old] ?: return null
-    if (new in env) return null
+    val value = env.nonEmpty(old) ?: return null
+    if (env.nonEmpty(new) != null) return null
     configLogger.warning("$old is deprecated, use $new")
     return value
 }
+
+/** Пустая строка в переменной окружения (например, из mise.local.toml.example) равна отсутствию значения. */
+private fun Map<String, String>.nonEmpty(name: String): String? = this[name]?.takeIf { it.isNotEmpty() }
