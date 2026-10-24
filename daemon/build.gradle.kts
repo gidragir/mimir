@@ -21,6 +21,14 @@ application {
     mainClass = "dev.mimir.daemon.MainKt"
 }
 
+tasks.withType<JavaExec>().configureEach {
+    if (name == "run") {
+        val mimirEnv = providers.environmentVariablesPrefixedBy("MIMIR_").get()
+        environment.keys.removeIf { it.startsWith("MIMIR_") }
+        environment(mimirEnv)
+    }
+}
+
 dependencies {
     implementation(project(":core"))
     implementation(project(":drive"))
