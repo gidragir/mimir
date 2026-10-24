@@ -10,6 +10,7 @@ import dev.mimir.ui.model.UiConflictEntry
 import dev.mimir.ui.model.UiDeviceCode
 import dev.mimir.ui.model.UiBrowserPoll
 import dev.mimir.ui.model.UiDevicePoll
+import dev.mimir.ui.model.UiVaultInspection
 import dev.mimir.ui.model.UiLoginMethod
 import dev.mimir.daemon.BrowserLoginPoll
 import dev.mimir.daemon.LoginMethod
@@ -71,10 +72,14 @@ class DaemonServiceUiModel(
 
     override suspend fun triggerSync(): Boolean = service.triggerSync().also { refresh() }
 
-    override suspend fun configureVault(path: String) {
-        service.configureVault(path)
+    override suspend fun configureVault(path: String): Int {
+        val count = service.configureVault(path)
         refresh()
+        return count
     }
+
+    override suspend fun inspectVault(): UiVaultInspection =
+        service.inspectVault().let { UiVaultInspection(it.localFileCount, it.remoteFileCount, it.requiresStrategyConfirmation) }
 
     override suspend fun unlock(password: String, rememberOnDevice: Boolean) {
         service.unlock(password)

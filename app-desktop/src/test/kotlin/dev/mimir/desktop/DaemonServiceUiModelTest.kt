@@ -44,12 +44,25 @@ class DaemonServiceUiModelTest {
         }
         override suspend fun startDeviceLogin() = GoogleDeviceCodeResponse("dcode", "ucode", "url", 1800, 5)
         override suspend fun pollDeviceLogin(deviceCode: String) = poll
-        override suspend fun configureVault(vaultPath: String) { this.vaultPath = vaultPath }
+        var fileCount = 0
+        var inspection = dev.mimir.daemon.VaultInspectionDto(0, 0, false)
+        override suspend fun configureVault(vaultPath: String): Int { this.vaultPath = vaultPath; return fileCount }
+        override suspend fun inspectVault() = inspection
         var browserPoll: dev.mimir.daemon.BrowserLoginPoll = dev.mimir.daemon.BrowserLoginPoll.Pending
         var methods: Set<LoginMethod> = emptySet()
         override suspend fun startBrowserLogin(): String = "https://auth.example/login"
         override suspend fun pollBrowserLogin(): dev.mimir.daemon.BrowserLoginPoll = browserPoll
         override suspend fun loginMethods(): Set<LoginMethod> = methods
+    }
+
+    @Test
+    fun `maps vault file count and inspection to ui types`() = runTest {
+        val service = FakeDaemonService()
+        val adapter = DaemonServiceUiModel(service, backgroundScope)
+        service.fileCount = 7
+        service.inspection = dev.mimir.daemon.VaultInspectionDto(7, 9, true)
+        assertEquals(7, adapter.configureVault("/vault"))
+        assertEquals(dev.mimir.ui.model.UiVaultInspection(7, 9, true), adapter.inspectVault())
     }
 
     @Test

@@ -22,7 +22,8 @@ class EngineMimirUiModel(private val engine: SyncEngine) : MimirUiModel {
         return true
     }
 
-    override suspend fun configureVault(path: String) = unsupported()
+    override suspend fun configureVault(path: String): Int = unsupported()
+    override suspend fun inspectVault(): UiVaultInspection = unsupported()
     override suspend fun unlock(password: String, rememberOnDevice: Boolean) = unsupported()
     override suspend fun resolveConflict(originalPath: String, conflictPath: String, keepConflict: Boolean) = unsupported()
     override suspend fun startDeviceLogin(): UiDeviceCode = unsupported()
