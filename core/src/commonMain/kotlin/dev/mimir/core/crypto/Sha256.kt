@@ -14,19 +14,67 @@ object Sha256 {
 
     private fun UInt.ror(n: Int) = (this shr n) or (this shl (32 - n))
 
-    fun digest(data: ByteArray): ByteArray {
-        val h = uintArrayOf(
+    fun digest(data: ByteArray): ByteArray = Hasher().also { it.update(data) }.digest()
+
+    /** Incremental SHA-256: feed bytes with [update], finish once with [digest] / [digestHex]. */
+    class Hasher {
+        private val h = uintArrayOf(
             0x6a09e667u, 0xbb67ae85u, 0x3c6ef372u, 0xa54ff53au, 0x510e527fu, 0x9b05688cu, 0x1f83d9abu, 0x5be0cd19u,
         )
-        val padded = ((data.size + 9 + 63) / 64) * 64
-        val msg = ByteArray(padded)
-        data.copyInto(msg)
-        msg[data.size] = 0x80.toByte()
-        val bits = data.size.toLong() * 8
-        for (i in 0 until 8) msg[padded - 1 - i] = (bits ushr (8 * i)).toByte()
+        private val block = ByteArray(64)
+        private val w = UIntArray(64)
+        private var blockLength = 0
+        private var totalLength = 0L
+        private var finished = false
 
-        val w = UIntArray(64)
-        for (off in 0 until padded step 64) {
+        fun update(bytes: ByteArray, offset: Int = 0, length: Int = bytes.size - offset) {
+            check(!finished) { "SHA-256 digest already computed" }
+            require(offset >= 0 && length >= 0 && offset <= bytes.size - length) {
+                "offset=$offset length=$length size=${bytes.size}"
+            }
+            totalLength += length
+            var pos = offset
+            var remaining = length
+            if (blockLength > 0) {
+                val n = minOf(remaining, 64 - blockLength)
+                bytes.copyInto(block, blockLength, pos, pos + n)
+                blockLength += n
+                pos += n
+                remaining -= n
+                if (blockLength < 64) return
+                compress(block, 0)
+                blockLength = 0
+            }
+            while (remaining >= 64) {
+                compress(bytes, pos)
+                pos += 64
+                remaining -= 64
+            }
+            if (remaining > 0) {
+                bytes.copyInto(block, 0, pos, pos + remaining)
+                blockLength = remaining
+            }
+        }
+
+        fun digest(): ByteArray {
+            check(!finished) { "SHA-256 digest already computed" }
+            finished = true
+            val bits = totalLength * 8
+            block[blockLength++] = 0x80.toByte()
+            if (blockLength > 56) {
+                block.fill(0, blockLength, 64)
+                compress(block, 0)
+                blockLength = 0
+            }
+            block.fill(0, blockLength, 64)
+            for (i in 0 until 8) block[63 - i] = (bits ushr (8 * i)).toByte()
+            compress(block, 0)
+            return ByteArray(32) { (h[it / 4] shr (24 - 8 * (it % 4))).toByte() }
+        }
+
+        fun digestHex(): String = digest().toHex()
+
+        private fun compress(msg: ByteArray, off: Int) {
             for (i in 0 until 16) {
                 val j = off + i * 4
                 w[i] = ((msg[j].toUInt() and 0xFFu) shl 24) or ((msg[j + 1].toUInt() and 0xFFu) shl 16) or
@@ -50,6 +98,7 @@ object Sha256 {
             }
             h[0] += a; h[1] += b; h[2] += c; h[3] += d; h[4] += e; h[5] += f; h[6] += g; h[7] += hh
         }
-        return ByteArray(32) { (h[it / 4] shr (24 - 8 * (it % 4))).toByte() }
     }
 }
+
+fun ByteArray.toHex(): String = joinToString("") { (it.toInt() and 0xFF).toString(16).padStart(2, '0') }
