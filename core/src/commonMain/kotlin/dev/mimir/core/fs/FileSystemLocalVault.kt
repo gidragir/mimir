@@ -5,7 +5,6 @@ import dev.mimir.core.LocalVault
 import dev.mimir.core.VaultChange
 import dev.mimir.core.VaultFileId
 import dev.mimir.core.randomNonce
-import dev.mimir.core.rules.GlobMatcher
 import dev.mimir.core.rules.SyncRules
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
@@ -17,9 +16,11 @@ import kotlin.time.Instant
 
 class FileSystemLocalVault(
     val rootPath: Path,
-    private val rules: SyncRules = SyncRules(),
+    rules: SyncRules = SyncRules(),
     private val watcher: VaultWatcher? = null,
 ) : LocalVault {
+    private val filter = VaultPathFilter(rules)
+
 
     override suspend fun list(): List<LocalEntry> {
         val result = ArrayList<LocalEntry>()
@@ -94,18 +95,17 @@ class FileSystemLocalVault(
     }
 
     private fun entryOf(relativePath: String, size: Long) = LocalEntry(
-        id = VaultFileId(ID_PREFIX + relativePath),
+        id = VaultFileId(VAULT_ID_PREFIX + relativePath),
         relativePath = relativePath,
         size = size,
         modifiedAt = Instant.fromEpochMilliseconds(lastModifiedMillis(absolute(relativePath))),
     )
 
-    private fun isExcluded(relativePath: String): Boolean =
-        BUILTIN_EXCLUDES.any { GlobMatcher.matches(it, relativePath) } || rules.isExcluded(relativePath)
+    private fun isExcluded(relativePath: String): Boolean = filter.isExcluded(relativePath)
 
     private fun absolute(relativePath: String): Path = Path(rootPath, *relativePath.split('/').toTypedArray())
 
-    private fun pathOf(id: VaultFileId): String = id.value.removePrefix(ID_PREFIX)
+    private fun pathOf(id: VaultFileId): String = id.value.removePrefix(VAULT_ID_PREFIX)
 
     private fun normalize(relativePath: String): String {
         val segments = relativePath.replace('\\', '/').split('/').filter { it.isNotEmpty() && it != "." }
@@ -116,8 +116,6 @@ class FileSystemLocalVault(
     private fun ByteArray.toHex(): String = joinToString("") { (it.toInt() and 0xFF).toString(16).padStart(2, '0') }
 
     private companion object {
-        const val ID_PREFIX = "fs:"
         const val TEMP_PREFIX = ".mimir_tmp_"
-        val BUILTIN_EXCLUDES = listOf(".git/**", "**/*.tmp", "**/*.crswap", "**/.mimir*")
     }
 }
