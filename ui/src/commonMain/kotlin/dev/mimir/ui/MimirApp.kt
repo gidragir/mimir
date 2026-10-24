@@ -13,11 +13,12 @@ import dev.mimir.core.SyncEngine
 import dev.mimir.ui.model.EngineMimirUiModel
 import dev.mimir.ui.model.FakeMimirUiModel
 import dev.mimir.ui.model.MimirUiModel
+import dev.mimir.ui.screens.ConflictsScreen
 import dev.mimir.ui.screens.SetupWizardScreen
 import dev.mimir.ui.screens.StatusScreen
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
-private enum class Screen { Status, Setup }
+private enum class Screen { Status, Setup, Conflicts }
 
 @Composable
 fun MimirApp(model: MimirUiModel) {
@@ -25,8 +26,9 @@ fun MimirApp(model: MimirUiModel) {
         Surface(Modifier.fillMaxSize()) {
             var screen by remember { mutableStateOf(Screen.Status) }
             when (screen) {
-                Screen.Status -> StatusScreen(model, onOpenSetup = { screen = Screen.Setup })
+                Screen.Status -> StatusScreen(model, onOpenConflicts = { screen = Screen.Conflicts }, onOpenSetup = { screen = Screen.Setup })
                 Screen.Setup -> SetupWizardScreen(model, onComplete = { screen = Screen.Status })
+                Screen.Conflicts -> ConflictsScreen(model, onBack = { screen = Screen.Status })
             }
         }
     }
