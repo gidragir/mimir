@@ -34,6 +34,7 @@ Mimir — клиент синхронизации Obsidian-хранилища с
 - **Google OAuth-клиенты**: две пары — `MIMIR_GOOGLE_DESKTOP_CLIENT_ID/SECRET` (вход через браузер) и `MIMIR_GOOGLE_DEVICE_CLIENT_ID/SECRET` (Device Code); старые `MIMIR_GOOGLE_CLIENT_*` — алиас Device-пары. Вшитые значения (`MIMIR_BUILD_GOOGLE_*`) живут только в BuildConfig `daemon` (не в `core`: он попадает в JS-бандлы), в Docker-образ не вшиваются — Docker-демон настраивается переменными окружения.
 - **Linux-лаунчеры** (`run` в `app-desktop/build.gradle.kts`, `packaging/arch/mimir.sh`) выставляют `_JAVA_AWT_WM_NONREPARENTING=1` — иначе под niri окно рисуется только в левом верхнем углу.
 - `SyncStatus` включает `Offline` (нет сети); прогресс — `SyncEngine.progress`. Ошибка одного файла не прерывает синхронизацию: она попадает в проблемы и повторяется в следующем прогоне.
+- Защита от удаления: при пустом удалённом списке и непустом индексе движок прерывает прогон (`SyncAbortedException`), ничего не трогая; каждый `DeleteLocal` перед выполнением перепроверяется через `stat` (файл найден или проверка не удалась — локальный файл не удаляется). `GoogleDriveStorage.listAll` сбрасывает кэши путей, чтобы `stat` не был устаревшим.
 - Строка статуса до подключения — ровно `Mimir: not connected` (`SyncStatus.label()`).
 - Локальный HTTP API: `127.0.0.1:47821`, адрес/порт настраиваются; занятый порт → сообщение `Port <port> on <bind> is already in use`, код 2, без стектрейса.
 - Часы — `kotlin.time.Clock`; отдельного порта `Clock` нет.

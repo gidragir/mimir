@@ -17,6 +17,7 @@ import dev.mimir.core.SyncPhase
 import dev.mimir.core.SyncProblem
 import dev.mimir.core.SyncProblemKind
 import dev.mimir.core.SyncProgress
+import dev.mimir.core.SyncAbortedException
 import dev.mimir.core.SyncStatus
 import dev.mimir.core.VaultFileId
 import dev.mimir.core.rules.SyncRules
@@ -91,6 +92,13 @@ class DefaultSyncEngine(
             _progress.update { it?.copy(foldersScanned = folders, scanned = localFiles.size + files) }
         }
 
+        // Пустой удалённый список при непустом индексе почти наверняка означает сбой
+        // (отстающий поиск Drive, пустой дубль папки хранилища, чужой аккаунт), а не то,
+        // что пользователь удалил всё. Иначе план превратил бы это в удаление всех локальных файлов.
+        if (remoteFiles.isEmpty() && currentIndex.records.isNotEmpty()) {
+            throw SyncAbortedException(EMPTY_REMOTE_MESSAGE)
+        }
+
         val hashCalculator: suspend (String, Boolean) -> String = { path, isLocal ->
             if (isLocal) {
                 val entry = localVault.getEntry(path)
@@ -132,8 +140,15 @@ class DefaultSyncEngine(
             _progress.update { it?.copy(current = item, upcoming = upcoming.toList()) }
 
             val succeeded = try {
-                currentIndex = apply(action, currentIndex)
-                true
+                if (action is SyncAction.DeleteLocal && remoteStillExists(action, currentIndex)) {
+                    // Список удалённых файлов отстал: файл на месте. Локальный файл и запись индекса
+                    // не трогаем — следующий прогон проверит снова. Для прогресса это «обработано»
+                    // (done растёт), но не «выполнено» (в completed не попадает) и не проблема.
+                    false
+                } else {
+                    currentIndex = apply(action, currentIndex)
+                    true
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: RemoteUnavailableException) {
@@ -159,6 +174,26 @@ class DefaultSyncEngine(
                     problems = problems.toList(),
                 )
             }
+        }
+    }
+
+    /**
+     * Перед удалением локального файла заново спрашивает удалённое хранилище ([RemoteStorage.stat]).
+     * Сетевые/авторизационные ошибки прерывают прогон; любая другая ошибка проверки —
+     * [DeleteVerificationFailure] (файл не удаляется, пользователь видит проблему).
+     */
+    private suspend fun remoteStillExists(action: SyncAction.DeleteLocal, index: SyncIndex): Boolean {
+        val remotePath = index.find(action.path)?.remotePath ?: RemotePath(action.path)
+        return try {
+            remoteStorage.stat(remotePath) != null
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: RemoteUnavailableException) {
+            throw e
+        } catch (e: RemoteAuthException) {
+            throw e
+        } catch (e: Exception) {
+            throw DeleteVerificationFailure(e)
         }
     }
 
@@ -292,11 +327,15 @@ class DefaultSyncEngine(
             throw LocalIoFailure(kind, e)
         }
 
+    private class DeleteVerificationFailure(override val cause: Exception) :
+        Exception("Не удалось проверить удалённый файл перед удалением: ${cause.message ?: cause::class.simpleName}", cause)
+
     private class LocalIoFailure(val kind: SyncProblemKind, override val cause: Exception) : Exception(cause.message, cause)
 
     private fun problemOf(path: String, action: SyncItemAction, error: Throwable): SyncProblem {
         val (kind, origin) = when (error) {
             is LocalIoFailure -> error.kind to error.cause
+            is DeleteVerificationFailure -> SyncProblemKind.Unknown to error
             is CryptException -> SyncProblemKind.DecryptFailed to error
             else -> SyncProblemKind.Unknown to error
         }
@@ -323,4 +362,10 @@ class DefaultSyncEngine(
 
     private fun ByteArray.toHex(): String =
         joinToString("") { (it.toInt() and 0xFF).toString(16).padStart(2, '0') }
+
+    private companion object {
+        const val EMPTY_REMOTE_MESSAGE =
+            "Список файлов в Google Drive пуст, хотя раньше там были файлы. Синхронизация остановлена, " +
+                "чтобы не удалить ваши файлы на этом компьютере. Проверьте папку в Google Drive и аккаунт."
+    }
 }
