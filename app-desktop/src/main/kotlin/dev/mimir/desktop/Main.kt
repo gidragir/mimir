@@ -17,7 +17,7 @@ import dev.mimir.core.BuildConfig
 import dev.mimir.daemon.DaemonConfig
 import dev.mimir.desktop.tray.createTray
 import dev.mimir.desktop.tray.trayLabel
-import dev.mimir.desktop.picker.AwtFolderPicker
+import dev.mimir.desktop.picker.defaultFolderPicker
 import dev.mimir.ui.MimirApp
 import dev.mimir.ui.picker.LocalFolderPicker
 import dev.mimir.ui.model.MimirUiModel
@@ -94,7 +94,7 @@ private fun runDesktop(config: DaemonConfig) = application {
         }
     }
 
-    val folderPicker = remember { AwtFolderPicker() }
+    val folderPicker = remember { defaultFolderPicker() }
 
     Window(
         // Без трея окно — единственный способ достучаться до приложения, поэтому закрытие завершает его.
