@@ -152,6 +152,44 @@ class GoogleDriveStorageListAllTest {
     }
 
     @Test
+    fun fileGoneFromNewListingIsNotAStaleCacheHitForStat() = runTest {
+        val items = tree.toMutableList()
+        val (drive, rec) = storage(items)
+        drive.listAll()
+        assertNotNull(drive.stat(RemotePath("top.md")))
+
+        // между прогонами top.md удалили в Drive: свежий список его уже не содержит
+        items.removeAll { it.id == "top" }
+        drive.listAll()
+        val before = rec.requests.size
+
+        assertEquals(null, drive.stat(RemotePath("top.md")), "stat must not return a stale cached entry")
+        val live = rec.requests.drop(before).map { it.url.parameters["q"] }
+        assertTrue(
+            live.any { it != null && it.contains("'mimir_root' in parents") && it.contains("name = 'top.md'") },
+            "stat must fall through to a live lookup: $live",
+        )
+
+        // а то, что есть в свежем списке, по-прежнему берётся из кэша без запросов
+        val afterMiss = rec.requests.size
+        assertNotNull(drive.stat(RemotePath("a/b/deep.md")))
+        assertNotNull(drive.stat(RemotePath("a/x.md")))
+        assertEquals(afterMiss, rec.requests.size, "listed paths must still hit the caches")
+    }
+
+    @Test
+    fun folderGoneFromNewListingIsNotAStaleCacheHitForStat() = runTest {
+        val items = tree.toMutableList()
+        val (drive, _) = storage(items)
+        drive.listAll()
+
+        items.removeAll { it.id in setOf("fB", "deep") }
+        drive.listAll()
+
+        assertEquals(null, drive.stat(RemotePath("a/b/deep.md")))
+    }
+
+    @Test
     fun requestsExactlyCeilOfNOver1000Pages() = runTest {
         val many = buildList {
             add(folder("mimir_root", "Mimir", "my_drive"))

@@ -165,6 +165,10 @@ class GoogleDriveStorage(
             if (!folder.isDirectory) return emptyList()
             folder.id
         }
+        // Кэши заполняются заново из этого обхода (registerPath ниже). Пропавшее из списка
+        // больше не отдаётся из кэша: stat пойдёт живым запросом. Чистим всё, не только поддерево, —
+        // это проще и всегда корректно (лишь дороже для путей вне [root]).
+        pathResolver.resetPathCaches()
 
         // parentId -> (name -> выбранный кандидат); порядок первых появлений сохраняется
         val children = HashMap<String, LinkedHashMap<String, GoogleDriveFile>>()
