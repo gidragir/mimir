@@ -31,6 +31,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.seconds
 
 class GoogleDriveStorageListAllTest {
     private val json = Json { ignoreUnknownKeys = true }
@@ -168,6 +169,26 @@ class GoogleDriveStorageListAllTest {
         assertEquals(progress.map { it.second }.sorted(), progress.map { it.second })
         assertEquals(2 to 2498, progress.last()) // корень + sub
         assertTrue(all.count { it.path.value.startsWith("sub/") } == 1249)
+    }
+
+    @Test
+    fun cycleReachableFromRootIsCutAndEveryFileListedOnce() = runTest(timeout = 10.seconds) {
+        // a -> b -> loop, а у a второй родитель — loop: обход от корня вернулся бы в предка
+        val cyclic = listOf(
+            folder("mimir_root", "Mimir", "my_drive"),
+            GoogleDriveFile("fA", "a", DrivePathResolver.FOLDER_MIME_TYPE, modifiedTime = "2026-10-23T10:00:00.000Z", parents = listOf("mimir_root", "loop")),
+            folder("fB", "b", "fA"),
+            folder("loop", "loop", "fB"),
+            file("deep", "deep.md", "fB"),
+            file("inLoop", "l.md", "loop"),
+            file("x", "x.md", "fA"),
+            file("top", "top.md", "mimir_root"),
+        )
+        val (drive, _) = storage(cyclic, pageSize = 3)
+
+        val paths = drive.listAll().map { it.path.value }
+
+        assertEquals(listOf("a/b/deep.md", "a/b/loop/l.md", "a/x.md", "top.md").sorted(), paths.sorted())
     }
 
     @Test
