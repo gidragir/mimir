@@ -32,6 +32,10 @@ interface DaemonService {
     suspend fun startDeviceLogin(): GoogleDeviceCodeResponse
     suspend fun pollDeviceLogin(deviceCode: String): DevicePoll
 
+    /** [SyncNotConfiguredException], если вход через браузер не настроен. Возвращает ссылку для браузера. */
+    suspend fun startBrowserLogin(): String
+    suspend fun pollBrowserLogin(): BrowserLoginPoll
+
     /** Способы входа, для которых настроены клиенты Google. */
     suspend fun loginMethods(): Set<LoginMethod>
 }
@@ -42,4 +46,10 @@ sealed interface DevicePoll {
     data object Pending : DevicePoll
     data class Authorized(val email: String?) : DevicePoll
     data class Expired(val reason: String) : DevicePoll
+}
+
+sealed interface BrowserLoginPoll {
+    data object Pending : BrowserLoginPoll
+    data class Authorized(val email: String?) : BrowserLoginPoll
+    data class Failed(val reason: String) : BrowserLoginPoll
 }

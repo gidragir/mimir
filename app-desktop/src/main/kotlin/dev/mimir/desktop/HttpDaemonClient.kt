@@ -92,6 +92,11 @@ class HttpDaemonClient(
     override val accountEmail: String? get() = snapshot.accountEmail
 
     // TODO(task 5+): запрашивать у демона по HTTP; пока сохраняем прежнее поведение (только device code).
+    // Заглушка до задачи 6: вход через браузер по HTTP ещё не подключён.
+    override suspend fun startBrowserLogin(): String = throw UnsupportedOperationException("Browser sign-in over HTTP is not implemented yet")
+    override suspend fun pollBrowserLogin(): dev.mimir.daemon.BrowserLoginPoll =
+        throw UnsupportedOperationException("Browser sign-in over HTTP is not implemented yet")
+
     override suspend fun loginMethods(): Set<LoginMethod> = setOf(LoginMethod.DeviceCode)
 
     init {

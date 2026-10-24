@@ -25,6 +25,11 @@ class FakeDaemonService : DaemonService {
     override suspend fun resolveConflict(originalPath: String, conflictPath: String, keepConflict: Boolean) = Unit
     override suspend fun startDeviceLogin(): GoogleDeviceCodeResponse = error("not used")
     override suspend fun pollDeviceLogin(deviceCode: String): DevicePoll = error("not used")
+    /** `null` — вход через браузер недоступен. */
+    var browserUrl: String? = "https://accounts.example/auth"
+    var browserPoll: BrowserLoginPoll = BrowserLoginPoll.Pending
+    override suspend fun startBrowserLogin(): String = browserUrl ?: throw SyncNotConfiguredException("no desktop client")
+    override suspend fun pollBrowserLogin(): BrowserLoginPoll = browserPoll
     var methods: Set<LoginMethod> = emptySet()
     override suspend fun loginMethods() = methods
 

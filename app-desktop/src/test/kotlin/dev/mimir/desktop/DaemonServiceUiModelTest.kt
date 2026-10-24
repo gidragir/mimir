@@ -44,6 +44,8 @@ class DaemonServiceUiModelTest {
         override suspend fun startDeviceLogin() = GoogleDeviceCodeResponse("dcode", "ucode", "url", 1800, 5)
         override suspend fun pollDeviceLogin(deviceCode: String) = poll
         override suspend fun configureVault(vaultPath: String) { this.vaultPath = vaultPath }
+        override suspend fun startBrowserLogin(): String = error("not used")
+        override suspend fun pollBrowserLogin(): dev.mimir.daemon.BrowserLoginPoll = error("not used")
         override suspend fun loginMethods(): Set<LoginMethod> = emptySet()
     }
 
