@@ -17,6 +17,7 @@ description: Use when adding or changing a cloud storage adapter in Mimir (Googl
 - Адаптер живёт в своём модуле (как `drive`), зависит только от `:core`.
 - Шифрование адаптер **не делает**: его добавляет `EncryptedRemoteStorage(inner, cipher)` — по сегментам пути и по содержимому. Адаптер видит уже зашифрованные пути.
 - Область доступа минимальна: для Google — ровно `drive.file`, `openid`, `email`, `profile` (`GoogleAuthConfig.scopes`, спека 6.4); расширять только по спеке.
+- Движок выбирает поведение по `capabilities`, а не по типу адаптера (`mimir-design-patterns`). Квоты, постраничный листинг, `fields=`, повторы и потоки вместо массивов — по `mimir-sync-io`.
 - Нереализованное бросает `NotImplementedError("<Adapter> adapter is not implemented yet")`.
 - Секреты (OAuth client id/secret, токены) — через `SecretStore` и `mise.local.toml`/GitHub Secrets, не в коде.
 
@@ -26,5 +27,6 @@ description: Use when adding or changing a cloud storage adapter in Mimir (Googl
 - Константы доступа/скоупов сравниваются со спекой.
 - `create(...)` возвращает хранилище с ожидаемым поведением (для заглушки — `NotImplementedError`).
 - Для реального адаптера: поведение `list` (только прямые потомки), `stat` для отсутствующего пути (`null`), `write`→`read` round-trip — на общем наборе, который прогоняется и для `InMemoryRemoteStorage`.
+- Бюджет запросов: число HTTP-вызовов `listAll`/`stat`/`write` на N файлов фиксируется тестом на `MockEngine`; 429/5xx — повтор, нет сети — `RemoteUnavailableException`.
 
 Запуск: `./gradlew :<module>:allTests` (см. `mimir-build-verify`).
