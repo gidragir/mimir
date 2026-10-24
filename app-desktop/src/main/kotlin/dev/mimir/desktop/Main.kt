@@ -7,6 +7,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -20,6 +21,7 @@ import dev.mimir.desktop.tray.trayLabel
 import dev.mimir.desktop.picker.defaultFolderPicker
 import dev.mimir.ui.MimirApp
 import dev.mimir.ui.picker.LocalFolderPicker
+import dev.mimir.ui.platform.LocalBringToFront
 import dev.mimir.ui.model.MimirUiModel
 import dev.mimir.ui.screens.StartupScreen
 import kotlinx.coroutines.CancellationException
@@ -95,6 +97,7 @@ private fun runDesktop(config: DaemonConfig) = application {
     }
 
     val folderPicker = remember { defaultFolderPicker() }
+    val browserOpener = remember { SystemBrowserOpener() }
 
     Window(
         // Без трея окно — единственный способ достучаться до приложения, поэтому закрытие завершает его.
@@ -106,7 +109,16 @@ private fun runDesktop(config: DaemonConfig) = application {
         LaunchedEffect(Unit) { window.minimumSize = java.awt.Dimension(720, 520) }
         val current = model
         if (current != null) {
-            CompositionLocalProvider(LocalFolderPicker provides folderPicker) { MimirApp(current) }
+            CompositionLocalProvider(
+                LocalFolderPicker provides folderPicker,
+                LocalUriHandler provides browserOpener,
+                LocalBringToFront provides {
+                    visible = true
+                    window.extendedState = java.awt.Frame.NORMAL
+                    window.toFront()
+                    window.requestFocus()
+                },
+            ) { MimirApp(current) }
         } else {
             StartupScreen(startupError?.let { "Не удалось запустить Mimir: $it" } ?: "Запуск…")
         }

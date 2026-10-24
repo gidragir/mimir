@@ -15,6 +15,7 @@ import dev.mimir.ui.model.UiDevicePoll
 import dev.mimir.ui.model.UiLoginMethod
 import dev.mimir.ui.model.UiVaultInspection
 import dev.mimir.ui.picker.LocalFolderPicker
+import dev.mimir.ui.platform.LocalBringToFront
 import dev.mimir.ui.picker.PlatformFolderPicker
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalUriHandler
@@ -265,5 +266,20 @@ class SetupWizardScreenTest {
         waitUntil { completed }
         assertEquals(1, syncs)
         onNodeWithText("Двустороннее слияние с защитой от потерь").assertDoesNotExist()
+    }
+
+    @Test
+    fun `window is brought back to the front once google login is authorized`() = runComposeUiTest {
+        var fronted = 0
+        val model = FakeMimirUiModel(devicePoll = { UiDevicePoll.Authorized("me@x") })
+        setContent {
+            CompositionLocalProvider(LocalBringToFront provides { fronted++ }) {
+                SetupWizardScreen(model, onComplete = {}, pollIntervalMillis = 10)
+            }
+        }
+        onNodeWithText("Введите путь к папке").performTextInput("/v")
+        onNodeWithText("Продолжить").performClick()
+        waitUntilExactlyOneExists(hasText("Мастер-пароль шифрования"))
+        assertEquals(1, fronted)
     }
 }
