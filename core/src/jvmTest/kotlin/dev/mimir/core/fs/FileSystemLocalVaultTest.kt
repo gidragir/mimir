@@ -143,4 +143,37 @@ class FileSystemLocalVaultTest {
 
         assertTrue(failure.exceptionOrNull() is IllegalArgumentException)
     }
+
+    @Test
+    fun `list does not follow symbolic links`() = runTest {
+        put("real/a.md", "a")
+        put("note.md", "n")
+        val outside = Files.createTempDirectory("mimir-vault-outside")
+        try {
+            outside.resolve("secret.md").writeText("s")
+            Files.createSymbolicLink(root.resolve("linkdir"), outside)
+            Files.createSymbolicLink(root.resolve("linkfile.md"), root.resolve("note.md"))
+            val paths = vault.list().map { it.relativePath }
+            assertEquals(listOf("note.md", "real/a.md"), paths.sorted())
+            assertNull(vault.getEntry("linkdir/secret.md"))
+            assertNull(vault.getEntry("linkfile.md"))
+        } finally {
+            outside.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `list skips node_modules and nested git at any depth`() = runTest {
+        put("note.md", "n")
+        put("node_modules/pkg/index.js", "x")
+        put(".obsidian/plugins/p/node_modules/q/index.js", "x")
+        put(".obsidian/plugins/p/main.js", "m")
+        put("sub/repo/.git/HEAD", "ref")
+        assertEquals(
+            listOf(".obsidian/plugins/p/main.js", "note.md"),
+            vault.list().map { it.relativePath }.sorted(),
+        )
+        assertNull(vault.getEntry("node_modules/pkg/index.js"))
+        assertNull(vault.getEntry("sub/repo/.git/HEAD"))
+    }
 }

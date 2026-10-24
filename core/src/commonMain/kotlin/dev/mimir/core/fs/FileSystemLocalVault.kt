@@ -31,6 +31,7 @@ class FileSystemLocalVault(
     override suspend fun getEntry(relativePath: String): LocalEntry? {
         val normalized = normalize(relativePath)
         if (isExcluded(normalized)) return null
+        if (hasSymbolicLink(normalized)) return null
         val metadata = SystemFileSystem.metadataOrNull(absolute(normalized)) ?: return null
         if (!metadata.isRegularFile) return null
         return entryOf(normalized, metadata.size)
@@ -85,7 +86,7 @@ class FileSystemLocalVault(
         if (SystemFileSystem.metadataOrNull(dir)?.isDirectory != true) return
         for (child in SystemFileSystem.list(dir).sortedBy { it.name }) {
             val relative = if (relativeDir.isEmpty()) child.name else "$relativeDir/${child.name}"
-            if (isExcluded(relative)) continue
+            if (isExcluded(relative) || isSymbolicLink(child)) continue
             val metadata = SystemFileSystem.metadataOrNull(child) ?: continue
             when {
                 metadata.isDirectory -> walk(relative, out)
@@ -102,6 +103,12 @@ class FileSystemLocalVault(
     )
 
     private fun isExcluded(relativePath: String): Boolean = filter.isExcluded(relativePath)
+
+    /** Симлинк на любом уровне пути: vault не разворачивает ссылки (иначе в него попадают чужие каталоги, например `node_modules`). */
+    private fun hasSymbolicLink(relativePath: String): Boolean {
+        val segments = relativePath.split('/')
+        return segments.indices.any { isSymbolicLink(absolute(segments.take(it + 1).joinToString("/"))) }
+    }
 
     private fun absolute(relativePath: String): Path = Path(rootPath, *relativePath.split('/').toTypedArray())
 

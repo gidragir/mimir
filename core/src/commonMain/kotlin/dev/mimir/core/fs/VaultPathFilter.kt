@@ -11,6 +11,6 @@ internal class VaultPathFilter(private val rules: SyncRules) {
         BUILTIN_EXCLUDES.any { GlobMatcher.matches(it, relativePath) } || rules.isExcluded(relativePath)
 
     private companion object {
-        val BUILTIN_EXCLUDES = listOf(".git/**", "**/*.tmp", "**/*.crswap", "**/.mimir*")
+        val BUILTIN_EXCLUDES = listOf(".git/**", "**/.git/**", "**/node_modules/**", "**/*.tmp", "**/*.crswap", "**/.mimir*")
     }
 }
