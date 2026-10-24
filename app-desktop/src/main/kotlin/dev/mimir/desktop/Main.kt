@@ -1,5 +1,6 @@
 package dev.mimir.desktop
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -16,7 +17,9 @@ import dev.mimir.core.BuildConfig
 import dev.mimir.daemon.DaemonConfig
 import dev.mimir.desktop.tray.createTray
 import dev.mimir.desktop.tray.trayLabel
+import dev.mimir.desktop.picker.AwtFolderPicker
 import dev.mimir.ui.MimirApp
+import dev.mimir.ui.picker.LocalFolderPicker
 import dev.mimir.ui.model.MimirUiModel
 import dev.mimir.ui.screens.StartupScreen
 import kotlinx.coroutines.CancellationException
@@ -91,6 +94,8 @@ private fun runDesktop(config: DaemonConfig) = application {
         }
     }
 
+    val folderPicker = remember { AwtFolderPicker() }
+
     Window(
         // Без трея окно — единственный способ достучаться до приложения, поэтому закрытие завершает его.
         onCloseRequest = { if (tray.available) visible = false else exitApplication() },
@@ -101,7 +106,7 @@ private fun runDesktop(config: DaemonConfig) = application {
         LaunchedEffect(Unit) { window.minimumSize = java.awt.Dimension(720, 520) }
         val current = model
         if (current != null) {
-            MimirApp(current)
+            CompositionLocalProvider(LocalFolderPicker provides folderPicker) { MimirApp(current) }
         } else {
             StartupScreen(startupError?.let { "Не удалось запустить Mimir: $it" } ?: "Запуск…")
         }

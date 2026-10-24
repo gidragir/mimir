@@ -1,6 +1,7 @@
 package dev.mimir.ui
 
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.onNodeWithText
@@ -16,6 +17,7 @@ import dev.mimir.core.SyncProblemKind
 import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncStatus
 import dev.mimir.ui.model.FakeMimirUiModel
+import dev.mimir.ui.screens.StatusScreen
 import dev.mimir.ui.model.UiConflictEntry
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlin.test.Test
@@ -32,6 +34,12 @@ class StatusScreenTest {
     fun `shows app title`() = runComposeUiTest {
         setContent { MimirApp(FakeMimirUiModel()) }
         onNodeWithText("Mimir").assertExists()
+    }
+
+    @Test
+    fun `status screen renders under the obsidian theme`() = runComposeUiTest {
+        setContent { MimirTheme { StatusScreen(FakeMimirUiModel()) } }
+        onNodeWithText(dev.mimir.core.BuildConfig.APP_NAME).assertIsDisplayed()
     }
 
     @Test

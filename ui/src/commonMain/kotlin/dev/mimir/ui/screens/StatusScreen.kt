@@ -33,6 +33,8 @@ import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncStatus
 import dev.mimir.core.label
 import dev.mimir.ui.MimirTheme
+import dev.mimir.ui.ObsidianStyle
+import dev.mimir.ui.ObsidianStyle.compactButton
 import dev.mimir.ui.model.FakeMimirUiModel
 import dev.mimir.ui.model.MimirUiModel
 import kotlinx.coroutines.delay
@@ -83,7 +85,13 @@ fun StatusScreen(
                 // Вход предлагается при любой ошибке: после отзыва/истечения refresh-токена
                 // email остаётся в account.json, и иначе вернуться ко входу было бы нельзя.
                 Details(s.message)
-                Button(onClick = onOpenSetup) { Text(SyncTexts.SIGN_IN) }
+                Button(
+                    onClick = onOpenSetup,
+                    shape = MaterialTheme.shapes.extraSmall,
+                    colors = ObsidianStyle.buttonColors(),
+                    contentPadding = ObsidianStyle.buttonPadding,
+                    modifier = Modifier.compactButton(),
+                ) { Text(SyncTexts.SIGN_IN) }
             }
             else -> {}
         }
@@ -118,17 +126,34 @@ fun StatusScreen(
 
         if (p != null && p.completed.isNotEmpty()) CompletedBlock(p)
 
-        Button(onClick = { scope.launch { model.triggerSync() } }, enabled = status == SyncStatus.Idle) {
+        Button(
+            onClick = { scope.launch { model.triggerSync() } },
+            enabled = status == SyncStatus.Idle,
+            shape = MaterialTheme.shapes.extraSmall,
+            colors = ObsidianStyle.buttonColors(),
+            contentPadding = ObsidianStyle.buttonPadding,
+            modifier = Modifier.compactButton(),
+        ) {
             Text(SyncTexts.SYNC_NOW)
         }
 
         HorizontalDivider()
         email?.let { Text("Аккаунт: $it") }
         if (conflicts.isNotEmpty()) {
-            OutlinedButton(onClick = onOpenConflicts) { Text("Конфликты: ${conflicts.size}") }
+            OutlinedButton(
+                onClick = onOpenConflicts,
+                shape = MaterialTheme.shapes.extraSmall,
+                contentPadding = ObsidianStyle.buttonPadding,
+                modifier = Modifier.compactButton(),
+            ) { Text("Конфликты: ${conflicts.size}") }
         }
         if (vaultPath == null || email == null || isLocked) {
-            OutlinedButton(onClick = onOpenSetup) { Text("Настроить Mimir") }
+            OutlinedButton(
+                onClick = onOpenSetup,
+                shape = MaterialTheme.shapes.extraSmall,
+                contentPadding = ObsidianStyle.buttonPadding,
+                modifier = Modifier.compactButton(),
+            ) { Text("Настроить Mimir") }
         }
     }
 }
@@ -138,13 +163,22 @@ private fun ProgressBlock(p: SyncProgress, now: Instant) {
     val elapsed = SyncTexts.elapsed((now - p.startedAt).inWholeSeconds)
     when (p.phase) {
         SyncPhase.Scanning, SyncPhase.Comparing -> {
-            LinearProgressIndicator(Modifier.fillMaxWidth())
+            LinearProgressIndicator(
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.surfaceVariant,
+            )
             Text(SyncTexts.scanned(p.scanned, p.foldersScanned))
             Text(elapsed)
         }
         SyncPhase.Applying -> {
             val fraction = if (p.total > 0) p.done.toFloat() / p.total else 0f
-            LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth())
+            LinearProgressIndicator(
+                progress = { fraction },
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.surfaceVariant,
+            )
             Text(SyncTexts.counter(p.done, p.total))
             val eta = p.etaSeconds(now)
             Text(if (eta != null) "$elapsed · ${SyncTexts.remaining(eta)}" else elapsed)
@@ -157,7 +191,9 @@ private fun ProgressBlock(p: SyncProgress, now: Instant) {
 private fun ProblemsBlock(problems: List<SyncProblem>) {
     Card(
         modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.small,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+        border = ObsidianStyle.panelBorder(),
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(SyncTexts.problemsTitle(problems.size), style = MaterialTheme.typography.titleMedium)
