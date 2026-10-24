@@ -1,6 +1,5 @@
 package dev.mimir.daemon
 
-import dev.mimir.core.StubSyncEngine
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
@@ -14,7 +13,7 @@ import kotlin.test.assertTrue
 class WebUiServedTest {
     @Test
     fun `GET root returns index html with Mimir title`() = testApplication {
-        application { mimirRoutes(StubSyncEngine()) }
+        application { mimirRoutes(FakeDaemonService(), DaemonConfig()) }
         val response = client.get("/")
         assertEquals(HttpStatusCode.OK, response.status)
         assertEquals(ContentType.Text.Html, response.contentType()?.withoutParameters())

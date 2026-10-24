@@ -1,6 +1,6 @@
 package dev.mimir.daemon
 
-import dev.mimir.core.StubSyncEngine
+import kotlinx.coroutines.runBlocking
 import io.ktor.server.cio.CIO
 import io.ktor.server.engine.embeddedServer
 import java.net.BindException
@@ -24,12 +24,24 @@ fun runDaemon(config: DaemonConfig): Int {
         System.err.println("Port ${config.port} on ${config.bind} is already in use")
         return EXIT_PORT_IN_USE
     }
-    embeddedServer(CIO, port = config.port, host = config.bind) {
-        mimirRoutes(StubSyncEngine())
-    }.start(wait = true)
+    val runtime = DaemonRuntime(config)
+    try {
+        runBlocking { runtime.initialize() }
+        embeddedServer(CIO, port = config.port, host = config.bind) {
+            mimirRoutes(runtime, config)
+        }.start(wait = true)
+    } finally {
+        runtime.close()
+    }
     return 0
 }
 
 fun main() {
-    exitProcess(runDaemon(DaemonConfig.fromEnv(System.getenv())))
+    val config = try {
+        DaemonConfig.load()
+    } catch (e: IllegalArgumentException) {
+        System.err.println(e.message)
+        exitProcess(1)
+    }
+    exitProcess(runDaemon(config))
 }
