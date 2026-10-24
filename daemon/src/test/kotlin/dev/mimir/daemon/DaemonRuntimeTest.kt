@@ -39,7 +39,7 @@ class DaemonRuntimeTest {
         port = 0,
         vaultPath = vaultDir.toString().takeIf { vault },
         password = password,
-        googleClientId = "client-id",
+        googleDeviceClientId = "client-id",
         syncIntervalSeconds = 3600,
         configDir = configDir.toString(),
     )

@@ -5,6 +5,7 @@ import dev.mimir.daemon.ConflictFileEntry
 import dev.mimir.daemon.DaemonService
 import dev.mimir.daemon.DevicePoll
 import dev.mimir.daemon.InvalidPasswordException
+import dev.mimir.daemon.LoginMethod
 import dev.mimir.daemon.SyncNotConfiguredException
 import dev.mimir.drive.api.GoogleDeviceCodeResponse
 import io.ktor.client.HttpClient
@@ -89,6 +90,9 @@ class HttpDaemonClient(
     override val isLocked: Boolean get() = snapshot.isLocked
     override val lastSyncTime: Instant? get() = snapshot.lastSyncAt?.let { runCatching { Instant.parse(it) }.getOrNull() }
     override val accountEmail: String? get() = snapshot.accountEmail
+
+    // TODO(task 5+): запрашивать у демона по HTTP; пока сохраняем прежнее поведение (только device code).
+    override suspend fun loginMethods(): Set<LoginMethod> = setOf(LoginMethod.DeviceCode)
 
     init {
         scope.launch {

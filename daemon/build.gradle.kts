@@ -2,10 +2,20 @@ plugins {
     kotlin("jvm")
     kotlin("plugin.serialization")
     application
+    alias(libs.plugins.buildconfig)
 }
 
 group = providers.gradleProperty("mimir.group").get()
 version = providers.gradleProperty("mimir.version").get()
+
+// Вшитые значения клиентов Google для релизных сборок; без переменных окружения — пустые строки.
+buildConfig {
+    packageName("dev.mimir.daemon")
+    className("DaemonBuildConfig")
+    listOf("DESKTOP_CLIENT_ID", "DESKTOP_CLIENT_SECRET", "DEVICE_CLIENT_ID", "DEVICE_CLIENT_SECRET").forEach {
+        buildConfigField("GOOGLE_$it", providers.environmentVariable("MIMIR_BUILD_GOOGLE_$it").orElse(""))
+    }
+}
 
 application {
     mainClass = "dev.mimir.daemon.MainKt"

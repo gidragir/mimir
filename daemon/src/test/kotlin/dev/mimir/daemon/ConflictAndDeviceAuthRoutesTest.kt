@@ -70,7 +70,7 @@ class ConflictAndDeviceAuthRoutesTest {
     private fun ApplicationTestBuilder.serve(withVault: Boolean = true, clientId: String? = "cid") {
         val config = DaemonConfig(
             vaultPath = vaultDir.toString().takeIf { withVault },
-            googleClientId = clientId,
+            googleDeviceClientId = clientId,
             configDir = configDir.toString(),
         )
         val runtime = DaemonRuntime(config, httpClient = mockGoogle(), conflictScanInterval = 50.milliseconds).also { runtime = it }

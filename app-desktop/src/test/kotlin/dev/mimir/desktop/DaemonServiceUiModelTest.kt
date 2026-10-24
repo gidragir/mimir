@@ -5,6 +5,7 @@ import dev.mimir.daemon.ConflictFileEntry
 import dev.mimir.daemon.DaemonService
 import dev.mimir.daemon.DevicePoll
 import dev.mimir.daemon.InvalidPasswordException
+import dev.mimir.daemon.LoginMethod
 import dev.mimir.drive.api.GoogleDeviceCodeResponse
 import dev.mimir.ui.model.UiDevicePoll
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -43,6 +44,7 @@ class DaemonServiceUiModelTest {
         override suspend fun startDeviceLogin() = GoogleDeviceCodeResponse("dcode", "ucode", "url", 1800, 5)
         override suspend fun pollDeviceLogin(deviceCode: String) = poll
         override suspend fun configureVault(vaultPath: String) { this.vaultPath = vaultPath }
+        override suspend fun loginMethods(): Set<LoginMethod> = emptySet()
     }
 
     @Test

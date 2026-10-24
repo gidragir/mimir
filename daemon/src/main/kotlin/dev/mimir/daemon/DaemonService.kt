@@ -31,7 +31,12 @@ interface DaemonService {
     /** [SyncNotConfiguredException], если не задан Google client id. */
     suspend fun startDeviceLogin(): GoogleDeviceCodeResponse
     suspend fun pollDeviceLogin(deviceCode: String): DevicePoll
+
+    /** Способы входа, для которых настроены клиенты Google. */
+    suspend fun loginMethods(): Set<LoginMethod>
 }
+
+enum class LoginMethod { Browser, DeviceCode }
 
 sealed interface DevicePoll {
     data object Pending : DevicePoll

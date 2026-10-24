@@ -25,6 +25,8 @@ class FakeDaemonService : DaemonService {
     override suspend fun resolveConflict(originalPath: String, conflictPath: String, keepConflict: Boolean) = Unit
     override suspend fun startDeviceLogin(): GoogleDeviceCodeResponse = error("not used")
     override suspend fun pollDeviceLogin(deviceCode: String): DevicePoll = error("not used")
+    var methods: Set<LoginMethod> = emptySet()
+    override suspend fun loginMethods() = methods
 
     /** `true` — запуск принят, `false` — уже идёт, `null` — не сконфигурировано. */
     var syncAccepted: Boolean? = null

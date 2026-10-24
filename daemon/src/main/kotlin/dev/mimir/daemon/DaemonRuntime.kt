@@ -13,8 +13,6 @@ import dev.mimir.drive.api.GoogleDeviceCodeResponse
 import dev.mimir.drive.client.DriveAuthException
 import dev.mimir.drive.auth.GoogleAuthClient
 import dev.mimir.drive.auth.GoogleAuthClients
-import dev.mimir.drive.auth.GoogleClientCredentials
-import dev.mimir.drive.auth.GoogleClientKind
 import dev.mimir.drive.auth.TokenStorage
 import dev.mimir.drive.client.DriveHttpClient
 import dev.mimir.drive.path.DrivePathResolver
@@ -57,9 +55,9 @@ fun interface RemoteStorageFactory {
 }
 
 private val googleDriveFactory = RemoteStorageFactory { httpClient, tokenStorage, config ->
-    val clientId = config.googleClientId ?: return@RemoteStorageFactory null
-    val authClient = GoogleAuthClient(httpClient, GoogleClientCredentials(GoogleClientKind.Device, clientId, config.googleClientSecret))
-    val driveClient = DriveHttpClient(httpClient, tokenStorage, GoogleAuthClients(null, authClient))
+    val clients = config.authClients(httpClient)
+    if (clients.desktop == null && clients.device == null) return@RemoteStorageFactory null
+    val driveClient = DriveHttpClient(httpClient, tokenStorage, clients)
     GoogleDriveStorage(driveClient, DrivePathResolver(driveClient, config.rootFolder))
 }
 
@@ -96,7 +94,7 @@ class DaemonRuntime(
     private var conflictJob: Job? = null
 
     val tokenStorage: TokenStorage = FileTokenStorage(configDir.resolve("tokens.json"))
-    val authClient: GoogleAuthClient? = config.googleClientId?.let { GoogleAuthClient(httpClient, GoogleClientCredentials(GoogleClientKind.Device, it, config.googleClientSecret)) }
+    val authClients: GoogleAuthClients = config.authClients(httpClient)
 
     override val status: StateFlow<SyncStatus> = _status.asStateFlow()
     override val conflictsFlow: StateFlow<List<ConflictFileEntry>> = _conflicts.asStateFlow()
@@ -189,10 +187,12 @@ class DaemonRuntime(
     }
 
     override suspend fun startDeviceLogin(): GoogleDeviceCodeResponse =
-        (authClient ?: throw SyncNotConfiguredException("Google client id not configured")).requestDeviceCode()
+        (authClients.device ?: throw SyncNotConfiguredException("Google device client is not configured")).requestDeviceCode()
+
+    override suspend fun loginMethods(): Set<LoginMethod> = loginMethodsFor(config.googleCredentials())
 
     override suspend fun pollDeviceLogin(deviceCode: String): DevicePoll {
-        val client = authClient ?: throw SyncNotConfiguredException("Google client id not configured")
+        val client = authClients.device ?: throw SyncNotConfiguredException("Google device client is not configured")
         val tokens = try {
             client.pollDeviceToken(deviceCode)
         } catch (e: DriveAuthException) {
