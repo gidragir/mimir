@@ -2,6 +2,7 @@ import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 
 plugins {
     kotlin("jvm")
+    kotlin("plugin.serialization")
     alias(libs.plugins.compose.multiplatform)
     alias(libs.plugins.compose.compiler)
 }
@@ -11,12 +12,23 @@ version = providers.gradleProperty("mimir.version").get()
 
 dependencies {
     implementation(project(":core"))
+    implementation(project(":drive"))
     implementation(project(":daemon"))
     implementation(project(":ui"))
     implementation(libs.dbus.java.core)
     implementation(libs.dbus.java.transport.native)
     implementation(compose.desktop.currentOs)
+    implementation(libs.serialization.json)
+    implementation(libs.ktor.client.core)
+    implementation(libs.ktor.client.cio)
+    implementation(libs.ktor.client.content.negotiation)
+    implementation(libs.ktor.serialization.json)
+    implementation(libs.ktor.server.core)
+    implementation(libs.ktor.server.cio)
+    runtimeOnly(libs.slf4j.simple)
     testImplementation(kotlin("test"))
+    testImplementation(libs.coroutines.test)
+    testImplementation(libs.ktor.client.mock)
 }
 
 compose.desktop {

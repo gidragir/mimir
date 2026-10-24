@@ -221,6 +221,8 @@ class DaemonRuntime(
             rebuild()
         } catch (e: InvalidPasswordException) {
             logger.warning("Encryption password rejected: ${e.message}")
+        } catch (e: SyncNotConfiguredException) {
+            logger.warning("Sync is not started: ${e.message}")
         }
     }
 
