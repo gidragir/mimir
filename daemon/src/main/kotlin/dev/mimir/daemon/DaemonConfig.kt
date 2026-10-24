@@ -23,8 +23,27 @@ data class DaemonConfig(
     val configDir: String? = null,
 ) {
     /** Пароль шифрования: `password`, иначе содержимое `passwordFile` (без пробелов по краям). */
-    fun resolvePassword(): String? =
-        password ?: passwordFile?.let { Files.readString(Paths.get(it)).trim() }
+    fun resolvePassword(): String? {
+        if (password != null) return password
+        val file = passwordFile ?: return null
+        if (isPasswordFileInsecure()) {
+            System.err.println("Warning: password file $file is accessible by group or others; run chmod 600")
+        }
+        return Files.readString(Paths.get(file)).trim()
+    }
+
+    /** `true`, если на POSIX-системе `passwordFile` доступен группе или остальным. */
+    fun isPasswordFileInsecure(): Boolean {
+        val file = Paths.get(passwordFile ?: return false)
+        if (!file.fileSystem.supportedFileAttributeViews().contains("posix") || !Files.exists(file)) return false
+        return Files.getPosixFilePermissions(file).any { it.name.startsWith("GROUP") || it.name.startsWith("OTHERS") }
+    }
+
+    /** Атомарно пишет `config.json` в [configDir] (по умолчанию — свой `configDir`) с правами 0600 на POSIX. */
+    fun save(configDir: String? = null) {
+        val dir = configDir ?: this.configDir ?: throw IllegalArgumentException("configDir is not set")
+        writeFileAtomically(Paths.get(dir).resolve(CONFIG_FILE), prettyJson.encodeToString(this), ownerOnly = true)
+    }
 
     // Секреты не должны попадать в логи.
     override fun toString(): String =
@@ -33,24 +52,27 @@ data class DaemonConfig(
             "syncIntervalSeconds=$syncIntervalSeconds, rootFolder=$rootFolder, configDir=$configDir)"
 
     companion object {
+        private const val CONFIG_FILE = "config.json"
         private val json = Json { ignoreUnknownKeys = true }
+        private val prettyJson = Json { prettyPrint = true }
 
         private fun redact(secret: String?) = if (secret == null) "null" else "***"
 
         /** Приоритет: переменные окружения → `config.json` в [configDir] → значения по умолчанию. */
         fun load(configDir: String? = null, env: Map<String, String> = System.getenv()): DaemonConfig {
             val dir = configDir ?: env["MIMIR_CONFIG_DIR"] ?: defaultConfigDir(env).toString()
-            val file = Paths.get(dir).resolve("config.json")
-            val fromFile = if (Files.isRegularFile(file)) {
-                try {
-                    json.decodeFromString<DaemonConfig>(Files.readString(file))
-                } catch (e: SerializationException) {
-                    throw IllegalArgumentException("Cannot parse $file: ${e.message}", e)
-                }
-            } else {
-                DaemonConfig()
+            return readFile(dir).applyEnv(env).copy(configDir = dir)
+        }
+
+        /** Только содержимое `config.json` без переменных окружения: то, что безопасно записывать обратно. */
+        fun readFile(configDir: String): DaemonConfig {
+            val file = Paths.get(configDir).resolve(CONFIG_FILE)
+            if (!Files.isRegularFile(file)) return DaemonConfig()
+            return try {
+                json.decodeFromString<DaemonConfig>(Files.readString(file))
+            } catch (e: SerializationException) {
+                throw IllegalArgumentException("Cannot parse $file: ${e.message}", e)
             }
-            return fromFile.applyEnv(env).copy(configDir = dir)
         }
 
         private fun defaultConfigDir(env: Map<String, String>): Path {

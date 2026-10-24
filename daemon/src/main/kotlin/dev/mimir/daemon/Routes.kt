@@ -60,6 +60,9 @@ private data class AuthorizedResponse(val status: String, val email: String?)
 private data class ExpiredResponse(val status: String, val error: String)
 
 @Serializable
+private data class VaultRequest(val vaultPath: String = "")
+
+@Serializable
 private data class UnlockRequest(val password: String = "")
 
 private fun SyncStatus.code(): String = when (this) {
@@ -105,7 +108,7 @@ fun Application.mimirRoutes(service: DaemonService, config: DaemonConfig) {
                         vaultPath = service.vaultPath,
                         lastSyncAt = service.lastSyncTime?.toString(),
                         isLocked = service.isLocked,
-                        activeConflicts = service.conflicts().size,
+                        activeConflicts = service.conflictsFlow.value.size,
                         accountEmail = service.accountEmail,
                     ),
                 )
@@ -181,6 +184,20 @@ fun Application.mimirRoutes(service: DaemonService, config: DaemonConfig) {
                 }
             }
 
+            post("/vault") {
+                val request = try {
+                    call.receive<VaultRequest>()
+                } catch (_: Exception) {
+                    return@post call.respond(HttpStatusCode.BadRequest, ErrorBody("Expected {\"vaultPath\": \"...\"}"))
+                }
+                try {
+                    service.configureVault(request.vaultPath)
+                    call.respond(StatusOnly("configured"))
+                } catch (e: IllegalArgumentException) {
+                    call.respond(HttpStatusCode.BadRequest, ErrorBody(e.message ?: "Invalid vault path"))
+                }
+            }
+
             post("/unlock") {
                 val request = try {
                     call.receive<UnlockRequest>()
@@ -190,8 +207,14 @@ fun Application.mimirRoutes(service: DaemonService, config: DaemonConfig) {
                 if (request.password.isEmpty()) {
                     return@post call.respond(HttpStatusCode.BadRequest, ErrorBody("Password must not be empty"))
                 }
-                service.unlock(request.password)
-                call.respond(StatusOnly("unlocked"))
+                try {
+                    service.unlock(request.password)
+                    call.respond(StatusOnly("unlocked"))
+                } catch (e: InvalidPasswordException) {
+                    call.respond(HttpStatusCode.Forbidden, ErrorBody(e.message ?: "Invalid encryption password"))
+                } catch (e: SyncNotConfiguredException) {
+                    call.respond(HttpStatusCode.PreconditionFailed, ErrorBody(e.message ?: "Not configured"))
+                }
             }
         }
     }

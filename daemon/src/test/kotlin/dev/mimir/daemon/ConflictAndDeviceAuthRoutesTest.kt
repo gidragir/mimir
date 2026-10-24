@@ -1,5 +1,8 @@
 package dev.mimir.daemon
 
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeout
+import kotlin.time.Duration.Companion.milliseconds
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -70,7 +73,7 @@ class ConflictAndDeviceAuthRoutesTest {
             googleClientId = clientId,
             configDir = configDir.toString(),
         )
-        val runtime = DaemonRuntime(config, httpClient = mockGoogle()).also { runtime = it }
+        val runtime = DaemonRuntime(config, httpClient = mockGoogle(), conflictScanInterval = 50.milliseconds).also { runtime = it }
         runBlocking { runtime.initialize() }
         application { mimirRoutes(runtime, config) }
     }
@@ -112,7 +115,15 @@ class ConflictAndDeviceAuthRoutesTest {
         put("Notes/Doc.md", "mine")
         put(conflictName, "theirs")
 
-        assertEquals(1, client.get("/api/v1/status").json().getValue("activeConflicts").jsonPrimitive.int)
+        val count = withTimeout(5_000) {
+            var current = client.get("/api/v1/status").json().getValue("activeConflicts").jsonPrimitive.int
+            while (current != 1) {
+                delay(50)
+                current = client.get("/api/v1/status").json().getValue("activeConflicts").jsonPrimitive.int
+            }
+            current
+        }
+        assertEquals(1, count)
     }
 
     @Test

@@ -19,6 +19,12 @@ interface DaemonService {
 
     suspend fun conflicts(): List<ConflictFileEntry>
 
+    /** Снимок активных конфликтов без обхода диска; обновляется при синхронизации, смене vault и разрешении конфликтов. */
+    val conflictsFlow: StateFlow<List<ConflictFileEntry>>
+
+    /** [IllegalArgumentException], если [vaultPath] не существует или не каталог. Путь сохраняется в `config.json`. */
+    suspend fun configureVault(vaultPath: String)
+
     /** [IllegalArgumentException] — пара путей некорректна, [NoSuchElementException] — копии нет, [SyncNotConfiguredException] — нет vault. */
     suspend fun resolveConflict(originalPath: String, conflictPath: String, keepConflict: Boolean)
 

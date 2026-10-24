@@ -91,9 +91,44 @@ class DaemonRuntimeTest {
 
         eventually { runtime.lastSyncTime != null }
 
-        val rootEntries = remote.list(RemotePath(""))
+        val rootEntries = remote.list(RemotePath("")).filter { it.path.value != CANARY_FILENAME }
         assertEquals(1, rootEntries.size)
         assertTrue("Notes" !in rootEntries.single().path.value, "names must be encrypted")
         assertNotNull(runtime.lastSyncTime)
+    }
+
+    @Test
+    fun `starting offline with an unverified password stays locked instead of crashing`() = run {
+        signIn()
+        val offline = object : dev.mimir.core.ChangeFeedStorage by remote {
+            override suspend fun stat(path: RemotePath) = throw java.io.IOException("offline")
+        }
+        val runtime = DaemonRuntime(config(password = "secret"), remoteStorageFactory = { _, _, _ -> offline }).also { this@DaemonRuntimeTest.runtime = it }
+        runtime.initialize()
+        assertFalse(runtime.isReady)
+    }
+
+    @Test
+    fun `unlock reports that the network is needed when the password was never verified`() = run {
+        signIn()
+        val offline = object : dev.mimir.core.ChangeFeedStorage by remote {
+            override suspend fun stat(path: RemotePath) = throw java.io.IOException("offline")
+        }
+        val runtime = DaemonRuntime(config(), remoteStorageFactory = { _, _, _ -> offline }).also { this@DaemonRuntimeTest.runtime = it }
+        runtime.initialize()
+        assertFailsWith<SyncNotConfiguredException> { runtime.unlock("secret") }
+    }
+
+    @Test
+    fun `a wrong password on re-unlock keeps the running sync`() = run {
+        signIn()
+        val runtime = runtime(config(password = "secret"))
+        runtime.initialize()
+        assertTrue(runtime.isReady)
+
+        assertFailsWith<InvalidPasswordException> { runtime.unlock("typo") }
+
+        assertTrue(runtime.isReady)
+        assertFalse(runtime.isLocked)
     }
 }

@@ -1,0 +1,50 @@
+package dev.mimir.ui.model
+
+import dev.mimir.core.SyncStatus
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlin.time.Instant
+
+/** Модель с настраиваемым состоянием и обработчиками: для тестов и превью. */
+class FakeMimirUiModel(
+    status: SyncStatus = SyncStatus.NotConfigured,
+    vaultPath: String? = null,
+    isLocked: Boolean = true,
+    lastSyncTime: Instant? = null,
+    accountEmail: String? = null,
+    conflicts: List<UiConflictEntry> = emptyList(),
+    private val onTriggerSync: () -> Boolean = { true },
+    private val onConfigureVault: (String) -> Unit = {},
+    private val onUnlock: (String, Boolean) -> Unit = { _, _ -> },
+    private val onResolveConflict: (String, String, Boolean) -> Unit = { _, _, _ -> },
+    private val deviceCode: UiDeviceCode = UiDeviceCode("ABCD-EFGH", "https://www.google.com/device", 1800, "device-code"),
+    private val devicePoll: () -> UiDevicePoll = { UiDevicePoll.Pending },
+) : MimirUiModel {
+    override val status: StateFlow<SyncStatus> = MutableStateFlow(status)
+    override val vaultPath: MutableStateFlow<String?> = MutableStateFlow(vaultPath)
+    override val isLocked: MutableStateFlow<Boolean> = MutableStateFlow(isLocked)
+    override val lastSyncTime: StateFlow<Instant?> = MutableStateFlow(lastSyncTime)
+    override val accountEmail: StateFlow<String?> = MutableStateFlow(accountEmail)
+    override val conflicts: MutableStateFlow<List<UiConflictEntry>> = MutableStateFlow(conflicts)
+
+    override suspend fun triggerSync(): Boolean = onTriggerSync()
+
+    override suspend fun configureVault(path: String) {
+        onConfigureVault(path)
+        vaultPath.value = path
+    }
+
+    override suspend fun unlock(password: String, rememberOnDevice: Boolean) {
+        onUnlock(password, rememberOnDevice)
+        isLocked.value = false
+    }
+
+    override suspend fun resolveConflict(originalPath: String, conflictPath: String, keepConflict: Boolean) {
+        onResolveConflict(originalPath, conflictPath, keepConflict)
+        conflicts.value = conflicts.value.filterNot { it.conflictPath == conflictPath }
+    }
+
+    override suspend fun startDeviceLogin(): UiDeviceCode = deviceCode
+
+    override suspend fun pollDeviceLogin(deviceCode: String): UiDevicePoll = devicePoll()
+}
