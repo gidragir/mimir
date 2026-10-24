@@ -8,12 +8,14 @@ import dev.mimir.drive.auth.TokenStorage
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.client.statement.HttpResponse
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.io.IOException
 import kotlin.coroutines.cancellation.CancellationException
+import kotlin.random.Random
 import kotlin.time.Clock
 
 class DriveHttpClient(
@@ -21,6 +23,8 @@ class DriveHttpClient(
     val tokenStorage: TokenStorage,
     val authClients: GoogleAuthClients,
     val clock: Clock = Clock.System,
+    private val retryPolicy: RetryPolicy = RetryPolicy(),
+    private val random: Random = Random.Default,
 ) {
     private val refreshMutex = Mutex()
 
@@ -75,8 +79,13 @@ class DriveHttpClient(
         }
     }
 
+    /**
+     * Выполняет запрос с повторами: 401 — один принудительный refresh токена (не расходует попытки);
+     * 429, 5xx и 403 rate limit — до [RetryPolicy.maxAttempts] запросов с паузами по [retryPolicy]
+     * (`Retry-After` важнее backoff, но не больше [RetryPolicy.maxDelay]). Исчерпание — [RemoteUnavailableException].
+     * Прочие ответы, включая нерейтлимитные 403, возвращаются вызывающему как есть.
+     */
     suspend fun executeWithRetry(
-        maxRetries: Int = 3,
         block: suspend (token: String) -> HttpResponse,
     ): HttpResponse {
         var token = getValidToken()
@@ -97,20 +106,25 @@ class DriveHttpClient(
                 continue
             }
 
-            val transient = response.status.value in 500..599
-            if (response.status == HttpStatusCode.TooManyRequests || transient) {
-                attempt++
-                if (attempt < maxRetries) {
-                    val backoffMs = (1L shl attempt) * 50L
-                    delay(backoffMs)
-                    continue
-                }
-                if (transient) {
-                    throw RemoteUnavailableException("Google Drive is unavailable (${response.status})")
-                }
+            val failure = retryableFailure(response) ?: return response
+            attempt++
+            if (attempt >= retryPolicy.maxAttempts) {
+                throw RemoteUnavailableException(failure)
             }
+            val retryAfter = parseRetryAfter(response.headers[HttpHeaders.RetryAfter], clock.now())
+            delay(retryAfter?.let { minOf(it, retryPolicy.maxDelay) } ?: retryPolicy.backoff(attempt, random))
+        }
+    }
 
-            return response
+    /** Описание повторяемого сбоя (для сообщения об исчерпании) или `null`, если ответ возвращается вызывающему. */
+    private suspend fun retryableFailure(response: HttpResponse): String? {
+        val status = response.status
+        return when {
+            status == HttpStatusCode.TooManyRequests -> "Google Drive rate limit exceeded (429 Too Many Requests)"
+            status.value in 500..599 -> "Google Drive is unavailable ($status)"
+            status == HttpStatusCode.Forbidden && isRateLimit403(response) ->
+                "Google Drive rate limit exceeded (403 ${status.description})"
+            else -> null
         }
     }
 }
