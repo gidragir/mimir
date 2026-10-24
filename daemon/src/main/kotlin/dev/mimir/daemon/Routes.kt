@@ -190,8 +190,14 @@ fun Application.mimirRoutes(service: DaemonService, config: DaemonConfig) {
                 if (request.password.isEmpty()) {
                     return@post call.respond(HttpStatusCode.BadRequest, ErrorBody("Password must not be empty"))
                 }
-                service.unlock(request.password)
-                call.respond(StatusOnly("unlocked"))
+                try {
+                    service.unlock(request.password)
+                    call.respond(StatusOnly("unlocked"))
+                } catch (e: InvalidPasswordException) {
+                    call.respond(HttpStatusCode.Forbidden, ErrorBody(e.message ?: "Invalid encryption password"))
+                } catch (e: SyncNotConfiguredException) {
+                    call.respond(HttpStatusCode.PreconditionFailed, ErrorBody(e.message ?: "Not configured"))
+                }
             }
         }
     }

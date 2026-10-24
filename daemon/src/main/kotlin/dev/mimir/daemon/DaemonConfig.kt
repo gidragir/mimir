@@ -23,8 +23,21 @@ data class DaemonConfig(
     val configDir: String? = null,
 ) {
     /** Пароль шифрования: `password`, иначе содержимое `passwordFile` (без пробелов по краям). */
-    fun resolvePassword(): String? =
-        password ?: passwordFile?.let { Files.readString(Paths.get(it)).trim() }
+    fun resolvePassword(): String? {
+        if (password != null) return password
+        val file = passwordFile ?: return null
+        if (isPasswordFileInsecure()) {
+            System.err.println("Warning: password file $file is accessible by group or others; run chmod 600")
+        }
+        return Files.readString(Paths.get(file)).trim()
+    }
+
+    /** `true`, если на POSIX-системе `passwordFile` доступен группе или остальным. */
+    fun isPasswordFileInsecure(): Boolean {
+        val file = Paths.get(passwordFile ?: return false)
+        if (!file.fileSystem.supportedFileAttributeViews().contains("posix") || !Files.exists(file)) return false
+        return Files.getPosixFilePermissions(file).any { it.name.startsWith("GROUP") || it.name.startsWith("OTHERS") }
+    }
 
     // Секреты не должны попадать в логи.
     override fun toString(): String =

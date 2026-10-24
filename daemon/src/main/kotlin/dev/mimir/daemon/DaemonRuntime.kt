@@ -40,6 +40,8 @@ import java.nio.file.Paths
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 
+private val logger = java.util.logging.Logger.getLogger(DaemonRuntime::class.java.name)
+
 /** Синхронизация невозможна: нет vault, входа в облако или пароля шифрования. */
 class SyncNotConfiguredException(message: String) : IllegalStateException(message)
 
@@ -96,16 +98,17 @@ class DaemonRuntime(
     suspend fun initialize() {
         accountEmail = readAccountEmail()
         config.resolvePassword()?.takeIf { it.isNotEmpty() }?.let { cipher = RcloneCipher(it) }
-        rebuild()
+        rebuildLenient()
     }
 
+    /** [InvalidPasswordException], если пароль не подходит к хранилищу в облаке; демон остаётся заблокированным. */
     override suspend fun unlock(password: String) {
         cipher = RcloneCipher(password)
         rebuild()
     }
 
     /** Вызывается после успешного входа в облако: токены уже сохранены. */
-    suspend fun refresh() = rebuild()
+    suspend fun refresh() = rebuildLenient()
 
     /** `false`, если синхронизация уже идёт. */
     override suspend fun triggerSync(): Boolean =
@@ -146,7 +149,7 @@ class DaemonRuntime(
         val email = runCatching { client.fetchAccount(tokens.accessToken).email }.getOrNull()?.takeIf { it.isNotEmpty() }
         accountEmail = email
         writeFileAtomically(configDir.resolve("account.json"), Json.encodeToString(AccountFile(email)))
-        rebuild()
+        rebuildLenient()
         return DevicePoll.Authorized(email)
     }
 
@@ -169,17 +172,32 @@ class DaemonRuntime(
     // Отдельный экземпляр без watcher'а: правки разрешения конфликта подхватит обычный watcher демона.
     private fun conflictVault(): FileSystemLocalVault? = config.vaultPath?.let { FileSystemLocalVault(Path(it)) }
 
+    // Неверный пароль не должен ронять вход в облако или старт: демон просто остаётся заблокированным.
+    private suspend fun rebuildLenient() {
+        try {
+            rebuild()
+        } catch (e: InvalidPasswordException) {
+            logger.warning("Encryption password rejected: ${e.message}")
+        }
+    }
+
     private suspend fun rebuild() = buildMutex.withLock {
         teardown()
         val vaultPath = config.vaultPath ?: return@withLock
         val cipher = cipher ?: return@withLock
         if (tokenStorage.load() == null) return@withLock
         val remote = remoteStorageFactory.create(httpClient, tokenStorage, config) ?: return@withLock
+        try {
+            verifyOrInitCanary(remote, cipher, configDir)
+        } catch (e: InvalidPasswordException) {
+            this.cipher = null
+            throw e
+        }
 
         val rules = dev.mimir.core.rules.SyncRules()
         val watcher = NioWatchServiceVaultWatcher(Paths.get(vaultPath), rules)
         val vault = FileSystemLocalVault(Path(vaultPath), rules, watcher)
-        val encrypted = EncryptedRemoteStorage(remote, cipher)
+        val encrypted = EncryptedRemoteStorage(remote, cipher, reservedRootNames = setOf(CANARY_FILENAME))
         val engine = DefaultSyncEngine(vault, encrypted, JsonSyncStateStore(configDir.resolve("index.json")), rules = rules)
         val scheduler = SyncScheduler(
             syncEngine = engine,

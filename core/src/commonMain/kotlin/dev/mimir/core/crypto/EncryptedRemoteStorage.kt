@@ -6,6 +6,8 @@ import kotlinx.io.Source
 class EncryptedRemoteStorage(
     private val inner: RemoteStorage,
     private val cipher: Cipher,
+    /** Служебные файлы в корне `inner` с открытыми именами (например, канарейка пароля): не расшифровываются и скрыты. */
+    private val reservedRootNames: Set<String> = emptySet(),
 ) : ChangeFeedStorage {
     override suspend fun getLatestChangeToken(): String {
         val feed = inner as? ChangeFeedStorage
@@ -17,7 +19,7 @@ class EncryptedRemoteStorage(
         val feed = inner as? ChangeFeedStorage
             ?: throw UnsupportedOperationException("Inner storage does not support ChangeFeedStorage")
         val raw = feed.getChanges(sinceToken)
-        val decryptedChanges = raw.changes.map { change ->
+        val decryptedChanges = raw.changes.filterNot { it.path.isReserved() }.map { change ->
             change.copy(
                 path = decrypt(change.path),
                 entry = change.entry?.decrypted(),
@@ -27,7 +29,7 @@ class EncryptedRemoteStorage(
     }
 
     override suspend fun list(dir: RemotePath): List<RemoteEntry> =
-        inner.list(encrypt(dir)).map { it.decrypted() }
+        inner.list(encrypt(dir)).filterNot { it.path.isReserved() }.map { it.decrypted() }
 
     override suspend fun stat(path: RemotePath): RemoteEntry? =
         inner.stat(encrypt(path))?.decrypted()
@@ -39,6 +41,8 @@ class EncryptedRemoteStorage(
         inner.write(encrypt(path), cipher.encrypt(data)).decrypted()
 
     override suspend fun delete(path: RemotePath) = inner.delete(encrypt(path))
+
+    private fun RemotePath.isReserved() = segments.singleOrNull() in reservedRootNames
 
     private fun encrypt(path: RemotePath) = RemotePath.of(path.segments.map(cipher::encryptName))
 

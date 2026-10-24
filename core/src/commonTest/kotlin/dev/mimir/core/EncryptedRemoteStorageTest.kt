@@ -43,4 +43,14 @@ class EncryptedRemoteStorageTest {
         storage.write(plainPath, sourceOf(plainBytes))
         assertEquals(listOf(plainPath.value), storage.list(RemotePath("Здоровье")).map { it.path.value })
     }
+
+    @Test
+    fun `reserved root names are hidden from list and changes`() = runTest {
+        val reserved = EncryptedRemoteStorage(inner, ReversingCipher, reservedRootNames = setOf(".canary"))
+        inner.write(RemotePath(".canary"), sourceOf(byteArrayOf(1)))
+        reserved.write(plainPath, sourceOf(plainBytes))
+        assertEquals(listOf("Здоровье"), reserved.list(RemotePath("")).map { it.path.value })
+        val changes = reserved.getChanges("0").changes.map { it.path.value }
+        assertEquals(listOf(plainPath.value), changes)
+    }
 }

@@ -91,7 +91,7 @@ class DaemonRuntimeTest {
 
         eventually { runtime.lastSyncTime != null }
 
-        val rootEntries = remote.list(RemotePath(""))
+        val rootEntries = remote.list(RemotePath("")).filter { it.path.value != CANARY_FILENAME }
         assertEquals(1, rootEntries.size)
         assertTrue("Notes" !in rootEntries.single().path.value, "names must be encrypted")
         assertNotNull(runtime.lastSyncTime)
