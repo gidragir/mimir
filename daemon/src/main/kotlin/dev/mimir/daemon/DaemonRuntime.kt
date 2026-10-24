@@ -103,6 +103,13 @@ class DaemonRuntime(
 
     @Volatile
     private var watcher: NioWatchServiceVaultWatcher? = null
+
+    @Volatile
+    private var encryptedRemote: EncryptedRemoteStorage? = null
+
+    /** Пока `true`, собранный планировщик не запускается: ждём подтверждения первого слияния. */
+    @Volatile
+    private var holdInitialSync = false
     private var statusJob: Job? = null
     private var progressJob: Job? = null
     private var conflictJob: Job? = null
@@ -130,14 +137,26 @@ class DaemonRuntime(
         rebuildLenient()
     }
 
-    override suspend fun configureVault(vaultPath: String) {
+    override suspend fun configureVault(vaultPath: String): Int {
         val normalized = vaultPath.trim()
         require(normalized.isNotEmpty() && Files.isDirectory(Paths.get(normalized))) { "Not a directory: $vaultPath" }
         DaemonConfig.readFile(configDir.toString()).copy(vaultPath = normalized).save(configDir.toString())
         config = config.copy(vaultPath = normalized)
+        // Первая настройка: пользователь подтвердит стратегию слияния, и только потом пойдёт синхронизация.
+        holdInitialSync = !Files.exists(configDir.resolve("index.json"))
         refreshConflicts()
         startConflictScan()
         rebuildLenient()
+        return withContext(Dispatchers.IO) { FileSystemLocalVault(Path(normalized)).list().size }
+    }
+
+    override suspend fun inspectVault(): VaultInspectionDto {
+        check(!isLocked) { "Vault is locked" }
+        val remote = encryptedRemote ?: throw SyncNotConfiguredException("Vault path, encryption password or cloud storage not configured")
+        val local = FileSystemLocalVault(Path(config.vaultPath ?: throw SyncNotConfiguredException("Vault path not configured")))
+        val localCount = withContext(Dispatchers.IO) { local.list().size }
+        val remoteCount = remote.listAll().size
+        return VaultInspectionDto(localCount, remoteCount, localCount > 0 && remoteCount > 0)
     }
 
     /** [InvalidPasswordException], если пароль не подходит к хранилищу в облаке; демон остаётся заблокированным. */
@@ -158,9 +177,15 @@ class DaemonRuntime(
     suspend fun refresh() = rebuildLenient()
 
     /** `false`, если синхронизация уже идёт. */
-    override suspend fun triggerSync(): Boolean =
-        (scheduler ?: throw SyncNotConfiguredException("Vault path, encryption password or cloud storage not configured"))
-            .triggerSync()
+    override suspend fun triggerSync(): Boolean {
+        val scheduler = scheduler ?: throw SyncNotConfiguredException("Vault path, encryption password or cloud storage not configured")
+        if (holdInitialSync) {
+            holdInitialSync = false
+            scheduler.start()
+            return true
+        }
+        return scheduler.triggerSync()
+    }
 
     override suspend fun conflicts(): List<ConflictFileEntry> = refreshConflicts()
 
@@ -353,6 +378,7 @@ class DaemonRuntime(
         )
         this.watcher = watcher
         this.scheduler = scheduler
+        this.encryptedRemote = encrypted
         statusJob = scope.launch {
             engine.status.collect {
                 _status.value = it
@@ -364,7 +390,7 @@ class DaemonRuntime(
             engine.progress.filterNotNull().collect { _progress.value = it }
         }
         _status.value = engine.status.value
-        scheduler.start()
+        if (!holdInitialSync) scheduler.start()
     }
 
     private fun teardown() {
@@ -376,6 +402,7 @@ class DaemonRuntime(
         // _progress намеренно сохраняется: сводка последнего прогона
         scheduler = null
         watcher = null
+        encryptedRemote = null
         statusJob = null
         _status.value = SyncStatus.NotConfigured
     }
