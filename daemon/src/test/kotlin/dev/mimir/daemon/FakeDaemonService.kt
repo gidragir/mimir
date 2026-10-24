@@ -1,6 +1,7 @@
 package dev.mimir.daemon
 
 import dev.mimir.core.SyncStatus
+import dev.mimir.drive.api.GoogleDeviceCodeResponse
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlin.time.Instant
@@ -10,6 +11,12 @@ class FakeDaemonService : DaemonService {
     override var vaultPath: String? = null
     override var isLocked: Boolean = true
     override var lastSyncTime: Instant? = null
+    override val accountEmail: String? = null
+
+    override suspend fun conflicts(): List<ConflictFileEntry> = emptyList()
+    override suspend fun resolveConflict(originalPath: String, conflictPath: String, keepConflict: Boolean) = Unit
+    override suspend fun startDeviceLogin(): GoogleDeviceCodeResponse = error("not used")
+    override suspend fun pollDeviceLogin(deviceCode: String): DevicePoll = error("not used")
 
     /** `true` — запуск принят, `false` — уже идёт, `null` — не сконфигурировано. */
     var syncAccepted: Boolean? = null

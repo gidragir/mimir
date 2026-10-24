@@ -9,6 +9,8 @@ import dev.mimir.core.fs.FileSystemLocalVault
 import dev.mimir.core.fs.NioWatchServiceVaultWatcher
 import dev.mimir.core.sync.DefaultSyncEngine
 import dev.mimir.drive.GoogleDriveStorage
+import dev.mimir.drive.api.GoogleDeviceCodeResponse
+import dev.mimir.drive.client.DriveAuthException
 import dev.mimir.drive.auth.GoogleAuthClient
 import dev.mimir.drive.auth.TokenStorage
 import dev.mimir.drive.client.DriveHttpClient
@@ -28,8 +30,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.io.Buffer
 import kotlinx.io.files.Path
+import kotlinx.io.readByteArray
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import java.nio.file.Files
 import java.nio.file.Paths
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
@@ -83,7 +89,12 @@ class DaemonRuntime(
     val isReady: Boolean get() = scheduler != null
     override val lastSyncTime: Instant? get() = scheduler?.lastSyncTime
 
+    @Volatile
+    override var accountEmail: String? = null
+        private set
+
     suspend fun initialize() {
+        accountEmail = readAccountEmail()
         config.resolvePassword()?.takeIf { it.isNotEmpty() }?.let { cipher = RcloneCipher(it) }
         rebuild()
     }
@@ -101,12 +112,62 @@ class DaemonRuntime(
         (scheduler ?: throw SyncNotConfiguredException("Vault path, encryption password or cloud storage not configured"))
             .triggerSync()
 
+    override suspend fun conflicts(): List<ConflictFileEntry> {
+        val vault = conflictVault() ?: return emptyList()
+        return ConflictFiles.find(vault.list().map { it.relativePath })
+    }
+
+    override suspend fun resolveConflict(originalPath: String, conflictPath: String, keepConflict: Boolean) {
+        val vault = conflictVault() ?: throw SyncNotConfiguredException("Vault path not configured")
+        val parsed = ConflictFiles.parse(conflictPath.replace('\\', '/').trim('/'))
+        require(parsed != null && parsed.originalPath == originalPath.replace('\\', '/').trim('/')) {
+            "'$conflictPath' is not a conflicted copy of '$originalPath'"
+        }
+        val conflict = vault.getEntry(parsed.conflictPath) ?: throw NoSuchElementException("No such conflict: $conflictPath")
+        if (keepConflict) {
+            val bytes = vault.read(conflict.id).use { it.readByteArray() }
+            vault.write(parsed.originalPath, Buffer().also { it.write(bytes) })
+        }
+        vault.deleteByPath(parsed.conflictPath)
+    }
+
+    override suspend fun startDeviceLogin(): GoogleDeviceCodeResponse =
+        (authClient ?: throw SyncNotConfiguredException("Google client id not configured")).requestDeviceCode()
+
+    override suspend fun pollDeviceLogin(deviceCode: String): DevicePoll {
+        val client = authClient ?: throw SyncNotConfiguredException("Google client id not configured")
+        val tokens = try {
+            client.pollDeviceToken(deviceCode)
+        } catch (e: DriveAuthException) {
+            val message = e.message.orEmpty()
+            return if ("authorization_pending" in message || "slow_down" in message) DevicePoll.Pending else DevicePoll.Expired(message)
+        }
+        tokenStorage.save(tokens)
+        val email = runCatching { client.fetchAccount(tokens.accessToken).email }.getOrNull()?.takeIf { it.isNotEmpty() }
+        accountEmail = email
+        writeFileAtomically(configDir.resolve("account.json"), Json.encodeToString(AccountFile(email)))
+        rebuild()
+        return DevicePoll.Authorized(email)
+    }
+
     fun close() {
         scheduler?.stop()
         watcher?.stop()
         scope.cancel()
         httpClient.close()
     }
+
+    @Serializable
+    private class AccountFile(val email: String?)
+
+    private fun readAccountEmail(): String? {
+        val file = configDir.resolve("account.json")
+        if (!Files.isRegularFile(file)) return null
+        return runCatching { Json.decodeFromString<AccountFile>(Files.readString(file)).email }.getOrNull()
+    }
+
+    // Отдельный экземпляр без watcher'а: правки разрешения конфликта подхватит обычный watcher демона.
+    private fun conflictVault(): FileSystemLocalVault? = config.vaultPath?.let { FileSystemLocalVault(Path(it)) }
 
     private suspend fun rebuild() = buildMutex.withLock {
         teardown()

@@ -3,6 +3,7 @@ package dev.mimir.daemon
 import dev.mimir.core.BuildConfig
 import dev.mimir.core.SyncStatus
 import dev.mimir.core.label
+import dev.mimir.drive.client.DriveHttpException
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
@@ -30,6 +31,8 @@ private data class StatusResponse(
     val vaultPath: String?,
     val lastSyncAt: String?,
     val isLocked: Boolean,
+    val activeConflicts: Int,
+    val accountEmail: String?,
 )
 
 @Serializable
@@ -37,6 +40,24 @@ private data class StatusOnly(val status: String)
 
 @Serializable
 private data class ErrorBody(val error: String)
+
+@Serializable
+private data class ConflictsResponse(val conflicts: List<ConflictItem>)
+
+@Serializable
+private data class ConflictItem(val originalPath: String, val conflictPath: String, val createdAt: String)
+
+@Serializable
+private data class ResolveRequest(val originalPath: String = "", val conflictPath: String = "", val resolution: String = "")
+
+@Serializable
+private data class ResolveResponse(val status: String, val path: String)
+
+@Serializable
+private data class AuthorizedResponse(val status: String, val email: String?)
+
+@Serializable
+private data class ExpiredResponse(val status: String, val error: String)
 
 @Serializable
 private data class UnlockRequest(val password: String = "")
@@ -84,6 +105,8 @@ fun Application.mimirRoutes(service: DaemonService, config: DaemonConfig) {
                         vaultPath = service.vaultPath,
                         lastSyncAt = service.lastSyncTime?.toString(),
                         isLocked = service.isLocked,
+                        activeConflicts = service.conflicts().size,
+                        accountEmail = service.accountEmail,
                     ),
                 )
             }
@@ -100,6 +123,61 @@ fun Application.mimirRoutes(service: DaemonService, config: DaemonConfig) {
                         HttpStatusCode.PreconditionFailed,
                         ErrorBody("Vault path, encryption password or cloud storage not configured"),
                     )
+                }
+            }
+
+            get("/conflicts") {
+                call.respond(
+                    ConflictsResponse(service.conflicts().map { ConflictItem(it.originalPath, it.conflictPath, it.createdAt.toString()) }),
+                )
+            }
+
+            post("/conflicts/resolve") {
+                val request = try {
+                    call.receive<ResolveRequest>()
+                } catch (_: Exception) {
+                    return@post call.respond(HttpStatusCode.BadRequest, ErrorBody("Expected originalPath, conflictPath and resolution"))
+                }
+                val keepConflict = when (request.resolution) {
+                    "keep_conflict" -> true
+                    "keep_original" -> false
+                    else -> return@post call.respond(HttpStatusCode.BadRequest, ErrorBody("resolution must be keep_original or keep_conflict"))
+                }
+                try {
+                    service.resolveConflict(request.originalPath, request.conflictPath, keepConflict)
+                    call.respond(ResolveResponse("resolved", request.originalPath))
+                } catch (e: IllegalArgumentException) {
+                    call.respond(HttpStatusCode.BadRequest, ErrorBody(e.message ?: "Invalid request"))
+                } catch (e: NoSuchElementException) {
+                    call.respond(HttpStatusCode.NotFound, ErrorBody(e.message ?: "Not found"))
+                } catch (_: SyncNotConfiguredException) {
+                    call.respond(HttpStatusCode.PreconditionFailed, ErrorBody("Vault path not configured"))
+                }
+            }
+
+            post("/auth/device/start") {
+                try {
+                    call.respond(service.startDeviceLogin())
+                } catch (e: SyncNotConfiguredException) {
+                    call.respond(HttpStatusCode.PreconditionFailed, ErrorBody(e.message ?: "Not configured"))
+                } catch (e: DriveHttpException) {
+                    call.respond(HttpStatusCode.BadGateway, ErrorBody(e.message ?: "Google request failed"))
+                }
+            }
+
+            get("/auth/device/poll") {
+                val deviceCode = call.request.queryParameters["device_code"]
+                    ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorBody("device_code is required"))
+                try {
+                    when (val result = service.pollDeviceLogin(deviceCode)) {
+                        DevicePoll.Pending -> call.respond(StatusOnly("pending"))
+                        is DevicePoll.Authorized -> call.respond(AuthorizedResponse("authorized", result.email))
+                        is DevicePoll.Expired -> call.respond(HttpStatusCode.BadRequest, ExpiredResponse("expired", "Code has expired"))
+                    }
+                } catch (e: SyncNotConfiguredException) {
+                    call.respond(HttpStatusCode.PreconditionFailed, ErrorBody(e.message ?: "Not configured"))
+                } catch (e: DriveHttpException) {
+                    call.respond(HttpStatusCode.BadGateway, ErrorBody(e.message ?: "Google request failed"))
                 }
             }
 
