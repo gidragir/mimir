@@ -88,9 +88,18 @@ class DefaultSyncEngine(
         val localFiles = localVault.list()
         _progress.update { it?.copy(scanned = localFiles.size) }
         val remoteFiles = mutableListOf<RemoteEntry>()
-        listAllRemote(RemotePath(""), remoteFiles) {
-            _progress.update { it?.copy(scanned = localFiles.size + remoteFiles.size) }
-        }
+        var foldersScanned = 0
+        listAllRemote(
+            RemotePath(""),
+            remoteFiles,
+            onFolder = {
+                foldersScanned++
+                _progress.update { it?.copy(foldersScanned = foldersScanned) }
+            },
+            onFile = {
+                _progress.update { it?.copy(scanned = localFiles.size + remoteFiles.size) }
+            },
+        )
 
         val hashCalculator: suspend (String, Boolean) -> String = { path, isLocal ->
             if (isLocal) {
@@ -322,10 +331,17 @@ class DefaultSyncEngine(
         is SyncAction.UpdateMetadata, is SyncAction.NoOp -> 0L
     }
 
-    private suspend fun listAllRemote(dir: RemotePath, into: MutableList<RemoteEntry>, onFile: () -> Unit) {
-        for (entry in remoteStorage.list(dir)) {
+    private suspend fun listAllRemote(
+        dir: RemotePath,
+        into: MutableList<RemoteEntry>,
+        onFolder: () -> Unit,
+        onFile: () -> Unit,
+    ) {
+        val entries = remoteStorage.list(dir)
+        onFolder()
+        for (entry in entries) {
             if (entry.isDirectory) {
-                listAllRemote(entry.path, into, onFile)
+                listAllRemote(entry.path, into, onFolder, onFile)
             } else {
                 into.add(entry)
                 onFile()

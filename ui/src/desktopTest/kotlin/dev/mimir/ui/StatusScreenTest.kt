@@ -87,6 +87,18 @@ class StatusScreenTest {
     }
 
     @Test
+    fun scanningShowsFolderCountWhenKnown() = runComposeUiTest {
+        val progress = SyncProgress(
+            phase = SyncPhase.Scanning,
+            startedAt = Clock.System.now() - 12.seconds,
+            scanned = 340,
+            foldersScanned = 120,
+        )
+        setContent { MimirApp(FakeMimirUiModel(status = SyncStatus.Syncing, progress = progressOf(progress))) }
+        onNodeWithText("Проверено 340 файлов в 120 папках").assertExists()
+    }
+
+    @Test
     fun applyingShowsCountersEtaCurrentAndUpcoming() = runComposeUiTest {
         val now = Clock.System.now()
         val progress = SyncProgress(

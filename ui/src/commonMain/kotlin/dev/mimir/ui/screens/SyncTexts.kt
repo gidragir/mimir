@@ -65,7 +65,9 @@ object SyncTexts {
     fun counter(done: Int, total: Int): String =
         "$done из $total " + plural(total, "файла", "файлов", "файлов")
 
-    fun scanned(n: Int): String = "Проверено ${files(n)}"
+    /** «Проверено 340 файлов»; если известно число папок — «Проверено 340 файлов в 120 папках». */
+    fun scanned(n: Int, folders: Int = 0): String =
+        "Проверено ${files(n)}" + if (folders > 0) " в $folders " + plural(folders, "папке", "папках", "папках") else ""
 
     fun elapsed(seconds: Long): String = "прошло ${duration(seconds)}"
 

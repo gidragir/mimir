@@ -61,6 +61,30 @@ class SyncEngineProgressTest {
     }
 
     @Test
+    fun scanningPublishesFolderCountEvenWhenOnlySubfoldersAreFound() = runTest {
+        val f = Fixture()
+        f.remote.write(RemotePath("a/b/c/deep.md"), bufferOf("1"))
+        f.remote.write(RemotePath("d/e/other.md"), bufferOf("2"))
+
+        val scanning = mutableListOf<SyncProgress>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            f.engine.progress.collect { p ->
+                if (p != null && p.phase == SyncPhase.Scanning) scanning += p
+            }
+        }
+
+        f.engine.syncNow()
+
+        // root, a, a/b, a/b/c, d, d/e
+        val beforeAnyFile = scanning.filter { it.scanned == 0 }.map { it.foldersScanned }.distinct()
+        assertTrue(listOf(1, 2, 3, 4).all { it in beforeAnyFile }, "folders-only steps must be published: $beforeAnyFile")
+        assertEquals(scanning.map { it.foldersScanned }.sorted(), scanning.map { it.foldersScanned })
+        assertEquals(6, scanning.last().foldersScanned)
+        assertEquals(2, scanning.last().scanned)
+        assertEquals(6, assertNotNull(f.engine.progress.value).foldersScanned)
+    }
+
+    @Test
     fun upcomingIsCappedAtFive() = runTest {
         val f = Fixture()
         for (i in 1..8) f.vault.write("n$i.md", bufferOf("x$i"))

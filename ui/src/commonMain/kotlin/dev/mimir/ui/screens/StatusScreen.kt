@@ -139,7 +139,7 @@ private fun ProgressBlock(p: SyncProgress, now: Instant) {
     when (p.phase) {
         SyncPhase.Scanning, SyncPhase.Comparing -> {
             LinearProgressIndicator(Modifier.fillMaxWidth())
-            Text(SyncTexts.scanned(p.scanned))
+            Text(SyncTexts.scanned(p.scanned, p.foldersScanned))
             Text(elapsed)
         }
         SyncPhase.Applying -> {

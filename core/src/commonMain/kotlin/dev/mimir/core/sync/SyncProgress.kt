@@ -25,6 +25,8 @@ data class SyncProgress(
     val finishedAt: Instant? = null,
     val applyingStartedAt: Instant? = null,
     val scanned: Int = 0,
+    /** Сколько удалённых папок уже обойдено при сканировании (включая корень). */
+    val foldersScanned: Int = 0,
     val total: Int = 0,
     val done: Int = 0,
     val bytesTotal: Long = 0,

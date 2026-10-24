@@ -26,4 +26,20 @@ class SyncTextsTest {
         assertEquals("12 из 87 файлов", SyncTexts.counter(12, 87))
         assertEquals("1 из 21 файла", SyncTexts.counter(1, 21))
     }
+
+    @Test
+    fun scannedWithoutFoldersKeepsOldText() {
+        assertEquals("Проверено 340 файлов", SyncTexts.scanned(340))
+        assertEquals("Проверено 340 файлов", SyncTexts.scanned(340, 0))
+    }
+
+    @Test
+    fun scannedWithFoldersUsesPrepositionalPlural() {
+        assertEquals("Проверено 340 файлов в 120 папках", SyncTexts.scanned(340, 120))
+        assertEquals("Проверено 1 файл в 1 папке", SyncTexts.scanned(1, 1))
+        assertEquals("Проверено 0 файлов в 2 папках", SyncTexts.scanned(0, 2))
+        assertEquals("Проверено 3 файла в 5 папках", SyncTexts.scanned(3, 5))
+        assertEquals("Проверено 3 файла в 11 папках", SyncTexts.scanned(3, 11))
+        assertEquals("Проверено 3 файла в 21 папке", SyncTexts.scanned(3, 21))
+    }
 }
