@@ -1,9 +1,12 @@
 # Скопируйте в mise.local.toml (файл в .gitignore) и заполните.
 # Для сборки и тестов ничего из этого не требуется.
 [env]
-# OAuth-клиент Google Cloud (один проект для всех клиентов Mimir)
-GOOGLE_OAUTH_CLIENT_ID = ""
-GOOGLE_OAUTH_CLIENT_SECRET = ""
+# OAuth-клиенты Google Cloud (оба в одном проекте): «Desktop app» — вход через браузер,
+# «TVs and Limited Input devices» — вход по коду (Device Code)
+MIMIR_GOOGLE_DESKTOP_CLIENT_ID = ""
+MIMIR_GOOGLE_DESKTOP_CLIENT_SECRET = ""
+MIMIR_GOOGLE_DEVICE_CLIENT_ID = ""
+MIMIR_GOOGLE_DEVICE_CLIENT_SECRET = ""
 # Путь к Android SDK; если не задан, Android-таргеты пропускаются с предупреждением
 ANDROID_HOME = ""
 # Chromium для js-тестов (Karma, headless). На Arch: sudo pacman -S chromium
