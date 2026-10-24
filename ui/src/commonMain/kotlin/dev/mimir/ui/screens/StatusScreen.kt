@@ -80,11 +80,10 @@ fun StatusScreen(
         when (val s = status) {
             SyncStatus.Offline -> Text(SyncTexts.OFFLINE_HINT)
             is SyncStatus.Error -> {
-                if (needsSignIn) {
-                    Button(onClick = onOpenSetup) { Text(SyncTexts.SIGN_IN) }
-                } else {
-                    Details(s.message)
-                }
+                // Вход предлагается при любой ошибке: после отзыва/истечения refresh-токена
+                // email остаётся в account.json, и иначе вернуться ко входу было бы нельзя.
+                Details(s.message)
+                Button(onClick = onOpenSetup) { Text(SyncTexts.SIGN_IN) }
             }
             else -> {}
         }

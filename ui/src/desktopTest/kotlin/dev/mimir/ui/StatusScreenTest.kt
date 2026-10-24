@@ -183,4 +183,22 @@ class StatusScreenTest {
         waitForIdle()
         assertTrue(setupOpened)
     }
+
+    @Test
+    fun errorWithAccountStillOffersSignIn() = runComposeUiTest {
+        var setupOpened = false
+        setContent {
+            MimirTheme {
+                dev.mimir.ui.screens.StatusScreen(
+                    FakeMimirUiModel(status = SyncStatus.Error("invalid_grant"), accountEmail = "user@example.com"),
+                    onOpenSetup = { setupOpened = true },
+                )
+            }
+        }
+        onNodeWithText("Не удалось синхронизировать").assertExists()
+        onNodeWithText("Подробнее").assertExists()
+        onNodeWithText("Войти через Google").assertIsEnabled().performClick()
+        waitForIdle()
+        assertTrue(setupOpened)
+    }
 }

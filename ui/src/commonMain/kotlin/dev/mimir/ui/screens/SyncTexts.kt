@@ -30,7 +30,7 @@ object SyncTexts {
      * Заголовок фазы. `null` — показывать служебную строку статуса (до подключения: ровно `Mimir: not connected`).
      * [needsSignIn] — ошибка вызвана тем, что вход в Google больше не действует.
      */
-    fun phaseTitle(status: SyncStatus, progress: SyncProgress?, needsSignIn: Boolean = true): String? = when (status) {
+    fun phaseTitle(status: SyncStatus, progress: SyncProgress?, needsSignIn: Boolean): String? = when (status) {
         SyncStatus.NotConfigured -> null
         SyncStatus.Offline -> OFFLINE
         is SyncStatus.Error -> if (needsSignIn) SIGN_IN_AGAIN else FAILED
