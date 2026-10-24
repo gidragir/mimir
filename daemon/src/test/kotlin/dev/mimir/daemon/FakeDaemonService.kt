@@ -13,6 +13,14 @@ class FakeDaemonService : DaemonService {
     override var lastSyncTime: Instant? = null
     override val accountEmail: String? = null
 
+    override val conflictsFlow = MutableStateFlow<List<ConflictFileEntry>>(emptyList())
+    var rejectVault = false
+
+    override suspend fun configureVault(vaultPath: String) {
+        require(!rejectVault) { "Not a directory: $vaultPath" }
+        this.vaultPath = vaultPath
+    }
+
     override suspend fun conflicts(): List<ConflictFileEntry> = emptyList()
     override suspend fun resolveConflict(originalPath: String, conflictPath: String, keepConflict: Boolean) = Unit
     override suspend fun startDeviceLogin(): GoogleDeviceCodeResponse = error("not used")

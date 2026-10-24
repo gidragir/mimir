@@ -60,6 +60,9 @@ private data class AuthorizedResponse(val status: String, val email: String?)
 private data class ExpiredResponse(val status: String, val error: String)
 
 @Serializable
+private data class VaultRequest(val vaultPath: String = "")
+
+@Serializable
 private data class UnlockRequest(val password: String = "")
 
 private fun SyncStatus.code(): String = when (this) {
@@ -105,7 +108,7 @@ fun Application.mimirRoutes(service: DaemonService, config: DaemonConfig) {
                         vaultPath = service.vaultPath,
                         lastSyncAt = service.lastSyncTime?.toString(),
                         isLocked = service.isLocked,
-                        activeConflicts = service.conflicts().size,
+                        activeConflicts = service.conflictsFlow.value.size,
                         accountEmail = service.accountEmail,
                     ),
                 )
@@ -178,6 +181,20 @@ fun Application.mimirRoutes(service: DaemonService, config: DaemonConfig) {
                     call.respond(HttpStatusCode.PreconditionFailed, ErrorBody(e.message ?: "Not configured"))
                 } catch (e: DriveHttpException) {
                     call.respond(HttpStatusCode.BadGateway, ErrorBody(e.message ?: "Google request failed"))
+                }
+            }
+
+            post("/vault") {
+                val request = try {
+                    call.receive<VaultRequest>()
+                } catch (_: Exception) {
+                    return@post call.respond(HttpStatusCode.BadRequest, ErrorBody("Expected {\"vaultPath\": \"...\"}"))
+                }
+                try {
+                    service.configureVault(request.vaultPath)
+                    call.respond(StatusOnly("configured"))
+                } catch (e: IllegalArgumentException) {
+                    call.respond(HttpStatusCode.BadRequest, ErrorBody(e.message ?: "Invalid vault path"))
                 }
             }
 

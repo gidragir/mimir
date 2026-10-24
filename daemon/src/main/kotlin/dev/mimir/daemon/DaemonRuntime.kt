@@ -24,10 +24,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.io.Buffer
@@ -37,6 +39,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.nio.file.Files
 import java.nio.file.Paths
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 
@@ -63,14 +66,20 @@ fun defaultHttpClient(): HttpClient = HttpClient(CIO) {
 
 /** Собирает граф зависимостей демона и держит его в актуальном состоянии (вход, разблокировка, смена vault). */
 class DaemonRuntime(
-    val config: DaemonConfig,
+    initialConfig: DaemonConfig,
     private val httpClient: HttpClient = defaultHttpClient(),
     private val remoteStorageFactory: RemoteStorageFactory = googleDriveFactory,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
+    private val conflictScanInterval: Duration = 5.seconds,
 ) : DaemonService {
+    @Volatile
+    var config: DaemonConfig = initialConfig
+        private set
+
     private val configDir = Paths.get(config.configDir ?: DaemonConfig.load(env = System.getenv()).configDir!!)
     private val buildMutex = Mutex()
     private val _status = MutableStateFlow<SyncStatus>(SyncStatus.NotConfigured)
+    private val _conflicts = MutableStateFlow<List<ConflictFileEntry>>(emptyList())
 
     @Volatile
     private var cipher: Cipher? = null
@@ -81,11 +90,13 @@ class DaemonRuntime(
     @Volatile
     private var watcher: NioWatchServiceVaultWatcher? = null
     private var statusJob: Job? = null
+    private var conflictJob: Job? = null
 
     val tokenStorage: TokenStorage = FileTokenStorage(configDir.resolve("tokens.json"))
     val authClient: GoogleAuthClient? = config.googleClientId?.let { GoogleAuthClient(httpClient, it, config.googleClientSecret) }
 
     override val status: StateFlow<SyncStatus> = _status.asStateFlow()
+    override val conflictsFlow: StateFlow<List<ConflictFileEntry>> = _conflicts.asStateFlow()
     override val vaultPath: String? get() = config.vaultPath
     override val isLocked: Boolean get() = cipher == null
     val isReady: Boolean get() = scheduler != null
@@ -98,6 +109,18 @@ class DaemonRuntime(
     suspend fun initialize() {
         accountEmail = readAccountEmail()
         config.resolvePassword()?.takeIf { it.isNotEmpty() }?.let { cipher = RcloneCipher(it) }
+        refreshConflicts()
+        startConflictScan()
+        rebuildLenient()
+    }
+
+    override suspend fun configureVault(vaultPath: String) {
+        val normalized = vaultPath.trim()
+        require(normalized.isNotEmpty() && Files.isDirectory(Paths.get(normalized))) { "Not a directory: $vaultPath" }
+        DaemonConfig.readFile(configDir.toString()).copy(vaultPath = normalized).save(configDir.toString())
+        config = config.copy(vaultPath = normalized)
+        refreshConflicts()
+        startConflictScan()
         rebuildLenient()
     }
 
@@ -115,9 +138,28 @@ class DaemonRuntime(
         (scheduler ?: throw SyncNotConfiguredException("Vault path, encryption password or cloud storage not configured"))
             .triggerSync()
 
-    override suspend fun conflicts(): List<ConflictFileEntry> {
-        val vault = conflictVault() ?: return emptyList()
-        return ConflictFiles.find(vault.list().map { it.relativePath })
+    override suspend fun conflicts(): List<ConflictFileEntry> = refreshConflicts()
+
+    // Периодическое обновление снимка: конфликтные копии могут появиться и без нашей синхронизации (Obsidian, другие клиенты).
+    private fun startConflictScan() {
+        conflictJob?.cancel()
+        conflictJob = scope.launch {
+            while (true) {
+                delay(conflictScanInterval)
+                runCatching { refreshConflicts() }
+            }
+        }
+    }
+
+    private suspend fun refreshConflicts(): List<ConflictFileEntry> {
+        val vault = conflictVault()
+        val found = if (vault == null) {
+            emptyList()
+        } else {
+            withContext(Dispatchers.IO) { ConflictFiles.find(vault.list().map { it.relativePath }) }
+        }
+        _conflicts.value = found
+        return found
     }
 
     override suspend fun resolveConflict(originalPath: String, conflictPath: String, keepConflict: Boolean) {
@@ -132,6 +174,7 @@ class DaemonRuntime(
             vault.write(parsed.originalPath, Buffer().also { it.write(bytes) })
         }
         vault.deleteByPath(parsed.conflictPath)
+        refreshConflicts()
     }
 
     override suspend fun startDeviceLogin(): GoogleDeviceCodeResponse =
@@ -208,7 +251,12 @@ class DaemonRuntime(
         )
         this.watcher = watcher
         this.scheduler = scheduler
-        statusJob = scope.launch { engine.status.collect { _status.value = it } }
+        statusJob = scope.launch {
+            engine.status.collect {
+                _status.value = it
+                if (it == SyncStatus.Idle) runCatching { refreshConflicts() }
+            }
+        }
         _status.value = engine.status.value
         scheduler.start()
     }
