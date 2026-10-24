@@ -8,6 +8,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -43,6 +44,11 @@ class SyncScheduler(
     var lastError: String? = null
         private set
 
+    /** Причина остановки отслеживания локальных изменений; синхронизация по таймеру продолжается. */
+    @Volatile
+    var watcherError: String? = null
+        private set
+
     fun start() {
         stop()
         jobs = listOf(
@@ -52,7 +58,12 @@ class SyncScheduler(
                     delay(syncInterval)
                 }
             },
-            scope.launch { localChanges.collect { requestSync() } },
+            scope.launch {
+                // сломанный watcher не должен останавливать синхронизацию по таймеру
+                localChanges
+                    .catch { watcherError = it.message ?: it::class.simpleName }
+                    .collect { requestSync() }
+            },
         )
     }
 

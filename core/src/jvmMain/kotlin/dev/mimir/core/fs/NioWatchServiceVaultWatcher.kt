@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.isActive
+import java.io.IOException
 import java.nio.file.ClosedWatchServiceException
 import java.nio.file.Files
 import java.nio.file.Path
@@ -77,7 +78,11 @@ class NioWatchServiceVaultWatcher(
             stream.filter { Files.isDirectory(it) }.forEach { dir ->
                 val rel = if (dir == root) "" else relative(dir)
                 if (rel.isNotEmpty() && filter.isExcluded(rel)) return@forEach
-                dirs[dir.register(service, ENTRY_CREATE, ENTRY_MODIFY, ENTRY_DELETE)] = dir
+                try {
+                    dirs[dir.register(service, ENTRY_CREATE, ENTRY_MODIFY, ENTRY_DELETE)] = dir
+                } catch (e: IOException) {
+                    if (dir == root) throw e // каталог мог исчезнуть между обходом и регистрацией
+                }
             }
             // файлы, появившиеся в новом каталоге до его регистрации
             if (start != root) {

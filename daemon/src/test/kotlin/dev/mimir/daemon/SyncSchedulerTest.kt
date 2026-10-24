@@ -134,6 +134,25 @@ class SyncSchedulerTest {
     }
 
     @Test
+    fun `broken local watcher is reported and does not stop the timer`() = runTest {
+        val engine = FakeEngine()
+        val scheduler = SyncScheduler(
+            syncEngine = engine,
+            syncInterval = interval,
+            scope = backgroundScope,
+            localChanges = kotlinx.coroutines.flow.flow { throw java.io.IOException("watch failed") },
+        ).also { it.start() }
+
+        runCurrent()
+        advanceTimeBy(interval + 1.seconds)
+        runCurrent()
+
+        assertEquals("watch failed", scheduler.watcherError)
+        assertEquals(2, engine.calls)
+        scheduler.stop()
+    }
+
+    @Test
     fun `failed sync does not kill the loop and does not set lastSyncTime`() = runTest {
         val engine = FakeEngine().apply { failNext = true }
         val scheduler = scheduler(engine).also { it.start() }

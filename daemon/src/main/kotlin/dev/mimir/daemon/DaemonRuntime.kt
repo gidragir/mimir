@@ -59,7 +59,7 @@ class DaemonRuntime(
     private val httpClient: HttpClient = defaultHttpClient(),
     private val remoteStorageFactory: RemoteStorageFactory = googleDriveFactory,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
-) {
+) : DaemonService {
     private val configDir = Paths.get(config.configDir ?: DaemonConfig.load(env = System.getenv()).configDir!!)
     private val buildMutex = Mutex()
     private val _status = MutableStateFlow<SyncStatus>(SyncStatus.NotConfigured)
@@ -77,17 +77,18 @@ class DaemonRuntime(
     val tokenStorage: TokenStorage = FileTokenStorage(configDir.resolve("tokens.json"))
     val authClient: GoogleAuthClient? = config.googleClientId?.let { GoogleAuthClient(httpClient, it, config.googleClientSecret) }
 
-    val status: StateFlow<SyncStatus> = _status.asStateFlow()
-    val isLocked: Boolean get() = cipher == null
+    override val status: StateFlow<SyncStatus> = _status.asStateFlow()
+    override val vaultPath: String? get() = config.vaultPath
+    override val isLocked: Boolean get() = cipher == null
     val isReady: Boolean get() = scheduler != null
-    val lastSyncTime: Instant? get() = scheduler?.lastSyncTime
+    override val lastSyncTime: Instant? get() = scheduler?.lastSyncTime
 
     suspend fun initialize() {
         config.resolvePassword()?.takeIf { it.isNotEmpty() }?.let { cipher = RcloneCipher(it) }
         rebuild()
     }
 
-    suspend fun unlock(password: String) {
+    override suspend fun unlock(password: String) {
         cipher = RcloneCipher(password)
         rebuild()
     }
@@ -96,7 +97,7 @@ class DaemonRuntime(
     suspend fun refresh() = rebuild()
 
     /** `false`, если синхронизация уже идёт. */
-    suspend fun triggerSync(): Boolean =
+    override suspend fun triggerSync(): Boolean =
         (scheduler ?: throw SyncNotConfiguredException("Vault path, encryption password or cloud storage not configured"))
             .triggerSync()
 
