@@ -9,9 +9,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.isActive
-import java.io.IOException
 import java.nio.file.ClosedWatchServiceException
 import java.nio.file.Files
+import java.nio.file.NoSuchFileException
 import java.nio.file.Path
 import java.nio.file.StandardWatchEventKinds.ENTRY_CREATE
 import java.nio.file.StandardWatchEventKinds.ENTRY_DELETE
@@ -80,8 +80,8 @@ class NioWatchServiceVaultWatcher(
                 if (rel.isNotEmpty() && filter.isExcluded(rel)) return@forEach
                 try {
                     dirs[dir.register(service, ENTRY_CREATE, ENTRY_MODIFY, ENTRY_DELETE)] = dir
-                } catch (e: IOException) {
-                    if (dir == root) throw e // каталог мог исчезнуть между обходом и регистрацией
+                } catch (e: NoSuchFileException) {
+                    if (dir == root) throw e // подкаталог мог исчезнуть между обходом и регистрацией
                 }
             }
             // файлы, появившиеся в новом каталоге до его регистрации

@@ -33,12 +33,18 @@ class SyncSchedulerTest {
         var calls = 0
         var gate: CompletableDeferred<Unit>? = null
         var failNext = false
+        var cancelled = false
 
         override suspend fun start() = Unit
         override suspend fun stop() = Unit
         override suspend fun syncNow() {
             calls++
-            gate?.await()
+            try {
+                gate?.await()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                cancelled = true
+                throw e
+            }
             if (failNext) {
                 failNext = false
                 error("network down")
@@ -150,6 +156,39 @@ class SyncSchedulerTest {
         assertEquals("watch failed", scheduler.watcherError)
         assertEquals(2, engine.calls)
         scheduler.stop()
+    }
+
+    @Test
+    fun `with a broken local watcher the timer falls back to full syncs even when the change feed is quiet`() = runTest {
+        val engine = FakeEngine()
+        val scheduler = SyncScheduler(
+            syncEngine = engine,
+            syncInterval = interval,
+            scope = backgroundScope,
+            localChanges = kotlinx.coroutines.flow.flow { throw java.io.IOException("inotify limit reached") },
+            remoteFeed = InMemoryRemoteStorage(),
+        ).also { it.start() }
+
+        runCurrent()
+        assertEquals(1, engine.calls)
+        advanceTimeBy(interval + 1.seconds)
+        runCurrent()
+        assertEquals(2, engine.calls)
+        scheduler.stop()
+    }
+
+    @Test
+    fun `stop cancels a running sync and releases the lock`() = runTest {
+        val engine = FakeEngine().apply { gate = CompletableDeferred() }
+        val scheduler = scheduler(engine)
+        assertTrue(scheduler.triggerSync())
+        runCurrent()
+
+        scheduler.stop()
+        runCurrent()
+
+        assertTrue(engine.cancelled, "in-flight sync must not outlive its scheduler")
+        assertTrue(scheduler.triggerSync())
     }
 
     @Test

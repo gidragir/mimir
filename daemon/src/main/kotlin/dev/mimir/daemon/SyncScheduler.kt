@@ -34,6 +34,9 @@ class SyncScheduler(
     private val rerunRequested = AtomicBoolean(false)
     private val retryOnNextTick = AtomicBoolean(false)
     private var jobs: List<Job> = emptyList()
+
+    @Volatile
+    private var runner: Job? = null
     private var changeToken: String? = null
 
     @Volatile
@@ -70,6 +73,7 @@ class SyncScheduler(
     fun stop() {
         jobs.forEach { it.cancel() }
         jobs = emptyList()
+        runner?.cancel() // прогон не должен пережить планировщик: новый мог бы запуститься параллельно
     }
 
     /** Ручной запуск; `false`, если синхронизация уже идёт. Сам прогон выполняется в фоне. */
@@ -86,7 +90,7 @@ class SyncScheduler(
     }
 
     private fun launchRunner() {
-        scope.launch {
+        runner = scope.launch {
             try {
                 do {
                     rerunRequested.set(false)
@@ -116,7 +120,8 @@ class SyncScheduler(
 
     private suspend fun tick() {
         val feed = remoteFeed
-        if (feed == null || retryOnNextTick.get()) {
+        // без рабочего watcher'а локальные правки видны только полной сверкой
+        if (feed == null || retryOnNextTick.get() || watcherError != null) {
             requestSync()
             return
         }
