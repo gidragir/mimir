@@ -11,7 +11,10 @@ version = providers.gradleProperty("mimir.version").get()
 
 dependencies {
     implementation(project(":core"))
+    implementation(project(":daemon"))
     implementation(project(":ui"))
+    implementation(libs.dbus.java.core)
+    implementation(libs.dbus.java.transport.native)
     implementation(compose.desktop.currentOs)
     testImplementation(kotlin("test"))
 }

@@ -5,8 +5,8 @@ import java.util.logging.Logger
 class NoTray : Tray {
     override val available = false
 
-    override fun show(status: String, onOpen: () -> Unit, onQuit: () -> Unit) {
-        logger.info("Tray is not available on this system; StatusNotifierItem support is planned")
+    override fun show(status: String, onOpen: () -> Unit, onSyncNow: () -> Unit, onQuit: () -> Unit) {
+        logger.info("Tray is not available on this system; the window close button quits the application")
     }
 
     override fun update(status: String) = Unit

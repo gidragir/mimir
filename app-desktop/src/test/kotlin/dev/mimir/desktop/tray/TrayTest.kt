@@ -1,28 +1,44 @@
 package dev.mimir.desktop.tray
 
 import kotlin.test.Test
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertSame
 
 class TrayTest {
-    @Test
-    fun `windows with tray support gets AwtTray`() {
-        assertIs<AwtTray>(createTray("Windows 11") { true })
+    private object FakeLinuxTray : Tray {
+        override val available = true
+        override fun show(status: String, onOpen: () -> Unit, onSyncNow: () -> Unit, onQuit: () -> Unit) = Unit
+        override fun update(status: String) = Unit
+        override fun close() = Unit
     }
 
     @Test
-    fun `linux gets NoTray`() {
-        assertIs<NoTray>(createTray("Linux") { true })
+    fun `createTray returns NoTray when platform not supported`() {
+        val tray = createTray(osName = "UnknownOS", awtTraySupported = { false })
+        assertIs<NoTray>(tray)
+        assertFalse(tray.available)
+    }
+
+    @Test
+    fun `windows with tray support gets AwtTray`() {
+        assertIs<AwtTray>(createTray("Windows 11", { true }))
     }
 
     @Test
     fun `windows without tray support gets NoTray`() {
-        assertIs<NoTray>(createTray("Windows 11") { false })
+        assertIs<NoTray>(createTray("Windows 11", { false }))
     }
 
     @Test
-    fun `NoTray show does not throw`() {
+    fun `linux gets the D-Bus tray even though AWT claims support`() {
+        assertSame(FakeLinuxTray, createTray("Linux", { true }, dbusTray = { FakeLinuxTray }))
+    }
+
+    @Test
+    fun `NoTray handles lifecycle without exceptions`() {
         val tray = NoTray()
-        tray.show("Mimir: not connected", onOpen = {}, onQuit = {})
+        tray.show("Mimir: not connected", onOpen = {}, onSyncNow = {}, onQuit = {})
         tray.update("Mimir: syncing")
         tray.close()
     }

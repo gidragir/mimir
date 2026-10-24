@@ -12,11 +12,12 @@ class AwtTray : Tray {
 
     override val available get() = icon != null
 
-    override fun show(status: String, onOpen: () -> Unit, onQuit: () -> Unit) {
+    override fun show(status: String, onOpen: () -> Unit, onSyncNow: () -> Unit, onQuit: () -> Unit) {
         val image = Toolkit.getDefaultToolkit().getImage(AwtTray::class.java.getResource("/icon.png"))
         val menu = PopupMenu().apply {
-            add(MenuItem("Open").apply { addActionListener { onOpen() } })
-            add(MenuItem("Quit").apply { addActionListener { onQuit() } })
+            add(MenuItem("Открыть").apply { addActionListener { onOpen() } })
+            add(MenuItem("Синхронизировать сейчас").apply { addActionListener { onSyncNow() } })
+            add(MenuItem("Выход").apply { addActionListener { onQuit() } })
         }
         icon = TrayIcon(image, status, menu).apply {
             isImageAutoSize = true

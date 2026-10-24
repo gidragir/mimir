@@ -18,7 +18,7 @@ fun main() = application {
     var visible by remember { mutableStateOf(true) }
 
     remember {
-        tray.show(engine.status.value.label(), onOpen = { visible = true }, onQuit = ::exitApplication)
+        tray.show(engine.status.value.label(), onOpen = { visible = true }, onSyncNow = {}, onQuit = ::exitApplication)
     }
 
     Window(

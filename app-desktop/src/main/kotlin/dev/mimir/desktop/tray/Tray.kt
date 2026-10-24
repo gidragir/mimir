@@ -4,15 +4,23 @@ interface Tray {
     /** true, если трей реально показан: тогда закрытие окна сворачивает в трей, а не завершает приложение. */
     val available: Boolean
 
-    fun show(status: String, onOpen: () -> Unit, onQuit: () -> Unit)
+    fun show(status: String, onOpen: () -> Unit, onSyncNow: () -> Unit, onQuit: () -> Unit)
 
     fun update(status: String)
 
     fun close()
 }
 
+/**
+ * Windows — AWT [java.awt.SystemTray]; Linux — StatusNotifierItem по D-Bus (работает и в Wayland), которому при отсутствии
+ * StatusNotifierWatcher остаётся `available == false`; иначе [NoTray].
+ */
 fun createTray(
     osName: String = System.getProperty("os.name"),
     awtTraySupported: () -> Boolean = { java.awt.SystemTray.isSupported() },
-): Tray =
-    if (osName.startsWith("Windows") && awtTraySupported()) AwtTray() else NoTray()
+    dbusTray: () -> Tray = { DbusStatusNotifierTray() },
+): Tray = when {
+    osName.startsWith("Windows") && awtTraySupported() -> AwtTray()
+    osName.startsWith("Linux") -> dbusTray()
+    else -> NoTray()
+}
