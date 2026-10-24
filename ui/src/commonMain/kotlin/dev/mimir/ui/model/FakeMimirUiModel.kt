@@ -19,6 +19,9 @@ class FakeMimirUiModel(
     private val onResolveConflict: (String, String, Boolean) -> Unit = { _, _, _ -> },
     private val deviceCode: UiDeviceCode = UiDeviceCode("ABCD-EFGH", "https://www.google.com/device", 1800, "device-code"),
     private val devicePoll: () -> UiDevicePoll = { UiDevicePoll.Pending },
+    private val loginMethods: Set<UiLoginMethod> = setOf(UiLoginMethod.DeviceCode),
+    private val browserAuthUrl: String = "https://accounts.google.com/o/oauth2/v2/auth",
+    private val browserPoll: () -> UiBrowserPoll = { UiBrowserPoll.Pending },
 ) : MimirUiModel {
     override val status: StateFlow<SyncStatus> = MutableStateFlow(status)
     override val vaultPath: MutableStateFlow<String?> = MutableStateFlow(vaultPath)
@@ -47,4 +50,10 @@ class FakeMimirUiModel(
     override suspend fun startDeviceLogin(): UiDeviceCode = deviceCode
 
     override suspend fun pollDeviceLogin(deviceCode: String): UiDevicePoll = devicePoll()
+
+    override suspend fun loginMethods(): Set<UiLoginMethod> = loginMethods
+
+    override suspend fun startBrowserLogin(): String = browserAuthUrl
+
+    override suspend fun pollBrowserLogin(): UiBrowserPoll = browserPoll()
 }

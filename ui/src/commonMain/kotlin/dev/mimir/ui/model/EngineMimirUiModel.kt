@@ -25,6 +25,9 @@ class EngineMimirUiModel(private val engine: SyncEngine) : MimirUiModel {
     override suspend fun resolveConflict(originalPath: String, conflictPath: String, keepConflict: Boolean) = unsupported()
     override suspend fun startDeviceLogin(): UiDeviceCode = unsupported()
     override suspend fun pollDeviceLogin(deviceCode: String): UiDevicePoll = unsupported()
+    override suspend fun loginMethods(): Set<UiLoginMethod> = emptySet()
+    override suspend fun startBrowserLogin(): String = unsupported()
+    override suspend fun pollBrowserLogin(): UiBrowserPoll = unsupported()
 
     private fun unsupported(): Nothing = throw UnsupportedOperationException("Not available on this platform yet")
 }

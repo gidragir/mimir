@@ -7,7 +7,11 @@ import dev.mimir.daemon.DevicePoll
 import dev.mimir.ui.model.MimirUiModel
 import dev.mimir.ui.model.UiConflictEntry
 import dev.mimir.ui.model.UiDeviceCode
+import dev.mimir.ui.model.UiBrowserPoll
 import dev.mimir.ui.model.UiDevicePoll
+import dev.mimir.ui.model.UiLoginMethod
+import dev.mimir.daemon.BrowserLoginPoll
+import dev.mimir.daemon.LoginMethod
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -91,6 +95,22 @@ class DaemonServiceUiModel(
             DevicePoll.Pending -> UiDevicePoll.Pending
             is DevicePoll.Authorized -> UiDevicePoll.Authorized(poll.email).also { refresh() }
             is DevicePoll.Expired -> UiDevicePoll.Expired(poll.reason)
+        }
+
+    override suspend fun loginMethods(): Set<UiLoginMethod> = service.loginMethods().map {
+        when (it) {
+            LoginMethod.Browser -> UiLoginMethod.Browser
+            LoginMethod.DeviceCode -> UiLoginMethod.DeviceCode
+        }
+    }.toSet()
+
+    override suspend fun startBrowserLogin(): String = service.startBrowserLogin()
+
+    override suspend fun pollBrowserLogin(): UiBrowserPoll =
+        when (val poll = service.pollBrowserLogin()) {
+            BrowserLoginPoll.Pending -> UiBrowserPoll.Pending
+            is BrowserLoginPoll.Authorized -> UiBrowserPoll.Authorized(poll.email).also { refresh() }
+            is BrowserLoginPoll.Failed -> UiBrowserPoll.Failed(poll.reason)
         }
 
     private fun ConflictFileEntry.toUi() = UiConflictEntry(originalPath, conflictPath, createdAt)

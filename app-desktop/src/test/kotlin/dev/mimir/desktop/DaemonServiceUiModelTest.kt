@@ -44,9 +44,25 @@ class DaemonServiceUiModelTest {
         override suspend fun startDeviceLogin() = GoogleDeviceCodeResponse("dcode", "ucode", "url", 1800, 5)
         override suspend fun pollDeviceLogin(deviceCode: String) = poll
         override suspend fun configureVault(vaultPath: String) { this.vaultPath = vaultPath }
-        override suspend fun startBrowserLogin(): String = error("not used")
-        override suspend fun pollBrowserLogin(): dev.mimir.daemon.BrowserLoginPoll = error("not used")
-        override suspend fun loginMethods(): Set<LoginMethod> = emptySet()
+        var browserPoll: dev.mimir.daemon.BrowserLoginPoll = dev.mimir.daemon.BrowserLoginPoll.Pending
+        var methods: Set<LoginMethod> = emptySet()
+        override suspend fun startBrowserLogin(): String = "https://auth.example/login"
+        override suspend fun pollBrowserLogin(): dev.mimir.daemon.BrowserLoginPoll = browserPoll
+        override suspend fun loginMethods(): Set<LoginMethod> = methods
+    }
+
+    @Test
+    fun `maps browser login methods and polls to ui types`() = runTest {
+        val service = FakeDaemonService()
+        val adapter = DaemonServiceUiModel(service, backgroundScope)
+        service.methods = setOf(LoginMethod.Browser, LoginMethod.DeviceCode)
+        assertEquals(setOf(dev.mimir.ui.model.UiLoginMethod.Browser, dev.mimir.ui.model.UiLoginMethod.DeviceCode), adapter.loginMethods())
+        assertEquals("https://auth.example/login", adapter.startBrowserLogin())
+        assertEquals(dev.mimir.ui.model.UiBrowserPoll.Pending, adapter.pollBrowserLogin())
+        service.browserPoll = dev.mimir.daemon.BrowserLoginPoll.Authorized("me@x")
+        assertEquals(dev.mimir.ui.model.UiBrowserPoll.Authorized("me@x"), adapter.pollBrowserLogin())
+        service.browserPoll = dev.mimir.daemon.BrowserLoginPoll.Failed("Вход отменён")
+        assertEquals(dev.mimir.ui.model.UiBrowserPoll.Failed("Вход отменён"), adapter.pollBrowserLogin())
     }
 
     @Test

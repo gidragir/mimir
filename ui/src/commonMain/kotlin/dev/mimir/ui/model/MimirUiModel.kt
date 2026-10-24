@@ -14,6 +14,14 @@ sealed interface UiDevicePoll {
     data class Expired(val reason: String) : UiDevicePoll
 }
 
+enum class UiLoginMethod { Browser, DeviceCode }
+
+sealed interface UiBrowserPoll {
+    data object Pending : UiBrowserPoll
+    data class Authorized(val email: String?) : UiBrowserPoll
+    data class Failed(val reason: String) : UiBrowserPoll
+}
+
 /** Всё, что нужно интерфейсу от приложения; `ui` не знает, кто его реализует (демон в процессе, HTTP-клиент, заглушка). */
 interface MimirUiModel {
     val status: StateFlow<SyncStatus>
@@ -34,4 +42,11 @@ interface MimirUiModel {
     suspend fun resolveConflict(originalPath: String, conflictPath: String, keepConflict: Boolean)
     suspend fun startDeviceLogin(): UiDeviceCode
     suspend fun pollDeviceLogin(deviceCode: String): UiDevicePoll
+
+    /** Какие способы входа в Google доступны в этой сборке. */
+    suspend fun loginMethods(): Set<UiLoginMethod>
+
+    /** Начинает вход через браузер и возвращает ссылку для открытия. */
+    suspend fun startBrowserLogin(): String
+    suspend fun pollBrowserLogin(): UiBrowserPoll
 }

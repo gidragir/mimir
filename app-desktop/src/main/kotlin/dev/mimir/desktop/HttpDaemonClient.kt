@@ -1,6 +1,7 @@
 package dev.mimir.desktop
 
 import dev.mimir.core.SyncStatus
+import dev.mimir.daemon.BrowserLoginPoll
 import dev.mimir.daemon.ConflictFileEntry
 import dev.mimir.daemon.DaemonService
 import dev.mimir.daemon.DevicePoll
@@ -55,6 +56,12 @@ private data class ConflictDto(val originalPath: String, val conflictPath: Strin
 private data class PollDto(val status: String = "", val email: String? = null, val error: String? = null)
 
 @Serializable
+private data class MethodsDto(val methods: List<String> = emptyList())
+
+@Serializable
+private data class BrowserStartDto(val authUrl: String)
+
+@Serializable
 private data class ErrorDto(val error: String? = null)
 
 @Serializable
@@ -91,13 +98,35 @@ class HttpDaemonClient(
     override val lastSyncTime: Instant? get() = snapshot.lastSyncAt?.let { runCatching { Instant.parse(it) }.getOrNull() }
     override val accountEmail: String? get() = snapshot.accountEmail
 
-    // TODO(task 5+): запрашивать у демона по HTTP; пока сохраняем прежнее поведение (только device code).
-    // Заглушка до задачи 6: вход через браузер по HTTP ещё не подключён.
-    override suspend fun startBrowserLogin(): String = throw UnsupportedOperationException("Browser sign-in over HTTP is not implemented yet")
-    override suspend fun pollBrowserLogin(): dev.mimir.daemon.BrowserLoginPoll =
-        throw UnsupportedOperationException("Browser sign-in over HTTP is not implemented yet")
+    override suspend fun loginMethods(): Set<LoginMethod> {
+        val response = get("/api/v1/auth/methods")
+        if (response.status != HttpStatusCode.OK) throw response.toException()
+        return response.body<MethodsDto>().methods.mapNotNull {
+            when (it) {
+                "browser" -> LoginMethod.Browser
+                "device_code" -> LoginMethod.DeviceCode
+                else -> null
+            }
+        }.toSet()
+    }
 
-    override suspend fun loginMethods(): Set<LoginMethod> = setOf(LoginMethod.DeviceCode)
+    override suspend fun startBrowserLogin(): String {
+        val response = post("/api/v1/auth/browser/start")
+        if (response.status != HttpStatusCode.OK) throw response.toException()
+        return response.body<BrowserStartDto>().authUrl
+    }
+
+    override suspend fun pollBrowserLogin(): BrowserLoginPoll {
+        val response = get("/api/v1/auth/browser/poll")
+        if (response.status != HttpStatusCode.OK) throw response.toException()
+        val body = response.body<PollDto>()
+        return when (body.status) {
+            "pending" -> BrowserLoginPoll.Pending
+            "authorized" -> BrowserLoginPoll.Authorized(body.email)
+            "failed" -> BrowserLoginPoll.Failed(body.error ?: "Вход не удался")
+            else -> throw IllegalStateException("Unexpected sign-in status: ${body.status}")
+        }
+    }
 
     init {
         scope.launch {

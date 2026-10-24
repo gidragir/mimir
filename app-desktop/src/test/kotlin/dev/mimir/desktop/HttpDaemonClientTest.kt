@@ -137,4 +137,31 @@ class HttpDaemonClientTest {
         replies["GET /api/v1/auth/device/poll"] = HttpStatusCode.BadRequest to """{"status":"expired","error":"Code has expired"}"""
         assertEquals(DevicePoll.Expired("Code has expired"), client.pollDeviceLogin("d"))
     }
+
+    @Test
+    fun `loginMethodsParsesList`() = runTest {
+        val client = client(backgroundScope)
+        replies["GET /api/v1/auth/methods"] = HttpStatusCode.OK to """{"methods":["browser","device_code","future"]}"""
+        assertEquals(setOf(dev.mimir.daemon.LoginMethod.Browser, dev.mimir.daemon.LoginMethod.DeviceCode), client.loginMethods())
+    }
+
+    @Test
+    fun `startBrowserLoginReturnsUrl`() = runTest {
+        val client = client(backgroundScope)
+        replies["POST /api/v1/auth/browser/start"] = HttpStatusCode.OK to """{"authUrl":"https://accounts.google.com/o/oauth2/v2/auth?x=1"}"""
+        assertEquals("https://accounts.google.com/o/oauth2/v2/auth?x=1", client.startBrowserLogin())
+        replies["POST /api/v1/auth/browser/start"] = HttpStatusCode.Conflict to """{"error":"Browser sign-in is not configured"}"""
+        assertFailsWith<IllegalStateException> { client.startBrowserLogin() }
+    }
+
+    @Test
+    fun `pollBrowserLoginMapsFailed`() = runTest {
+        val client = client(backgroundScope)
+        replies["GET /api/v1/auth/browser/poll"] = HttpStatusCode.OK to """{"status":"pending"}"""
+        assertEquals(dev.mimir.daemon.BrowserLoginPoll.Pending, client.pollBrowserLogin())
+        replies["GET /api/v1/auth/browser/poll"] = HttpStatusCode.OK to """{"status":"authorized","email":"me@x"}"""
+        assertEquals(dev.mimir.daemon.BrowserLoginPoll.Authorized("me@x"), client.pollBrowserLogin())
+        replies["GET /api/v1/auth/browser/poll"] = HttpStatusCode.OK to """{"status":"failed","error":"Вход отменён"}"""
+        assertEquals(dev.mimir.daemon.BrowserLoginPoll.Failed("Вход отменён"), client.pollBrowserLogin())
+    }
 }
