@@ -29,7 +29,9 @@ description: Use when you need to build, test or verify a change in the Mimir re
 1. **Без Android SDK** (`ANDROID_HOME`/`ANDROID_SDK_ROOT` не заданы, нет `sdk.dir` в `local.properties`): `mise run build` проходит, в выводе `Android SDK not found: skipping Android targets`.
 2. **Без `mise.local.toml`**: сборка и тесты проходят без секретов.
 3. **Смена переменных в `mise.local.toml`**: если изменялись `MIMIR_*` (OAuth-клиенты, пути, порты), а приложение запускается через `:run`, убедиться, что Gradle Daemon не держит старое окружение (`./gradlew --stop`).
-4. Падение любого из пунктов — дефект, а не «особенность окружения».
+4. **Все цели изменённого модуля**, а не только JVM: `allTests` для `core`/`drive`, `:ui:compileKotlinWasmJs`, Android при наличии SDK. Ветвления по ОС покрыты юнит-тестами с подставленными `osName`/`env`; Windows и macOS проверяет CI-матрица — в отчёте сказать, что руками не проверено (`mimir-cross-platform`).
+5. **Изменён UI** — визуальная проверка по `mimir-ui-ux` (скриншоты обеих тем и минимального размера окна).
+6. Падение любого из пунктов — дефект, а не «особенность окружения».
 
 ## TDD
 

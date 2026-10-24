@@ -15,4 +15,5 @@ description: Use when adding a new Gradle module to the Mimir monorepo (library,
 5. **Идентификаторы** (имя, версия, id приложения и т. п.) не писать литералами: брать из `gradle.properties` через BuildConfig/`processResources` (см. скилл `mimir-identifiers`). `core` уже генерирует `BuildConfig` в `dev.mimir.core`.
 6. **Направление зависимостей**: точки входа → `ui` → `drive` → `core`. `core` без платформенного кода.
 7. **Тесты первыми** (скилл `test-driven-development`), проверка — скилл `mimir-build-verify`. Модуль не должен ломать сборку без Android SDK и без секретов.
-8. Обновить таблицу модулей в `AGENTS.md` и README.
+8. Обновить таблицу модулей и «Карту кода» в `AGENTS.md`, README.
+9. Роль модуля в архитектуре — по скиллу `mimir-design-patterns` (порт/адаптер, точка входа, composition root); платформы, на которых он собирается и работает, — по `mimir-cross-platform`.
