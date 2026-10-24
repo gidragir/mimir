@@ -126,8 +126,16 @@ class DaemonRuntime(
 
     /** [InvalidPasswordException], если пароль не подходит к хранилищу в облаке; демон остаётся заблокированным. */
     override suspend fun unlock(password: String) {
+        val previous = cipher
         cipher = RcloneCipher(password)
-        rebuild()
+        try {
+            rebuild()
+        } catch (e: Exception) {
+            // Опечатка при повторной разблокировке не должна останавливать уже работающую синхронизацию.
+            cipher = previous
+            rebuildLenient()
+            throw e
+        }
     }
 
     /** Вызывается после успешного входа в облако: токены уже сохранены. */

@@ -118,4 +118,17 @@ class DaemonRuntimeTest {
         runtime.initialize()
         assertFailsWith<SyncNotConfiguredException> { runtime.unlock("secret") }
     }
+
+    @Test
+    fun `a wrong password on re-unlock keeps the running sync`() = run {
+        signIn()
+        val runtime = runtime(config(password = "secret"))
+        runtime.initialize()
+        assertTrue(runtime.isReady)
+
+        assertFailsWith<InvalidPasswordException> { runtime.unlock("typo") }
+
+        assertTrue(runtime.isReady)
+        assertFalse(runtime.isLocked)
+    }
 }

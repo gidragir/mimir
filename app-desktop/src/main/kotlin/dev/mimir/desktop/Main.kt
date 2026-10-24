@@ -32,6 +32,8 @@ fun main() {
         exitProcess(1)
     }
     runDesktop(config)
+    // Демон и D-Bus держат потоки; backend уже закрыт в onDispose.
+    exitProcess(0)
 }
 
 private fun runDesktop(config: DaemonConfig) = application {
