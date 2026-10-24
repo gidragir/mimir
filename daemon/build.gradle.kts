@@ -13,12 +13,15 @@ application {
 
 dependencies {
     implementation(project(":core"))
+    implementation(project(":drive"))
+    implementation(libs.serialization.json)
     implementation(libs.ktor.server.core)
     implementation(libs.ktor.server.cio)
     implementation(libs.ktor.server.content.negotiation)
     implementation(libs.ktor.serialization.json)
     runtimeOnly(libs.slf4j.simple)
     testImplementation(kotlin("test"))
+    testImplementation(libs.coroutines.test)
     testImplementation(libs.ktor.server.test.host)
 }
 
