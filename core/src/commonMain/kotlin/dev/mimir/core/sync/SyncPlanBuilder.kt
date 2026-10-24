@@ -16,13 +16,14 @@ class SyncPlanBuilder(
         remote: List<RemoteEntry>,
         index: SyncIndex,
         hashCalculator: suspend (path: String, isLocal: Boolean) -> String,
+        hidden: Set<String> = emptySet(),
         onReconcileFailure: ((path: String, error: Throwable) -> Unit)? = null,
     ): SyncPlan {
         val localMap = local.associateBy { normalize(it.relativePath) }
         val remoteMap = remote.filterNot { it.isDirectory }.associateBy { normalize(it.path.value) }
 
         val allPaths = (localMap.keys + remoteMap.keys + index.records.keys)
-            .filterNot { rules.isExcluded(it) }
+            .filterNot { rules.isExcluded(it) || isHidden(it, hidden) }
             .toSet()
 
         val actions = mutableListOf<SyncAction>()
@@ -190,6 +191,10 @@ class SyncPlanBuilder(
             else -> SyncAction.NoOp(path)
         }
     }
+
+    /** Путь под скрытым vault путём (например, символьной ссылкой): его отсутствие в локальном списке ничего не значит. */
+    private fun isHidden(path: String, hidden: Set<String>): Boolean =
+        hidden.any { path == it || path.startsWith("$it/") }
 
     private fun normalize(path: String): String =
         path.replace('\\', '/').split('/').filter { it.isNotEmpty() }.joinToString("/")

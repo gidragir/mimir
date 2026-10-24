@@ -87,6 +87,7 @@ class DefaultSyncEngine(
 
         var currentIndex = stateStore.load()
         val localFiles = localVault.list()
+        val hiddenPaths = localVault.hiddenPaths()
         _progress.update { it?.copy(scanned = localFiles.size) }
         val remoteFiles = remoteStorage.listAll(RemotePath("")) { folders, files ->
             _progress.update { it?.copy(foldersScanned = folders, scanned = localFiles.size + files) }
@@ -111,7 +112,7 @@ class DefaultSyncEngine(
         }
 
         _progress.update { it?.copy(phase = SyncPhase.Comparing) }
-        val plan = planBuilder.buildPlan(localFiles, remoteFiles, currentIndex, hashCalculator) { path, error ->
+        val plan = planBuilder.buildPlan(localFiles, remoteFiles, currentIndex, hashCalculator, hiddenPaths) { path, error ->
             problems += problemOf(path, SyncItemAction.Upload, error)
             _progress.update { it?.copy(problems = problems.toList()) }
         }

@@ -32,4 +32,10 @@ interface LocalVault {
     suspend fun delete(id: VaultFileId)
     suspend fun deleteByPath(relativePath: String)
     fun changes(): Flow<VaultChange>
+
+    /**
+     * Пути (файлы или папки), которые vault намеренно не показывает, например символьные ссылки.
+     * Всё под ними синхронизация не трогает: их отсутствие в [list] не значит, что файлы удалены.
+     */
+    suspend fun hiddenPaths(): Set<String> = emptySet()
 }

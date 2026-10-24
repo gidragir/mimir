@@ -24,8 +24,14 @@ class FileSystemLocalVault(
 
     override suspend fun list(): List<LocalEntry> {
         val result = ArrayList<LocalEntry>()
-        walk("", result)
+        walk("", result, symbolicLinks = null)
         return result
+    }
+
+    override suspend fun hiddenPaths(): Set<String> {
+        val links = LinkedHashSet<String>()
+        walk("", out = null, symbolicLinks = links)
+        return links
     }
 
     override suspend fun getEntry(relativePath: String): LocalEntry? {
@@ -81,16 +87,21 @@ class FileSystemLocalVault(
 
     override fun changes(): Flow<VaultChange> = watcher?.start() ?: emptyFlow()
 
-    private fun walk(relativeDir: String, out: MutableList<LocalEntry>) {
+    /** Обходит vault, не заходя в исключённые пути и символьные ссылки; ссылки складываются в [symbolicLinks]. */
+    private fun walk(relativeDir: String, out: MutableList<LocalEntry>?, symbolicLinks: MutableSet<String>?) {
         val dir = if (relativeDir.isEmpty()) rootPath else absolute(relativeDir)
         if (SystemFileSystem.metadataOrNull(dir)?.isDirectory != true) return
         for (child in SystemFileSystem.list(dir).sortedBy { it.name }) {
             val relative = if (relativeDir.isEmpty()) child.name else "$relativeDir/${child.name}"
-            if (isExcluded(relative) || isSymbolicLink(child)) continue
+            if (isExcluded(relative)) continue
+            if (isSymbolicLink(child)) {
+                symbolicLinks?.add(relative)
+                continue
+            }
             val metadata = SystemFileSystem.metadataOrNull(child) ?: continue
             when {
-                metadata.isDirectory -> walk(relative, out)
-                metadata.isRegularFile -> out += entryOf(relative, metadata.size)
+                metadata.isDirectory -> walk(relative, out, symbolicLinks)
+                metadata.isRegularFile -> out?.add(entryOf(relative, metadata.size))
             }
         }
     }

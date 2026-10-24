@@ -163,6 +163,23 @@ class FileSystemLocalVaultTest {
     }
 
     @Test
+    fun `hiddenPaths reports symbolic links at any depth`() = runTest {
+        put("note.md", "n")
+        put("sub/real.md", "r")
+        val outside = Files.createTempDirectory("mimir-vault-outside")
+        try {
+            Files.createSymbolicLink(root.resolve("linkdir"), outside)
+            Files.createSymbolicLink(root.resolve("sub/linkfile.md"), root.resolve("note.md"))
+            Files.createDirectories(root.resolve("node_modules"))
+            Files.createSymbolicLink(root.resolve("node_modules/excluded"), outside)
+
+            assertEquals(setOf("linkdir", "sub/linkfile.md"), vault.hiddenPaths())
+        } finally {
+            outside.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
     fun `list skips node_modules and nested git at any depth`() = runTest {
         put("note.md", "n")
         put("node_modules/pkg/index.js", "x")
