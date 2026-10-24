@@ -38,7 +38,7 @@ class FileSystemLocalVault(
     }
 
     override suspend fun read(id: VaultFileId): Source {
-        val path = absolute(pathOf(id))
+        val path = absolute(requireNoSymbolicLink(pathOf(id)))
         if (SystemFileSystem.metadataOrNull(path)?.isRegularFile != true) {
             throw NoSuchElementException("No such file: ${id.value}")
         }
@@ -50,7 +50,7 @@ class FileSystemLocalVault(
     }
 
     override suspend fun write(relativePath: String, data: Source): LocalEntry {
-        val normalized = normalize(relativePath)
+        val normalized = requireNoSymbolicLink(normalize(relativePath))
         val target = absolute(normalized)
         val directory = target.parent ?: rootPath
         SystemFileSystem.createDirectories(directory)
@@ -74,7 +74,7 @@ class FileSystemLocalVault(
     }
 
     override suspend fun deleteByPath(relativePath: String) {
-        val normalized = normalize(relativePath)
+        val normalized = requireNoSymbolicLink(normalize(relativePath))
         watcher?.markWrittenBySync(normalized)
         SystemFileSystem.delete(absolute(normalized), mustExist = false)
     }
@@ -108,6 +108,11 @@ class FileSystemLocalVault(
     private fun hasSymbolicLink(relativePath: String): Boolean {
         val segments = relativePath.split('/')
         return segments.indices.any { isSymbolicLink(absolute(segments.take(it + 1).joinToString("/"))) }
+    }
+
+    private fun requireNoSymbolicLink(relativePath: String): String {
+        require(!hasSymbolicLink(relativePath)) { "Refusing to follow a symbolic link: '$relativePath'" }
+        return relativePath
     }
 
     private fun absolute(relativePath: String): Path = Path(rootPath, *relativePath.split('/').toTypedArray())

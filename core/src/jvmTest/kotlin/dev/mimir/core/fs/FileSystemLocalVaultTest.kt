@@ -176,4 +176,22 @@ class FileSystemLocalVaultTest {
         assertNull(vault.getEntry("node_modules/pkg/index.js"))
         assertNull(vault.getEntry("sub/repo/.git/HEAD"))
     }
+
+    @Test
+    fun `write read and delete refuse paths through symbolic links`() = runTest {
+        val outside = Files.createTempDirectory("mimir-vault-outside")
+        try {
+            outside.resolve("secret.md").writeText("s")
+            Files.createSymbolicLink(root.resolve("linkdir"), outside)
+
+            assertTrue(runCatching { vault.write("linkdir/new.md", source("x")) }.exceptionOrNull() is IllegalArgumentException)
+            assertTrue(runCatching { vault.deleteByPath("linkdir/secret.md") }.exceptionOrNull() is IllegalArgumentException)
+            assertTrue(runCatching { vault.read(VaultFileId("fs:linkdir/secret.md")) }.exceptionOrNull() is IllegalArgumentException)
+
+            assertFalse(outside.resolve("new.md").exists())
+            assertEquals("s", outside.resolve("secret.md").readText())
+        } finally {
+            outside.toFile().deleteRecursively()
+        }
+    }
 }
