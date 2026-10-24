@@ -443,4 +443,29 @@ class DriveUploaderTest {
             h.uploader.upload(RemotePath("l.bin"), Buffer().also { it.write(sourceBytes(3000)) })
         }
     }
+
+    @Test
+    fun noProgressAckThrowsInsteadOfLooping() = runTest {
+        val h = harness(1024, 1024) { put ->
+            // Всегда подтверждаем только первые 101 байт: после первого продвижения дальше ни шагу.
+            if (put.contentRange.endsWith("/*")) respond("", incomplete, headersOf("Range", "bytes=0-100")) else ackOrFinish(put)
+        }
+
+        assertFailsWith<IllegalStateException> {
+            h.uploader.upload(RemotePath("s.bin"), Buffer().also { it.write(sourceBytes(3000)) })
+        }
+        assertTrue(h.puts.size <= 10, "bounded requests, got ${h.puts.size}")
+    }
+
+    @Test
+    fun ackBeyondSentBytesThrows() = runTest {
+        val h = harness(1024, 1024) { put ->
+            if (put.contentRange.endsWith("/*")) respond("", incomplete, headersOf("Range", "bytes=0-5000")) else ackOrFinish(put)
+        }
+
+        assertFailsWith<IllegalStateException> {
+            h.uploader.upload(RemotePath("a.bin"), Buffer().also { it.write(sourceBytes(3000)) })
+        }
+        assertEquals(1, h.puts.size)
+    }
 }

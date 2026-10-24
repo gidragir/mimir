@@ -44,9 +44,13 @@ class DriveUploader(
      *
      * До [resumableThresholdBytes] байт читаются в буфер; если после этого источник исчерпан
      * (размер ≤ порога, включая пустой файл) — один multipart-запрос. Иначе открывается resumable-сессия
-     * без `X-Upload-Content-Length`, и данные уходят блоками [chunkSize] (кратно 256 КиБ) с
-     * `Content-Range: bytes a-b/` + звёздочка (размер неизвестен); последний блок несёт итоговый размер. В памяти, кроме начального
-     * буфера (не больше порога), — только текущий блок.
+     * без `X-Upload-Content-Length`, и данные уходят блоками [chunkSize] с `Content-Range` без итогового
+     * размера (в заголовке вместо него звёздочка); последний блок несёт итоговый размер. В памяти, кроме
+     * начального буфера (не больше порога), — только текущий блок.
+     *
+     * [chunkSize] должен быть кратен 256 КиБ: Drive подтверждает данные порциями по 256 КиБ, иначе
+     * подтверждение округляется вниз и блок досылается повторно; без продвижения загрузка прерывается
+     * с [IllegalStateException] после нескольких повторов.
      */
     suspend fun upload(path: RemotePath, data: Source): RemoteEntry {
         val head = Buffer()
@@ -195,6 +199,7 @@ class DriveUploader(
 
             var offset = chunkStart // первый ещё не подтверждённый байт
             var failures = 0
+            var stalls = 0 // подряд идущие 308 без продвижения
             while (offset < chunkEnd) {
                 val from = (offset - chunkStart).toInt()
                 val body = if (from == 0 && chunkLen == chunk.size) chunk else chunk.copyOfRange(from, chunkLen)
@@ -227,6 +232,17 @@ class DriveUploader(
                     is ChunkOutcome.Acked -> {
                         if (outcome.offset < chunkStart) {
                             throw IllegalStateException("Google Drive lost bytes before the current chunk (acknowledged ${outcome.offset}, chunk starts at $chunkStart)")
+                        }
+                        if (outcome.offset > chunkEnd) {
+                            throw IllegalStateException("Google Drive acknowledged ${outcome.offset} bytes, more than were sent (chunk ends at $chunkEnd)")
+                        }
+                        if (outcome.offset <= offset) {
+                            // 308 без продвижения (Drive округляет подтверждение вниз до 256 КиБ или ведёт себя некорректно).
+                            if (++stalls > MAX_CHUNK_RECOVERIES) {
+                                throw IllegalStateException("Google Drive made no progress on the chunk at $offset after $MAX_CHUNK_RECOVERIES resends")
+                            }
+                        } else {
+                            stalls = 0
                         }
                         offset = outcome.offset
                     }
