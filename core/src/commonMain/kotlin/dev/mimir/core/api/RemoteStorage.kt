@@ -41,6 +41,34 @@ interface RemoteStorage {
     suspend fun read(path: RemotePath): Source
     suspend fun write(path: RemotePath, data: Source): RemoteEntry
     suspend fun delete(path: RemotePath)
+
+    /**
+     * Все файлы (без каталогов) поддерева [root]; пути — ровно такие, какие вернул бы [list].
+     * [onProgress] получает (каталогов просмотрено, файлов найдено) по мере обхода.
+     * По умолчанию — рекурсия через [list]; адаптеры могут переопределить пакетным запросом.
+     */
+    suspend fun listAll(
+        root: RemotePath = RemotePath(""),
+        onProgress: (folders: Int, files: Int) -> Unit = { _, _ -> },
+    ): List<RemoteEntry> {
+        val files = mutableListOf<RemoteEntry>()
+        var folders = 0
+        suspend fun walk(dir: RemotePath) {
+            val entries = list(dir)
+            folders++
+            onProgress(folders, files.size)
+            for (entry in entries) {
+                if (entry.isDirectory) {
+                    walk(entry.path)
+                } else {
+                    files.add(entry)
+                    onProgress(folders, files.size)
+                }
+            }
+        }
+        walk(root)
+        return files
+    }
 }
 
 interface ChangeFeedStorage : RemoteStorage {

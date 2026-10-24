@@ -300,6 +300,39 @@ class SyncEngineProgressTest {
         assertTrue(assertNotNull(f.engine.progress.value).problems.isEmpty())
     }
 
+    @Test
+    fun scanningUsesBulkListAllAndPublishesItsProgress() = runTest {
+        val raw = InMemoryRemoteStorage()
+        raw.write(RemotePath("a/b/deep.md"), bufferOf("1"))
+        raw.write(RemotePath("top.md"), bufferOf("2"))
+        val bulk = object : RemoteStorage by raw {
+            override suspend fun list(dir: RemotePath): List<RemoteEntry> = error("engine must not recurse via list")
+            override suspend fun listAll(root: RemotePath, onProgress: (Int, Int) -> Unit): List<RemoteEntry> {
+                val files = raw.listAll(root)
+                onProgress(7, 1)
+                onProgress(9, files.size)
+                return files
+            }
+        }
+        val f = Fixture(remote = raw, remoteStorage = bulk)
+        f.vault.write("local.md", bufferOf("L"))
+
+        val scanning = mutableListOf<SyncProgress>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            f.engine.progress.collect { p ->
+                if (p != null && p.phase == SyncPhase.Scanning) scanning += p
+            }
+        }
+
+        f.engine.syncNow()
+
+        assertTrue(scanning.any { it.foldersScanned == 7 && it.scanned == 2 }, "$scanning")
+        assertEquals(9, scanning.last().foldersScanned)
+        assertEquals(3, scanning.last().scanned)
+        assertNotNull(f.vault.getEntry("a/b/deep.md"))
+        assertNotNull(f.vault.getEntry("top.md"))
+    }
+
     private fun assertContentEqualsText(expected: String, source: Source) =
         assertEquals(expected, source.readByteArray().decodeToString())
 }
