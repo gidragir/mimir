@@ -9,6 +9,9 @@ import dev.mimir.drive.auth.OAuthTokens
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
+import dev.mimir.core.RemoteAuthException
+import dev.mimir.core.RemoteUnavailableException
+import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.get
 import io.ktor.http.HttpHeaders
@@ -19,6 +22,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 
 class DriveHttpClientTest {
     @Test
@@ -95,5 +99,76 @@ class DriveHttpClientTest {
 
         assertEquals(HttpStatusCode.OK, response.status)
         assertEquals(3, attempts)
+    }
+
+    private fun clientFor(engine: MockEngine, tokens: OAuthTokens?): DriveHttpClient {
+        val http = HttpClient(engine) {
+            install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+        }
+        val auth = GoogleAuthClient(http, GoogleClientCredentials(GoogleClientKind.Device, "client-id", null))
+        return DriveHttpClient(http, InMemoryTokenStorage(tokens), GoogleAuthClients(null, auth))
+    }
+
+    private val validTokens = OAuthTokens("valid_token", "refresh", 2000000000L)
+
+    private suspend fun DriveHttpClient.callAbout() = executeWithRetry { token ->
+        httpClient.get("https://www.googleapis.com/drive/v3/about") {
+            headers[HttpHeaders.Authorization] = "Bearer $token"
+        }
+    }
+
+    @Test
+    fun ioExceptionBecomesRemoteUnavailable() = runTest {
+        val c = clientFor(MockEngine { throw kotlinx.io.IOException("connection reset") }, validTokens)
+        assertFailsWith<RemoteUnavailableException> { c.callAbout() }
+    }
+
+    @Test
+    fun timeoutBecomesRemoteUnavailable() = runTest {
+        val c = clientFor(
+            MockEngine { throw HttpRequestTimeoutException("https://www.googleapis.com/drive/v3/about", 1000L) },
+            validTokens,
+        )
+        assertFailsWith<RemoteUnavailableException> { c.callAbout() }
+    }
+
+    @Test
+    fun cancellationIsNotWrapped() = runTest {
+        val c = clientFor(MockEngine { throw kotlinx.coroutines.CancellationException("cancelled") }, validTokens)
+        assertFailsWith<kotlinx.coroutines.CancellationException> { c.callAbout() }
+    }
+
+    @Test
+    fun persistent503BecomesRemoteUnavailable() = runTest {
+        var attempts = 0
+        val c = clientFor(
+            MockEngine { attempts++; respond("down", status = HttpStatusCode.ServiceUnavailable) },
+            validTokens,
+        )
+        assertFailsWith<RemoteUnavailableException> { c.callAbout() }
+        assertEquals(3, attempts)
+    }
+
+    @Test
+    fun revokedRefreshBecomesRemoteAuth() = runTest {
+        val c = clientFor(
+            MockEngine {
+                respond(
+                    """{"error":"invalid_grant"}""",
+                    status = HttpStatusCode.BadRequest,
+                    headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                )
+            },
+            OAuthTokens("old", "refresh", 1L),
+        )
+        assertFailsWith<RemoteAuthException> { c.getValidToken() }
+        assertFailsWith<RemoteAuthException> { c.forceRefreshToken() }
+    }
+
+    @Test
+    fun missingTokensBecomeRemoteAuth() = runTest {
+        val c = clientFor(MockEngine { respond("{}") }, null)
+        assertFailsWith<RemoteAuthException> { c.getValidToken() }
+        assertFailsWith<RemoteAuthException> { c.callAbout() }
     }
 }

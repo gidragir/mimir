@@ -1,6 +1,6 @@
 package dev.mimir.drive.auth
 
-import dev.mimir.drive.client.DriveAuthException
+import dev.mimir.core.RemoteAuthException
 import dev.mimir.drive.client.DriveHttpClient
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
@@ -95,6 +95,6 @@ class GoogleAuthClientsTest {
         val storage = InMemoryTokenStorage(
             OAuthTokens("old", "refresh", 1L, clientKind = GoogleClientKind.Desktop),
         )
-        assertFailsWith<DriveAuthException> { DriveHttpClient(h, storage, clients).getValidToken() }
+        assertFailsWith<RemoteAuthException> { DriveHttpClient(h, storage, clients).getValidToken() }
     }
 }

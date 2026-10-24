@@ -1,14 +1,18 @@
 package dev.mimir.drive.client
 
+import dev.mimir.core.RemoteAuthException
+import dev.mimir.core.RemoteUnavailableException
 import dev.mimir.drive.auth.GoogleAuthClients
 import dev.mimir.drive.auth.OAuthTokens
 import dev.mimir.drive.auth.TokenStorage
 import io.ktor.client.HttpClient
+import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.client.statement.HttpResponse
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.io.IOException
 import kotlin.time.Clock
 
 class DriveHttpClient(
@@ -28,8 +32,18 @@ class DriveHttpClient(
         return client.refreshTokens(refresh)
     }
 
-    suspend fun getValidToken(): String {
-        return refreshMutex.withLock {
+    private inline fun <T> mapTokenErrors(block: () -> T): T = try {
+        block()
+    } catch (e: DriveAuthException) {
+        throw RemoteAuthException(e.message.orEmpty(), e)
+    } catch (e: IOException) {
+        throw RemoteUnavailableException("Google Drive is unreachable: ${e.message}", e)
+    } catch (e: HttpRequestTimeoutException) {
+        throw RemoteUnavailableException("Google Drive is unreachable: ${e.message}", e)
+    }
+
+    suspend fun getValidToken(): String = mapTokenErrors {
+        refreshMutex.withLock {
             val tokens = tokenStorage.load()
                 ?: throw DriveAuthException(HttpStatusCode.Unauthorized, "No OAuth tokens stored")
             if (tokens.isExpired(clock)) {
@@ -44,8 +58,8 @@ class DriveHttpClient(
         }
     }
 
-    suspend fun forceRefreshToken(): String {
-        return refreshMutex.withLock {
+    suspend fun forceRefreshToken(): String = mapTokenErrors {
+        refreshMutex.withLock {
             val tokens = tokenStorage.load()
                 ?: throw DriveAuthException(HttpStatusCode.Unauthorized, "No OAuth tokens stored")
             val refresh = tokens.refreshToken
@@ -65,7 +79,13 @@ class DriveHttpClient(
         var refreshedOn401 = false
 
         while (true) {
-            val response = block(token)
+            val response = try {
+                block(token)
+            } catch (e: IOException) {
+                throw RemoteUnavailableException("Google Drive is unreachable: ${e.message}", e)
+            } catch (e: HttpRequestTimeoutException) {
+                throw RemoteUnavailableException("Google Drive is unreachable: ${e.message}", e)
+            }
             if (response.status == HttpStatusCode.Unauthorized && !refreshedOn401) {
                 refreshedOn401 = true
                 token = forceRefreshToken()
@@ -78,6 +98,9 @@ class DriveHttpClient(
                     val backoffMs = (1L shl attempt) * 50L
                     delay(backoffMs)
                     continue
+                }
+                if (response.status == HttpStatusCode.ServiceUnavailable) {
+                    throw RemoteUnavailableException("Google Drive is unavailable (${response.status})")
                 }
             }
 
