@@ -131,4 +131,14 @@ class DaemonRuntimeTest {
         assertTrue(runtime.isReady)
         assertFalse(runtime.isLocked)
     }
+
+    @Test
+    fun `runtime exposes engine progress`() = run {
+        signIn()
+        vaultDir.resolve("a.md").writeText("hello")
+        val runtime = runtime(config(password = "secret"))
+        runtime.initialize()
+        eventually { runtime.progress.value?.phase == dev.mimir.core.SyncPhase.Finished }
+        assertEquals(dev.mimir.core.SyncPhase.Finished, runtime.progress.value?.phase)
+    }
 }

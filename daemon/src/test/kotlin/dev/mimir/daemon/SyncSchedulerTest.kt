@@ -208,4 +208,30 @@ class SyncSchedulerTest {
         assertNotNull(scheduler.lastSyncTime)
         scheduler.stop()
     }
+
+    @Test
+    fun `tick network failure schedules full sync`() = runTest {
+        val engine = FakeEngine()
+        val feed = object : dev.mimir.core.ChangeFeedStorage by InMemoryRemoteStorage() {
+            override suspend fun getChanges(sinceToken: String): dev.mimir.core.RemoteChangesResult =
+                throw dev.mimir.core.RemoteUnavailableException("network down")
+        }
+        val scheduler = SyncScheduler(
+            syncEngine = engine,
+            syncInterval = interval,
+            scope = backgroundScope,
+            localChanges = MutableSharedFlow(),
+            remoteFeed = feed,
+        ).also { it.start() }
+
+        runCurrent()
+        assertEquals(1, engine.calls) // стартовая
+        advanceTimeBy(interval + 1.seconds)
+        runCurrent()
+        assertEquals(1, engine.calls) // getChanges упал, повтор отложен на следующий тик
+        advanceTimeBy(interval)
+        runCurrent()
+        assertEquals(2, engine.calls)
+        scheduler.stop()
+    }
 }

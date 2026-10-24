@@ -20,6 +20,7 @@ import kotlin.time.Instant
 class DaemonServiceUiModelTest {
     private class FakeDaemonService : DaemonService {
         override val status = MutableStateFlow<SyncStatus>(SyncStatus.Idle)
+        override val progress = MutableStateFlow<dev.mimir.core.SyncProgress?>(null)
         override var vaultPath: String? = "/test/path"
         override var isLocked = true
         override var lastSyncTime: Instant? = null

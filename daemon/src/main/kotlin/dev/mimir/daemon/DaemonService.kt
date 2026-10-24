@@ -1,5 +1,6 @@
 package dev.mimir.daemon
 
+import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncStatus
 import dev.mimir.drive.api.GoogleDeviceCodeResponse
 import kotlinx.coroutines.flow.StateFlow
@@ -8,6 +9,9 @@ import kotlin.time.Instant
 /** То, что HTTP API требует от демона; реализуется [DaemonRuntime]. */
 interface DaemonService {
     val status: StateFlow<SyncStatus>
+
+    /** Прогресс текущего прогона; после завершения хранит сводку последнего (фаза Finished). */
+    val progress: StateFlow<SyncProgress?>
     val vaultPath: String?
     val isLocked: Boolean
     val lastSyncTime: Instant?

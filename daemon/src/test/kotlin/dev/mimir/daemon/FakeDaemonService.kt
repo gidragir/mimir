@@ -1,5 +1,6 @@
 package dev.mimir.daemon
 
+import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncStatus
 import dev.mimir.drive.api.GoogleDeviceCodeResponse
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -8,6 +9,7 @@ import kotlin.time.Instant
 
 class FakeDaemonService : DaemonService {
     override val status = MutableStateFlow<SyncStatus>(SyncStatus.NotConfigured)
+    override val progress = MutableStateFlow<SyncProgress?>(null)
     override var vaultPath: String? = null
     override var isLocked: Boolean = true
     override var lastSyncTime: Instant? = null

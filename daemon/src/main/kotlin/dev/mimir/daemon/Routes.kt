@@ -33,6 +33,7 @@ private data class StatusResponse(
     val isLocked: Boolean,
     val activeConflicts: Int,
     val accountEmail: String?,
+    val progress: SyncProgressDto? = null,
 )
 
 @Serializable
@@ -120,6 +121,7 @@ fun Application.mimirRoutes(service: DaemonService, config: DaemonConfig) {
                         isLocked = service.isLocked,
                         activeConflicts = service.conflictsFlow.value.size,
                         accountEmail = service.accountEmail,
+                        progress = service.progress.value?.toDto(kotlin.time.Clock.System.now()),
                     ),
                 )
             }

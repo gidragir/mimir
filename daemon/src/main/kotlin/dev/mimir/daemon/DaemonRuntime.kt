@@ -4,6 +4,7 @@ import dev.mimir.core.ChangeFeedStorage
 import dev.mimir.core.Cipher
 import dev.mimir.core.RcloneCipher
 import dev.mimir.core.EncryptedRemoteStorage
+import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncStatus
 import dev.mimir.core.fs.FileSystemLocalVault
 import dev.mimir.core.fs.NioWatchServiceVaultWatcher
@@ -88,6 +89,7 @@ class DaemonRuntime(
     private val configDir = Paths.get(config.configDir ?: DaemonConfig.load(env = System.getenv()).configDir!!)
     private val buildMutex = Mutex()
     private val _status = MutableStateFlow<SyncStatus>(SyncStatus.NotConfigured)
+    private val _progress = MutableStateFlow<SyncProgress?>(null)
     private val _conflicts = MutableStateFlow<List<ConflictFileEntry>>(emptyList())
 
     @Volatile
@@ -99,12 +101,14 @@ class DaemonRuntime(
     @Volatile
     private var watcher: NioWatchServiceVaultWatcher? = null
     private var statusJob: Job? = null
+    private var progressJob: Job? = null
     private var conflictJob: Job? = null
 
     val tokenStorage: TokenStorage = FileTokenStorage(configDir.resolve("tokens.json"))
     val authClients: GoogleAuthClients = config.authClients(httpClient)
 
     override val status: StateFlow<SyncStatus> = _status.asStateFlow()
+    override val progress: StateFlow<SyncProgress?> = _progress.asStateFlow()
     override val conflictsFlow: StateFlow<List<ConflictFileEntry>> = _conflicts.asStateFlow()
     override val vaultPath: String? get() = config.vaultPath
     override val isLocked: Boolean get() = cipher == null
@@ -341,6 +345,9 @@ class DaemonRuntime(
                 if (it == SyncStatus.Idle) runCatching { refreshConflicts() }
             }
         }
+        progressJob = scope.launch {
+            engine.progress.collect { _progress.value = it }
+        }
         _status.value = engine.status.value
         scheduler.start()
     }
@@ -349,6 +356,9 @@ class DaemonRuntime(
         scheduler?.stop()
         watcher?.stop()
         statusJob?.cancel()
+        progressJob?.cancel()
+        progressJob = null
+        // _progress намеренно сохраняется: сводка последнего прогона
         scheduler = null
         watcher = null
         statusJob = null

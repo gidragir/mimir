@@ -93,6 +93,9 @@ class HttpDaemonClient(
 
     override val status: StateFlow<SyncStatus> = _status
     override val conflictsFlow: StateFlow<List<ConflictFileEntry>> = _conflicts
+
+    // TODO(Task 11): заполнять из StatusDto.progress через SyncProgressDto.toModel()
+    override val progress: StateFlow<dev.mimir.core.SyncProgress?> = MutableStateFlow(null)
     override val vaultPath: String? get() = snapshot.vaultPath
     override val isLocked: Boolean get() = snapshot.isLocked
     override val lastSyncTime: Instant? get() = snapshot.lastSyncAt?.let { runCatching { Instant.parse(it) }.getOrNull() }
