@@ -3,6 +3,9 @@ package dev.mimir.core
 import dev.mimir.core.sync.DefaultSyncEngine
 import dev.mimir.core.sync.InMemorySyncStateStore
 import dev.mimir.core.testing.InMemoryLocalVault
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -201,6 +204,31 @@ class SyncEngineProgressTest {
         assertEquals("authentication failed", problem.detail)
         assertNotNull(f.vault.getEntry("good.md"))
         assertNull(f.vault.getEntry("bad.md"))
+    }
+
+    @Test
+    fun cancelledSyncIsNotReportedAsError() = runTest {
+        val raw = InMemoryRemoteStorage()
+        val writeStarted = CompletableDeferred<Unit>()
+        val hanging = object : RemoteStorage by raw {
+            override suspend fun write(path: RemotePath, data: Source): RemoteEntry {
+                writeStarted.complete(Unit)
+                awaitCancellation()
+            }
+        }
+        val f = Fixture(remote = raw, remoteStorage = hanging)
+        f.vault.write("a.md", bufferOf("A"))
+
+        val job = launch { f.engine.syncNow() }
+        writeStarted.await()
+        assertEquals(SyncPhase.Applying, f.engine.progress.value?.phase)
+        job.cancelAndJoin()
+
+        assertTrue(job.isCancelled)
+        assertEquals(SyncStatus.Idle, f.engine.status.value)
+        val p = assertNotNull(f.engine.progress.value)
+        assertEquals(SyncPhase.Finished, p.phase)
+        assertNotNull(p.finishedAt)
     }
 
     private fun assertContentEqualsText(expected: String, source: Source) =

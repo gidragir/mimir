@@ -61,6 +61,8 @@ class DefaultSyncEngine(
                 _status.value = SyncStatus.Idle
             } catch (e: Throwable) {
                 _status.value = when (e) {
+                    // Отмена (stop/пауза планировщика) — не ошибка: статус без сбоя.
+                    is CancellationException -> SyncStatus.Idle
                     is RemoteUnavailableException -> SyncStatus.Offline
                     else -> SyncStatus.Error(e.message ?: "Unknown sync error")
                 }
