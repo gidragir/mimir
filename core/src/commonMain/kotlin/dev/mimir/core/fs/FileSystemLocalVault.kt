@@ -4,10 +4,14 @@ import dev.mimir.core.LocalEntry
 import dev.mimir.core.LocalVault
 import dev.mimir.core.VaultChange
 import dev.mimir.core.VaultFileId
+import dev.mimir.core.toHex
 import dev.mimir.core.randomNonce
 import dev.mimir.core.rules.SyncRules
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.withContext
 import kotlinx.io.Source
 import kotlinx.io.buffered
 import kotlinx.io.files.Path
@@ -18,44 +22,50 @@ class FileSystemLocalVault(
     val rootPath: Path,
     rules: SyncRules = SyncRules(),
     private val watcher: VaultWatcher? = null,
+    /**
+     * Где исполняется блокирующий файловый ввод-вывод. В common-коде `Dispatchers.IO` нет (JS/wasm),
+     * поэтому JVM/Android-вызовы передают `Dispatchers.IO` явно.
+     */
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : LocalVault {
     private val filter = VaultPathFilter(rules)
 
-
-    override suspend fun list(): List<LocalEntry> {
+    override suspend fun list(): List<LocalEntry> = withContext(ioDispatcher) {
         val result = ArrayList<LocalEntry>()
         walk("", result, symbolicLinks = null)
-        return result
+        result
     }
 
-    override suspend fun hiddenPaths(): Set<String> {
+    override suspend fun hiddenPaths(): Set<String> = withContext(ioDispatcher) {
         val links = LinkedHashSet<String>()
         walk("", out = null, symbolicLinks = links)
-        return links
+        links
     }
 
-    override suspend fun getEntry(relativePath: String): LocalEntry? {
+    override suspend fun getEntry(relativePath: String): LocalEntry? = withContext(ioDispatcher) {
         val normalized = normalize(relativePath)
-        if (isExcluded(normalized)) return null
-        if (hasSymbolicLink(normalized)) return null
-        val metadata = SystemFileSystem.metadataOrNull(absolute(normalized)) ?: return null
-        if (!metadata.isRegularFile) return null
-        return entryOf(normalized, metadata.size)
+        when {
+            isExcluded(normalized) || hasSymbolicLink(normalized) -> null
+            else -> SystemFileSystem.metadataOrNull(absolute(normalized))
+                ?.takeIf { it.isRegularFile }
+                ?.let { entryOf(normalized, it.size) }
+        }
     }
 
-    override suspend fun read(id: VaultFileId): Source {
+    /** Проверки и открытие — на [ioDispatcher]; последующее чтение идёт в корутине-потребителе. */
+    override suspend fun read(id: VaultFileId): Source = withContext(ioDispatcher) {
         val path = absolute(requireNoSymbolicLink(pathOf(id)))
         if (SystemFileSystem.metadataOrNull(path)?.isRegularFile != true) {
             throw NoSuchElementException("No such file: ${id.value}")
         }
-        return SystemFileSystem.source(path).buffered()
+        SystemFileSystem.source(path).buffered()
     }
 
     override suspend fun write(id: VaultFileId, data: Source) {
         write(pathOf(id), data)
     }
 
-    override suspend fun write(relativePath: String, data: Source): LocalEntry {
+    override suspend fun write(relativePath: String, data: Source): LocalEntry = withContext(ioDispatcher) {
         val normalized = requireNoSymbolicLink(normalize(relativePath))
         val target = absolute(normalized)
         val directory = target.parent ?: rootPath
@@ -72,14 +82,14 @@ class FileSystemLocalVault(
             runCatching { SystemFileSystem.delete(temp, mustExist = false) }
             throw e
         }
-        return entryOf(normalized, SystemFileSystem.metadataOrNull(target)?.size ?: 0L)
+        entryOf(normalized, SystemFileSystem.metadataOrNull(target)?.size ?: 0L)
     }
 
     override suspend fun delete(id: VaultFileId) {
         deleteByPath(pathOf(id))
     }
 
-    override suspend fun deleteByPath(relativePath: String) {
+    override suspend fun deleteByPath(relativePath: String) = withContext(ioDispatcher) {
         val normalized = requireNoSymbolicLink(normalize(relativePath))
         watcher?.markWrittenBySync(normalized)
         SystemFileSystem.delete(absolute(normalized), mustExist = false)
@@ -135,8 +145,6 @@ class FileSystemLocalVault(
         require(segments.isNotEmpty() && ".." !in segments) { "Invalid vault path: '$relativePath'" }
         return segments.joinToString("/")
     }
-
-    private fun ByteArray.toHex(): String = joinToString("") { (it.toInt() and 0xFF).toString(16).padStart(2, '0') }
 
     private companion object {
         const val TEMP_PREFIX = ".mimir_tmp_"
