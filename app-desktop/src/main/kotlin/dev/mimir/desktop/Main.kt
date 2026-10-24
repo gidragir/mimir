@@ -7,17 +7,22 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.rememberWindowState
 import androidx.compose.ui.window.application
 import dev.mimir.core.BuildConfig
-import dev.mimir.core.label
 import dev.mimir.daemon.DaemonConfig
 import dev.mimir.desktop.tray.createTray
+import dev.mimir.desktop.tray.trayLabel
 import dev.mimir.ui.MimirApp
 import dev.mimir.ui.model.MimirUiModel
 import dev.mimir.ui.screens.StartupScreen
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.nio.file.Paths
@@ -67,13 +72,15 @@ private fun runDesktop(config: DaemonConfig) = application {
         LaunchedEffect(ready) {
             withContext(Dispatchers.Default) {
                 tray.show(
-                    ready.status.value.label(),
+                    trayLabel(ready.status.value, ready.progress.value),
                     onOpen = { visible = true },
                     onSyncNow = { scope.launch { runCatching { ready.triggerSync() } } },
                     onQuit = ::exitApplication,
                 )
             }
-            ready.status.collect { tray.update(it.label()) }
+            combine(ready.status, ready.progress) { s, p -> trayLabel(s, p) }
+                .distinctUntilChanged()
+                .collect { tray.update(it) }
         }
     }
 
@@ -89,7 +96,9 @@ private fun runDesktop(config: DaemonConfig) = application {
         onCloseRequest = { if (tray.available) visible = false else exitApplication() },
         visible = visible,
         title = BuildConfig.APP_NAME,
+        state = rememberWindowState(size = DpSize(960.dp, 680.dp)),
     ) {
+        LaunchedEffect(Unit) { window.minimumSize = java.awt.Dimension(720, 520) }
         val current = model
         if (current != null) {
             MimirApp(current)

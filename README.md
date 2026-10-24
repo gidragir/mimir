@@ -72,11 +72,28 @@ curl -s 127.0.0.1:47821/health
 
 ### niri
 
-Окно десктопного приложения под niri требует `xwayland-satellite`. Трей пока не реализован (план: StatusNotifierItem); без трея приложение показывает окно как обычно.
+Окно десктопного приложения под niri требует `xwayland-satellite`. Лаунчеры Linux (`mise run desktop`, `packaging/arch/mimir.sh`) выставляют `_JAVA_AWT_WM_NONREPARENTING=1`: без этого Compose под niri рисует только левый верхний угол окна. Трей — StatusNotifierItem по D-Bus.
 
-### Google Cloud
+### Google Cloud (для владельца проекта)
 
-Право `drive.file` привязано к **проекту Google Cloud**, а не к отдельному OAuth-клиенту. Все клиенты Mimir (desktop, Android, расширение браузера, web UI и демон) заводятся в одном проекте и видят одни и те же файлы. Запасной выход через rclone работает, если в rclone указать client ID того же проекта. Client ID и secret — в `mise.local.toml` при разработке и в GitHub Secrets при релизе.
+Право `drive.file` привязано к **проекту Google Cloud**, а не к отдельному OAuth-клиенту. Все клиенты Mimir (desktop, Android, расширение браузера, web UI и демон) заводятся в одном проекте и видят одни и те же файлы.
+
+1. **Branding.** На экране согласия задайте App name = `Mimir`, иначе Google покажет прежнее имя проекта.
+2. **Два OAuth-клиента в одном проекте.** Тип «Desktop app» нужен для входа кнопкой через браузер (loopback + PKCE); тип «TVs and Limited Input devices» — для Device Code (Docker-демон, вход с другого устройства). Google не позволяет использовать один клиент для обоих способов, а refresh-токен обновляется только тем клиентом, который его выдал.
+3. **Publishing status — «In production».** Право `drive.file` нечувствительное, security-аудит не нужен; достаточно пройти проверку бренда. В статусе «Testing» войти могут только добавленные тестовые пользователи, а refresh-токены истекают через 7 дней.
+4. **Файлы rclone.** Файлы, созданные rclone с другим client ID, под `drive.file` Mimir не видит. Чтобы работать с ними вместе, укажите в rclone client ID этого же проекта.
+5. **Секреты релиза.** Client ID и secret кладутся в `mise.local.toml` при разработке и в GitHub Secrets при релизе: `MIMIR_BUILD_GOOGLE_DESKTOP_CLIENT_ID`, `MIMIR_BUILD_GOOGLE_DESKTOP_CLIENT_SECRET`, `MIMIR_BUILD_GOOGLE_DEVICE_CLIENT_ID`, `MIMIR_BUILD_GOOGLE_DEVICE_CLIENT_SECRET`. Значения вшиваются в BuildConfig модуля `daemon` и попадают в сборки msi, arch и apk; без них сборка и тесты проходят, а вход в Google в такой сборке недоступен. Секрет Desktop-клиента у устанавливаемого приложения секретом не является (защита — PKCE и согласие пользователя).
+
+### Свой OAuth-клиент
+
+Продвинутые пользователи могут подставить свой клиент через переменные окружения демона или одноимённые ключи `config.json`; они приоритетнее вшитых значений:
+
+| Переменные | Для чего |
+|---|---|
+| `MIMIR_GOOGLE_DESKTOP_CLIENT_ID`, `MIMIR_GOOGLE_DESKTOP_CLIENT_SECRET` | вход через браузер (клиент «Desktop app») |
+| `MIMIR_GOOGLE_DEVICE_CLIENT_ID`, `MIMIR_GOOGLE_DEVICE_CLIENT_SECRET` | вход по коду (клиент «TVs and Limited Input devices») |
+
+Старые `MIMIR_GOOGLE_CLIENT_ID` / `MIMIR_GOOGLE_CLIENT_SECRET` читаются как алиас Device-пары с предупреждением в логе. Демон в Docker не получает вшитых значений: он настраивается только этими переменными (вход по Device Code), например `-e MIMIR_GOOGLE_DEVICE_CLIENT_ID=... -e MIMIR_GOOGLE_DEVICE_CLIENT_SECRET=...`.
 
 ## Совместимость с rclone
 

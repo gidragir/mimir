@@ -80,4 +80,18 @@ class GlobMatcherTest {
         assertFalse(rules.isExcluded("Daily/2026-10-23.md"))
         assertFalse(rules.isExcluded("Work/Projects.md"))
     }
+
+    @Test
+    fun syncRulesAlwaysExcludeBuiltinPaths() {
+        val rules = SyncRules(excludedGlobs = emptyList())
+
+        assertTrue(rules.isExcluded("node_modules/a/b.js"))
+        assertTrue(rules.isExcluded(".obsidian/plugins/p/node_modules/q.js"))
+        assertTrue(rules.isExcluded(".git/HEAD"))
+        assertTrue(rules.isExcluded("sub/repo/.git/HEAD"))
+        assertTrue(rules.isExcluded("a/b.tmp"))
+        assertTrue(rules.isExcluded("a/b.crswap"))
+        assertTrue(rules.isExcluded(".mimir_canary"))
+        assertFalse(rules.isExcluded("notes/node_modules.md"))
+    }
 }

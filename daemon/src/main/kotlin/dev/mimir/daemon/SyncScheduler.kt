@@ -138,7 +138,9 @@ class SyncScheduler(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            lastError = e.message ?: e::class.simpleName // сеть недоступна: повторим на следующем тике
+            lastError = e.message ?: e::class.simpleName
+            // сеть недоступна: изменения могли пройти мимо ленты, на следующем тике нужна полная сверка
+            retryOnNextTick.set(true)
         }
     }
 }

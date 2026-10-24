@@ -9,7 +9,12 @@ import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.runComposeUiTest
 import dev.mimir.ui.model.FakeMimirUiModel
+import dev.mimir.ui.model.UiBrowserPoll
 import dev.mimir.ui.model.UiDevicePoll
+import dev.mimir.ui.model.UiLoginMethod
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.UriHandler
 import dev.mimir.ui.screens.SetupWizardScreen
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -96,5 +101,86 @@ class SetupWizardScreenTest {
         onNodeWithText("Пароль").performTextInput("good")
         onNodeWithText("Разблокировать").performClick()
         waitUntil { completed }
+    }
+
+    private class RecordingUriHandler : UriHandler {
+        val opened = mutableListOf<String>()
+        override fun openUri(uri: String) { opened += uri }
+    }
+
+    private val both = setOf(UiLoginMethod.Browser, UiLoginMethod.DeviceCode)
+
+    private fun androidx.compose.ui.test.ComposeUiTest.toGoogleStep(model: FakeMimirUiModel, handler: UriHandler = RecordingUriHandler()) {
+        setContent { CompositionLocalProvider(LocalUriHandler provides handler) { SetupWizardScreen(model, onComplete = {}, pollIntervalMillis = 10) } }
+        onNodeWithText("Введите путь к папке").performTextInput("/v")
+        onNodeWithText("Продолжить").performClick()
+    }
+
+    @Test
+    fun browserMethodShowsBigButtonAndCodeLink() = runComposeUiTest {
+        toGoogleStep(FakeMimirUiModel(loginMethods = both))
+        waitUntilExactlyOneExists(hasText("Войти через Google"))
+        onNodeWithText("Войти с помощью кода на другом устройстве").assertExists()
+    }
+
+    @Test
+    fun onlyDeviceCodeShowsCodeScreenDirectly() = runComposeUiTest {
+        toGoogleStep(FakeMimirUiModel(loginMethods = setOf(UiLoginMethod.DeviceCode)))
+        waitUntilExactlyOneExists(hasText("ABCD-EFGH"))
+        onNodeWithText("Войти через Google").assertDoesNotExist()
+    }
+
+    @Test
+    fun noMethodsShowsNotConfiguredMessage() = runComposeUiTest {
+        toGoogleStep(FakeMimirUiModel(loginMethods = emptySet()))
+        waitUntilExactlyOneExists(hasText("Вход в Google не настроен в этой сборке"))
+    }
+
+    @Test
+    fun browserLoginWaitsThenAdvances() = runComposeUiTest {
+        val handler = RecordingUriHandler()
+        var authorized = false
+        val model = FakeMimirUiModel(
+            loginMethods = both,
+            browserAuthUrl = "https://auth.example/login",
+            browserPoll = { if (authorized) UiBrowserPoll.Authorized("me@x") else UiBrowserPoll.Pending },
+        )
+        toGoogleStep(model, handler)
+        waitUntilExactlyOneExists(hasText("Войти через Google"))
+        onNodeWithText("Войти через Google").performClick()
+        waitUntilExactlyOneExists(hasText("Ждём подтверждения в браузере…"))
+        assertEquals(listOf("https://auth.example/login"), handler.opened)
+        authorized = true
+        waitUntilExactlyOneExists(hasText("Мастер-пароль шифрования"))
+    }
+
+    @Test
+    fun browserLoginFailureShowsReasonAndRetry() = runComposeUiTest {
+        val model = FakeMimirUiModel(loginMethods = both, browserPoll = { UiBrowserPoll.Failed("Вход отменён") })
+        toGoogleStep(model)
+        waitUntilExactlyOneExists(hasText("Войти через Google"))
+        onNodeWithText("Войти через Google").performClick()
+        waitUntilExactlyOneExists(hasText("Вход отменён"))
+        onNodeWithText("Повторить").assertExists()
+    }
+
+    @Test
+    fun cancelReturnsToButton() = runComposeUiTest {
+        toGoogleStep(FakeMimirUiModel(loginMethods = both))
+        waitUntilExactlyOneExists(hasText("Войти через Google"))
+        onNodeWithText("Войти через Google").performClick()
+        waitUntilExactlyOneExists(hasText("Ждём подтверждения в браузере…"))
+        onNodeWithText("Отмена").performClick()
+        waitUntilExactlyOneExists(hasText("Войти через Google"))
+    }
+
+    @Test
+    fun failingOpenUriOffersCopyLink() = runComposeUiTest {
+        val handler = object : UriHandler { override fun openUri(uri: String) = throw IllegalStateException("no browser") }
+        toGoogleStep(FakeMimirUiModel(loginMethods = both, browserAuthUrl = "https://auth.example/login"), handler)
+        waitUntilExactlyOneExists(hasText("Войти через Google"))
+        onNodeWithText("Войти через Google").performClick()
+        waitUntilExactlyOneExists(hasText("Скопировать ссылку"))
+        onNodeWithText("https://auth.example/login").assertExists()
     }
 }

@@ -59,7 +59,7 @@ class DaemonFullCycleE2ETest {
         val config = DaemonConfig(
             vaultPath = vaultDir.toString(),
             password = "secret",
-            googleClientId = "cid",
+            googleDeviceClientId = "cid",
             syncIntervalSeconds = 1,
             configDir = configDir.toString(),
         )

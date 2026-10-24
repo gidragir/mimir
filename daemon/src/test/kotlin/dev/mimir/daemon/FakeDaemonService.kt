@@ -1,5 +1,6 @@
 package dev.mimir.daemon
 
+import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncStatus
 import dev.mimir.drive.api.GoogleDeviceCodeResponse
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -8,6 +9,7 @@ import kotlin.time.Instant
 
 class FakeDaemonService : DaemonService {
     override val status = MutableStateFlow<SyncStatus>(SyncStatus.NotConfigured)
+    override val progress = MutableStateFlow<SyncProgress?>(null)
     override var vaultPath: String? = null
     override var isLocked: Boolean = true
     override var lastSyncTime: Instant? = null
@@ -25,6 +27,13 @@ class FakeDaemonService : DaemonService {
     override suspend fun resolveConflict(originalPath: String, conflictPath: String, keepConflict: Boolean) = Unit
     override suspend fun startDeviceLogin(): GoogleDeviceCodeResponse = error("not used")
     override suspend fun pollDeviceLogin(deviceCode: String): DevicePoll = error("not used")
+    /** `null` — вход через браузер недоступен. */
+    var browserUrl: String? = "https://accounts.example/auth"
+    var browserPoll: BrowserLoginPoll = BrowserLoginPoll.Pending
+    override suspend fun startBrowserLogin(): String = browserUrl ?: throw SyncNotConfiguredException("no desktop client")
+    override suspend fun pollBrowserLogin(): BrowserLoginPoll = browserPoll
+    var methods: Set<LoginMethod> = emptySet()
+    override suspend fun loginMethods() = methods
 
     /** `true` — запуск принят, `false` — уже идёт, `null` — не сконфигурировано. */
     var syncAccepted: Boolean? = null

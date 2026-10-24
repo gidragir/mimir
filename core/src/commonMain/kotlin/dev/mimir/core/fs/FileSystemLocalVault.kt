@@ -24,20 +24,27 @@ class FileSystemLocalVault(
 
     override suspend fun list(): List<LocalEntry> {
         val result = ArrayList<LocalEntry>()
-        walk("", result)
+        walk("", result, symbolicLinks = null)
         return result
+    }
+
+    override suspend fun hiddenPaths(): Set<String> {
+        val links = LinkedHashSet<String>()
+        walk("", out = null, symbolicLinks = links)
+        return links
     }
 
     override suspend fun getEntry(relativePath: String): LocalEntry? {
         val normalized = normalize(relativePath)
         if (isExcluded(normalized)) return null
+        if (hasSymbolicLink(normalized)) return null
         val metadata = SystemFileSystem.metadataOrNull(absolute(normalized)) ?: return null
         if (!metadata.isRegularFile) return null
         return entryOf(normalized, metadata.size)
     }
 
     override suspend fun read(id: VaultFileId): Source {
-        val path = absolute(pathOf(id))
+        val path = absolute(requireNoSymbolicLink(pathOf(id)))
         if (SystemFileSystem.metadataOrNull(path)?.isRegularFile != true) {
             throw NoSuchElementException("No such file: ${id.value}")
         }
@@ -49,7 +56,7 @@ class FileSystemLocalVault(
     }
 
     override suspend fun write(relativePath: String, data: Source): LocalEntry {
-        val normalized = normalize(relativePath)
+        val normalized = requireNoSymbolicLink(normalize(relativePath))
         val target = absolute(normalized)
         val directory = target.parent ?: rootPath
         SystemFileSystem.createDirectories(directory)
@@ -73,23 +80,28 @@ class FileSystemLocalVault(
     }
 
     override suspend fun deleteByPath(relativePath: String) {
-        val normalized = normalize(relativePath)
+        val normalized = requireNoSymbolicLink(normalize(relativePath))
         watcher?.markWrittenBySync(normalized)
         SystemFileSystem.delete(absolute(normalized), mustExist = false)
     }
 
     override fun changes(): Flow<VaultChange> = watcher?.start() ?: emptyFlow()
 
-    private fun walk(relativeDir: String, out: MutableList<LocalEntry>) {
+    /** Обходит vault, не заходя в исключённые пути и символьные ссылки; ссылки складываются в [symbolicLinks]. */
+    private fun walk(relativeDir: String, out: MutableList<LocalEntry>?, symbolicLinks: MutableSet<String>?) {
         val dir = if (relativeDir.isEmpty()) rootPath else absolute(relativeDir)
         if (SystemFileSystem.metadataOrNull(dir)?.isDirectory != true) return
         for (child in SystemFileSystem.list(dir).sortedBy { it.name }) {
             val relative = if (relativeDir.isEmpty()) child.name else "$relativeDir/${child.name}"
             if (isExcluded(relative)) continue
+            if (isSymbolicLink(child)) {
+                symbolicLinks?.add(relative)
+                continue
+            }
             val metadata = SystemFileSystem.metadataOrNull(child) ?: continue
             when {
-                metadata.isDirectory -> walk(relative, out)
-                metadata.isRegularFile -> out += entryOf(relative, metadata.size)
+                metadata.isDirectory -> walk(relative, out, symbolicLinks)
+                metadata.isRegularFile -> out?.add(entryOf(relative, metadata.size))
             }
         }
     }
@@ -102,6 +114,17 @@ class FileSystemLocalVault(
     )
 
     private fun isExcluded(relativePath: String): Boolean = filter.isExcluded(relativePath)
+
+    /** Симлинк на любом уровне пути: vault не разворачивает ссылки (иначе в него попадают чужие каталоги, например `node_modules`). */
+    private fun hasSymbolicLink(relativePath: String): Boolean {
+        val segments = relativePath.split('/')
+        return segments.indices.any { isSymbolicLink(absolute(segments.take(it + 1).joinToString("/"))) }
+    }
+
+    private fun requireNoSymbolicLink(relativePath: String): String {
+        require(!hasSymbolicLink(relativePath)) { "Refusing to follow a symbolic link: '$relativePath'" }
+        return relativePath
+    }
 
     private fun absolute(relativePath: String): Path = Path(rootPath, *relativePath.split('/').toTypedArray())
 

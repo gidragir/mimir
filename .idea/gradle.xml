@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="GradleMigrationSettings" migrationVersion="1" />
+  <component name="GradleSettings">
+    <option name="linkedExternalProjectsSettings">
+      <GradleProjectSettings>
+        <compositeConfiguration>
+          <compositeBuild compositeDefinitionSource="SCRIPT">
+            <builds>
+              <build path="/data/projects/mimir/build-logic" name="build-logic">
+                <projects>
+                  <project path="/data/projects/mimir/build-logic" />
+                </projects>
+              </build>
+            </builds>
+          </compositeBuild>
+        </compositeConfiguration>
+        <option name="testRunner" value="CHOOSE_PER_TEST" />
+        <option name="externalProjectPath" value="$PROJECT_DIR$" />
+        <option name="gradleJvm" value="jbr-25" />
+        <option name="modules">
+          <set>
+            <option value="/data/projects/mimir" />
+            <option value="/data/projects/mimir/app-android" />
+            <option value="/data/projects/mimir/app-desktop" />
+            <option value="/data/projects/mimir/browser-extension" />
+            <option value="/data/projects/mimir/build-logic" />
+            <option value="/data/projects/mimir/core" />
+            <option value="/data/projects/mimir/daemon" />
+            <option value="/data/projects/mimir/drive" />
+            <option value="/data/projects/mimir/obsidian-plugin" />
+            <option value="/data/projects/mimir/ui" />
+            <option value="/data/projects/mimir/web-ui" />
+          </set>
+        </option>
+      </GradleProjectSettings>
+    </option>
+  </component>
+</project>

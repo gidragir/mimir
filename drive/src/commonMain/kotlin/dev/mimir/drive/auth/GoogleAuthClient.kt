@@ -21,13 +21,15 @@ import kotlin.time.Clock
 
 class GoogleAuthClient(
     private val httpClient: HttpClient,
-    private val clientId: String,
-    private val clientSecret: String? = null,
+    private val credentials: GoogleClientCredentials,
     private val clock: Clock = Clock.System,
 ) {
+    val kind: GoogleClientKind get() = credentials.kind
+    private val clientId: String get() = credentials.clientId
+    private val clientSecret: String? get() = credentials.clientSecret
+
     fun buildAuthorizationUrl(redirectUri: String, codeChallenge: String, state: String): String {
         val scopeParam = GoogleAuthConfig.scopes.joinToString("%20")
-        val secretPart = clientSecret?.let { "&client_secret=$it" } ?: ""
         return "https://accounts.google.com/o/oauth2/v2/auth?" +
             "client_id=$clientId" +
             "&redirect_uri=$redirectUri" +
@@ -37,8 +39,7 @@ class GoogleAuthClient(
             "&code_challenge_method=S256" +
             "&state=$state" +
             "&access_type=offline" +
-            "&prompt=consent" +
-            secretPart
+            "&prompt=consent"
     }
 
     suspend fun exchangeAuthorizationCode(code: String, codeVerifier: String, redirectUri: String): OAuthTokens {
@@ -137,6 +138,7 @@ class GoogleAuthClient(
             expiresAtEpochSeconds = expiresAt,
             scope = response.scope ?: "",
             tokenType = response.token_type,
+            clientKind = credentials.kind,
         )
     }
 }

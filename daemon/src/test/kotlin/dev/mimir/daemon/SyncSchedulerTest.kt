@@ -2,6 +2,7 @@ package dev.mimir.daemon
 
 import dev.mimir.core.LocalEntry
 import dev.mimir.core.SyncEngine
+import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncStatus
 import dev.mimir.core.VaultChange
 import dev.mimir.core.VaultFileId
@@ -30,6 +31,7 @@ import kotlin.time.Instant
 class SyncSchedulerTest {
     private class FakeEngine : SyncEngine {
         override val status: StateFlow<SyncStatus> = MutableStateFlow(SyncStatus.Idle)
+        override val progress: StateFlow<SyncProgress?> = MutableStateFlow(null)
         var calls = 0
         var gate: CompletableDeferred<Unit>? = null
         var failNext = false
@@ -204,6 +206,32 @@ class SyncSchedulerTest {
         runCurrent()
         assertEquals(2, engine.calls)
         assertNotNull(scheduler.lastSyncTime)
+        scheduler.stop()
+    }
+
+    @Test
+    fun `tick network failure schedules full sync`() = runTest {
+        val engine = FakeEngine()
+        val feed = object : dev.mimir.core.ChangeFeedStorage by InMemoryRemoteStorage() {
+            override suspend fun getChanges(sinceToken: String): dev.mimir.core.RemoteChangesResult =
+                throw dev.mimir.core.RemoteUnavailableException("network down")
+        }
+        val scheduler = SyncScheduler(
+            syncEngine = engine,
+            syncInterval = interval,
+            scope = backgroundScope,
+            localChanges = MutableSharedFlow(),
+            remoteFeed = feed,
+        ).also { it.start() }
+
+        runCurrent()
+        assertEquals(1, engine.calls) // стартовая
+        advanceTimeBy(interval + 1.seconds)
+        runCurrent()
+        assertEquals(1, engine.calls) // getChanges упал, повтор отложен на следующий тик
+        advanceTimeBy(interval)
+        runCurrent()
+        assertEquals(2, engine.calls)
         scheduler.stop()
     }
 }

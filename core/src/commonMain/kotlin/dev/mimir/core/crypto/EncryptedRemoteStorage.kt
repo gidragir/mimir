@@ -31,6 +31,9 @@ class EncryptedRemoteStorage(
     override suspend fun list(dir: RemotePath): List<RemoteEntry> =
         inner.list(encrypt(dir)).filterNot { it.path.isReserved() }.map { it.decrypted() }
 
+    override suspend fun listAll(root: RemotePath, onProgress: (folders: Int, files: Int) -> Unit): List<RemoteEntry> =
+        inner.listAll(encrypt(root), onProgress).filterNot { it.path.isReserved() }.map { it.decrypted() }
+
     override suspend fun stat(path: RemotePath): RemoteEntry? =
         inner.stat(encrypt(path))?.decrypted()
 

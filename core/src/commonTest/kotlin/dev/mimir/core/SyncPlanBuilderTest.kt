@@ -269,4 +269,36 @@ class SyncPlanBuilderTest {
         assertEquals("valid.md", plan.actions[0].path)
         assertTrue(plan.actions[0] is SyncAction.Upload)
     }
+
+    @Test
+    fun remoteFilesUnderBuiltinExcludes_areNeitherDownloadedNorDeleted() = runTest {
+        val paths = listOf(
+            ".obsidian/plugins/p/node_modules/q/index.js",
+            "node_modules/pkg/index.js",
+            "sub/repo/.git/HEAD",
+            ".mimir_canary",
+            "note.tmp",
+        )
+        val plan = builder.buildPlan(
+            local = emptyList(),
+            remote = paths.map { remote(it) },
+            index = SyncIndex(),
+            hashCalculator = { _, _ -> "hash" },
+        )
+
+        assertTrue(plan.actions.isEmpty(), "unexpected actions: ${plan.actions}")
+    }
+
+    @Test
+    fun indexedFileUnderBuiltinExcludes_isNotDeletedFromRemote() = runTest {
+        val path = "node_modules/pkg/index.js"
+        val plan = builder.buildPlan(
+            local = emptyList(),
+            remote = listOf(remote(path)),
+            index = SyncIndex().withRecord(base(path)),
+            hashCalculator = { _, _ -> "hash-base" },
+        )
+
+        assertTrue(plan.actions.isEmpty(), "unexpected actions: ${plan.actions}")
+    }
 }

@@ -147,4 +147,37 @@ class RoutesTest {
         assertEquals(HttpStatusCode.BadRequest, response.status)
         assertNull(service.unlockedWith)
     }
+
+    @Test
+    fun `status includes progress`() = testApplication {
+        serve()
+        service.progress.value = dev.mimir.core.SyncProgress(
+            phase = dev.mimir.core.SyncPhase.Applying,
+            startedAt = Instant.parse("2026-10-24T12:00:00Z"),
+            total = 87,
+            done = 12,
+        )
+        val json = client.get("/api/v1/status").json()
+        val progress = json.getValue("progress").jsonObject
+        assertEquals(12, progress.getValue("done").jsonPrimitive.content.toInt())
+        assertEquals(87, progress.getValue("total").jsonPrimitive.content.toInt())
+        assertEquals("applying", progress.getValue("phase").jsonPrimitive.content)
+    }
+
+    @Test
+    fun `status omits nothing existing`() = testApplication {
+        serve()
+        val json = client.get("/api/v1/status").json()
+        listOf("status", "label", "vaultPath", "lastSyncAt", "isLocked", "activeConflicts", "accountEmail")
+            .forEach { assertEquals(true, it in json, "missing $it") }
+    }
+
+    @Test
+    fun `status offline code`() = testApplication {
+        serve()
+        service.status.value = SyncStatus.Offline
+        val json = client.get("/api/v1/status").json()
+        assertEquals("offline", json.getValue("status").jsonPrimitive.content)
+        assertEquals("Mimir: waiting for network", json.getValue("label").jsonPrimitive.content)
+    }
 }

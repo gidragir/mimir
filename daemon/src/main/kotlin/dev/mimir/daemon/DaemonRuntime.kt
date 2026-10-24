@@ -4,6 +4,7 @@ import dev.mimir.core.ChangeFeedStorage
 import dev.mimir.core.Cipher
 import dev.mimir.core.RcloneCipher
 import dev.mimir.core.EncryptedRemoteStorage
+import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncStatus
 import dev.mimir.core.fs.FileSystemLocalVault
 import dev.mimir.core.fs.NioWatchServiceVaultWatcher
@@ -11,8 +12,13 @@ import dev.mimir.core.sync.DefaultSyncEngine
 import dev.mimir.drive.GoogleDriveStorage
 import dev.mimir.drive.api.GoogleDeviceCodeResponse
 import dev.mimir.drive.client.DriveAuthException
+import dev.mimir.drive.client.DriveHttpException
 import dev.mimir.drive.auth.GoogleAuthClient
+import dev.mimir.drive.auth.GoogleAuthClients
+import dev.mimir.drive.auth.LoginCallback
+import dev.mimir.drive.auth.OAuthTokens
 import dev.mimir.drive.auth.TokenStorage
+import dev.mimir.drive.auth.newBrowserLogin
 import dev.mimir.drive.client.DriveHttpClient
 import dev.mimir.drive.path.DrivePathResolver
 import io.ktor.client.HttpClient
@@ -21,13 +27,17 @@ import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
@@ -37,9 +47,11 @@ import kotlinx.io.files.Path
 import kotlinx.io.readByteArray
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Paths
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 
@@ -54,9 +66,9 @@ fun interface RemoteStorageFactory {
 }
 
 private val googleDriveFactory = RemoteStorageFactory { httpClient, tokenStorage, config ->
-    val clientId = config.googleClientId ?: return@RemoteStorageFactory null
-    val authClient = GoogleAuthClient(httpClient, clientId, config.googleClientSecret)
-    val driveClient = DriveHttpClient(httpClient, tokenStorage, authClient)
+    val clients = config.authClients(httpClient)
+    if (clients.desktop == null && clients.device == null) return@RemoteStorageFactory null
+    val driveClient = DriveHttpClient(httpClient, tokenStorage, clients)
     GoogleDriveStorage(driveClient, DrivePathResolver(driveClient, config.rootFolder))
 }
 
@@ -71,6 +83,7 @@ class DaemonRuntime(
     private val remoteStorageFactory: RemoteStorageFactory = googleDriveFactory,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
     private val conflictScanInterval: Duration = 5.seconds,
+    private val browserLoginTimeout: Duration = 5.minutes,
 ) : DaemonService {
     @Volatile
     var config: DaemonConfig = initialConfig
@@ -79,6 +92,7 @@ class DaemonRuntime(
     private val configDir = Paths.get(config.configDir ?: DaemonConfig.load(env = System.getenv()).configDir!!)
     private val buildMutex = Mutex()
     private val _status = MutableStateFlow<SyncStatus>(SyncStatus.NotConfigured)
+    private val _progress = MutableStateFlow<SyncProgress?>(null)
     private val _conflicts = MutableStateFlow<List<ConflictFileEntry>>(emptyList())
 
     @Volatile
@@ -90,12 +104,14 @@ class DaemonRuntime(
     @Volatile
     private var watcher: NioWatchServiceVaultWatcher? = null
     private var statusJob: Job? = null
+    private var progressJob: Job? = null
     private var conflictJob: Job? = null
 
     val tokenStorage: TokenStorage = FileTokenStorage(configDir.resolve("tokens.json"))
-    val authClient: GoogleAuthClient? = config.googleClientId?.let { GoogleAuthClient(httpClient, it, config.googleClientSecret) }
+    val authClients: GoogleAuthClients = config.authClients(httpClient)
 
     override val status: StateFlow<SyncStatus> = _status.asStateFlow()
+    override val progress: StateFlow<SyncProgress?> = _progress.asStateFlow()
     override val conflictsFlow: StateFlow<List<ConflictFileEntry>> = _conflicts.asStateFlow()
     override val vaultPath: String? get() = config.vaultPath
     override val isLocked: Boolean get() = cipher == null
@@ -186,25 +202,101 @@ class DaemonRuntime(
     }
 
     override suspend fun startDeviceLogin(): GoogleDeviceCodeResponse =
-        (authClient ?: throw SyncNotConfiguredException("Google client id not configured")).requestDeviceCode()
+        (authClients.device ?: throw SyncNotConfiguredException("Google device client is not configured")).requestDeviceCode()
+
+    override suspend fun loginMethods(): Set<LoginMethod> = loginMethodsFor(config.googleCredentials())
 
     override suspend fun pollDeviceLogin(deviceCode: String): DevicePoll {
-        val client = authClient ?: throw SyncNotConfiguredException("Google client id not configured")
+        val client = authClients.device ?: throw SyncNotConfiguredException("Google device client is not configured")
         val tokens = try {
             client.pollDeviceToken(deviceCode)
         } catch (e: DriveAuthException) {
             val message = e.message.orEmpty()
             return if ("authorization_pending" in message || "slow_down" in message) DevicePoll.Pending else DevicePoll.Expired(message)
         }
+        return DevicePoll.Authorized(completeLogin(tokens, client))
+    }
+
+    private class BrowserAttempt(val receiver: BrowserLoginReceiver, val job: Job, val state: MutableStateFlow<BrowserLoginPoll>)
+
+    private val browserMutex = Mutex()
+    private var browserAttempt: BrowserAttempt? = null
+
+    override suspend fun startBrowserLogin(): String = browserMutex.withLock {
+        val client = authClients.desktop ?: throw SyncNotConfiguredException("Google desktop client is not configured")
+        browserAttempt?.let {
+            // Дожидаемся завершения старой попытки, чтобы она не сохранила вход параллельно с новой.
+            // Задача попытки browserMutex не берёт, поэтому join под ним не взаимоблокируется.
+            it.job.cancel()
+            it.receiver.close()
+            it.job.join()
+        }
+        browserAttempt = null
+        val receiver = BrowserLoginReceiver(browserLoginTimeout)
+        val request = try {
+            receiver.start()
+            client.newBrowserLogin(receiver.port).also { receiver.expectedState = it.state }
+        } catch (e: Exception) {
+            receiver.close()
+            throw e
+        }
+        val state = MutableStateFlow<BrowserLoginPoll>(BrowserLoginPoll.Pending)
+        val job = scope.launch {
+            state.value = when (val callback = receiver.awaitCallback()) {
+                null -> BrowserLoginPoll.Failed("Время ожидания истекло")
+                LoginCallback.Denied -> BrowserLoginPoll.Failed("Вход отменён")
+                is LoginCallback.Invalid -> BrowserLoginPoll.Failed("Вход не удался")
+                is LoginCallback.Code -> {
+                    val tokens = try {
+                        client.exchangeAuthorizationCode(callback.code, request.verifier, request.redirectUri)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: DriveHttpException) {
+                        logger.warning("Google rejected the authorization code: ${e.javaClass.simpleName}, HTTP ${e.statusCode}")
+                        null.also { state.value = BrowserLoginPoll.Failed("Google не принял вход") }
+                    } catch (e: Exception) {
+                        logger.warning("Token exchange failed: ${e.javaClass.name}")
+                        null.also { state.value = BrowserLoginPoll.Failed("Не удалось связаться с Google") }
+                    }
+                    if (tokens == null) return@launch
+                    try {
+                        BrowserLoginPoll.Authorized(completeLogin(tokens, client))
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        logger.warning("Saving sign-in failed: ${e.javaClass.name}")
+                        BrowserLoginPoll.Failed("Не удалось сохранить вход")
+                    }
+                }
+            }
+        }
+        browserAttempt = BrowserAttempt(receiver, job, state)
+        request.authUrl
+    }
+
+    override suspend fun pollBrowserLogin(): BrowserLoginPoll =
+        browserMutex.withLock { browserAttempt?.state?.value } ?: BrowserLoginPoll.Failed("Вход не начат")
+
+    /** Сохраняет токены, запоминает аккаунт и перезапускает синхронизацию. */
+    private suspend fun completeLogin(tokens: OAuthTokens, client: GoogleAuthClient): String? {
+        val email = try {
+            client.fetchAccount(tokens.accessToken).email.takeIf { it.isNotEmpty() }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null
+        }
+        // Отменённая (перезапущенная) попытка входа не должна ничего сохранять.
+        currentCoroutineContext().ensureActive()
         tokenStorage.save(tokens)
-        val email = runCatching { client.fetchAccount(tokens.accessToken).email }.getOrNull()?.takeIf { it.isNotEmpty() }
         accountEmail = email
         writeFileAtomically(configDir.resolve("account.json"), Json.encodeToString(AccountFile(email)))
         rebuildLenient()
-        return DevicePoll.Authorized(email)
+        return email
     }
 
     fun close() {
+        browserAttempt?.receiver?.close()
         scheduler?.stop()
         watcher?.stop()
         scope.cancel()
@@ -267,6 +359,10 @@ class DaemonRuntime(
                 if (it == SyncStatus.Idle) runCatching { refreshConflicts() }
             }
         }
+        progressJob = scope.launch {
+            // Новый движок начинает с null — не затираем им сводку последнего прогона.
+            engine.progress.filterNotNull().collect { _progress.value = it }
+        }
         _status.value = engine.status.value
         scheduler.start()
     }
@@ -275,6 +371,9 @@ class DaemonRuntime(
         scheduler?.stop()
         watcher?.stop()
         statusJob?.cancel()
+        progressJob?.cancel()
+        progressJob = null
+        // _progress намеренно сохраняется: сводка последнего прогона
         scheduler = null
         watcher = null
         statusJob = null

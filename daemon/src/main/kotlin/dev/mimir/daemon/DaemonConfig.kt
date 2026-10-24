@@ -1,13 +1,16 @@
 package dev.mimir.daemon
 
 import dev.mimir.core.BuildConfig
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerializationException
+import kotlinx.serialization.json.JsonNames
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 data class DaemonConfig(
     val bind: String = "127.0.0.1",
@@ -16,8 +19,11 @@ data class DaemonConfig(
     val token: String? = null,
     val password: String? = null,
     val passwordFile: String? = null,
-    val googleClientId: String? = null,
-    val googleClientSecret: String? = null,
+    val googleDesktopClientId: String? = null,
+    val googleDesktopClientSecret: String? = null,
+    // Старые ключи config.json (googleClientId/googleClientSecret) читаются как Device.
+    @JsonNames("googleClientId") val googleDeviceClientId: String? = null,
+    @JsonNames("googleClientSecret") val googleDeviceClientSecret: String? = null,
     val syncIntervalSeconds: Long = 30L,
     val rootFolder: String = "MimirVault",
     val configDir: String? = null,
@@ -48,7 +54,9 @@ data class DaemonConfig(
     // Секреты не должны попадать в логи.
     override fun toString(): String =
         "DaemonConfig(bind=$bind, port=$port, vaultPath=$vaultPath, token=${redact(token)}, password=${redact(password)}, " +
-            "passwordFile=$passwordFile, googleClientId=$googleClientId, googleClientSecret=${redact(googleClientSecret)}, " +
+            "passwordFile=$passwordFile, googleDesktopClientId=$googleDesktopClientId, " +
+            "googleDesktopClientSecret=${redact(googleDesktopClientSecret)}, googleDeviceClientId=$googleDeviceClientId, " +
+            "googleDeviceClientSecret=${redact(googleDeviceClientSecret)}, " +
             "syncIntervalSeconds=$syncIntervalSeconds, rootFolder=$rootFolder, configDir=$configDir)"
 
     companion object {
@@ -98,6 +106,8 @@ private fun DaemonConfig.applyEnv(env: Map<String, String>): DaemonConfig {
         it.toLongOrNull()?.takeIf { seconds -> seconds > 0 }
             ?: throw IllegalArgumentException("MIMIR_SYNC_INTERVAL must be a positive number of seconds, got '$it'")
     } ?: syncIntervalSeconds
+    val legacyId = deprecatedEnv(env, "MIMIR_GOOGLE_CLIENT_ID", "MIMIR_GOOGLE_DEVICE_CLIENT_ID")
+    val legacySecret = deprecatedEnv(env, "MIMIR_GOOGLE_CLIENT_SECRET", "MIMIR_GOOGLE_DEVICE_CLIENT_SECRET")
     return copy(
         bind = env["MIMIR_BIND"] ?: bind,
         port = port,
@@ -105,9 +115,24 @@ private fun DaemonConfig.applyEnv(env: Map<String, String>): DaemonConfig {
         token = env["MIMIR_TOKEN"] ?: token,
         password = env["MIMIR_PASSWORD"] ?: password,
         passwordFile = env["MIMIR_PASSWORD_FILE"] ?: passwordFile,
-        googleClientId = env["MIMIR_GOOGLE_CLIENT_ID"] ?: googleClientId,
-        googleClientSecret = env["MIMIR_GOOGLE_CLIENT_SECRET"] ?: googleClientSecret,
+        googleDesktopClientId = env.nonEmpty("MIMIR_GOOGLE_DESKTOP_CLIENT_ID") ?: googleDesktopClientId,
+        googleDesktopClientSecret = env.nonEmpty("MIMIR_GOOGLE_DESKTOP_CLIENT_SECRET") ?: googleDesktopClientSecret,
+        googleDeviceClientId = env.nonEmpty("MIMIR_GOOGLE_DEVICE_CLIENT_ID") ?: legacyId ?: googleDeviceClientId,
+        googleDeviceClientSecret = env.nonEmpty("MIMIR_GOOGLE_DEVICE_CLIENT_SECRET") ?: legacySecret ?: googleDeviceClientSecret,
         syncIntervalSeconds = interval,
         rootFolder = env["MIMIR_ROOT_FOLDER"] ?: rootFolder,
     )
 }
+
+private val configLogger = java.util.logging.Logger.getLogger(DaemonConfig::class.java.name)
+
+/** Значение устаревшей переменной; предупреждает, только если новая переменная не задана. */
+private fun deprecatedEnv(env: Map<String, String>, old: String, new: String): String? {
+    val value = env.nonEmpty(old) ?: return null
+    if (env.nonEmpty(new) != null) return null
+    configLogger.warning("$old is deprecated, use $new")
+    return value
+}
+
+/** Пустая строка в переменной окружения (например, из mise.local.toml.example) равна отсутствию значения. */
+private fun Map<String, String>.nonEmpty(name: String): String? = this[name]?.takeIf { it.isNotEmpty() }

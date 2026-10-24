@@ -13,7 +13,7 @@ import kotlinx.io.readByteArray
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
-import kotlin.test.assertFails
+import kotlin.test.assertNull
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -102,7 +102,7 @@ class DefaultSyncEngineTest {
     }
 
     @Test
-    fun syncNow_setsErrorStatusOnFailure() = runTest {
+    fun syncNow_readFailureBecomesProblemNotError() = runTest {
         val vault = InMemoryLocalVault()
         val remote = InMemoryRemoteStorage()
         val store = InMemorySyncStateStore()
@@ -115,12 +115,14 @@ class DefaultSyncEngineTest {
         vault.write("fail.md", bufferOf("data"))
         vault.throwOnRead = true
 
-        assertFails {
-            engine.syncNow()
-        }
+        engine.syncNow()
 
-        val status = engine.status.value
-        assertTrue(status is SyncStatus.Error)
-        assertTrue(status.message.contains("Read failed"))
+        assertEquals(SyncStatus.Idle, engine.status.value)
+        val problem = assertNotNull(engine.progress.value).problems.single()
+        assertEquals("fail.md", problem.path)
+        assertEquals(SyncProblemKind.ReadFailed, problem.kind)
+        assertTrue(problem.detail.contains("Read failed"))
+        assertNull(store.load().find("fail.md"))
+        assertNull(remote.stat(RemotePath("fail.md")))
     }
 }

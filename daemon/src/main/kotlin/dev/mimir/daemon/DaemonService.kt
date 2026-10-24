@@ -1,5 +1,6 @@
 package dev.mimir.daemon
 
+import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncStatus
 import dev.mimir.drive.api.GoogleDeviceCodeResponse
 import kotlinx.coroutines.flow.StateFlow
@@ -8,6 +9,9 @@ import kotlin.time.Instant
 /** То, что HTTP API требует от демона; реализуется [DaemonRuntime]. */
 interface DaemonService {
     val status: StateFlow<SyncStatus>
+
+    /** Прогресс текущего прогона; после завершения хранит сводку последнего (фаза Finished). */
+    val progress: StateFlow<SyncProgress?>
     val vaultPath: String?
     val isLocked: Boolean
     val lastSyncTime: Instant?
@@ -31,10 +35,25 @@ interface DaemonService {
     /** [SyncNotConfiguredException], если не задан Google client id. */
     suspend fun startDeviceLogin(): GoogleDeviceCodeResponse
     suspend fun pollDeviceLogin(deviceCode: String): DevicePoll
+
+    /** [SyncNotConfiguredException], если вход через браузер не настроен. Возвращает ссылку для браузера. */
+    suspend fun startBrowserLogin(): String
+    suspend fun pollBrowserLogin(): BrowserLoginPoll
+
+    /** Способы входа, для которых настроены клиенты Google. */
+    suspend fun loginMethods(): Set<LoginMethod>
 }
+
+enum class LoginMethod { Browser, DeviceCode }
 
 sealed interface DevicePoll {
     data object Pending : DevicePoll
     data class Authorized(val email: String?) : DevicePoll
     data class Expired(val reason: String) : DevicePoll
+}
+
+sealed interface BrowserLoginPoll {
+    data object Pending : BrowserLoginPoll
+    data class Authorized(val email: String?) : BrowserLoginPoll
+    data class Failed(val reason: String) : BrowserLoginPoll
 }

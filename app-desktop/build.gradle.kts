@@ -46,5 +46,16 @@ compose.desktop {
     }
 }
 
+// Wayland-композиторы без репарентинга (niri): иначе AWT рисует окно неверно
+// задача run регистрируется Compose-плагином позже, поэтому configureEach
+tasks.withType<JavaExec>().configureEach {
+    if (name == "run") {
+        environment("_JAVA_AWT_WM_NONREPARENTING", "1")
+        val mimirEnv = providers.environmentVariablesPrefixedBy("MIMIR_").get()
+        environment.keys.removeIf { it.startsWith("MIMIR_") }
+        environment(mimirEnv)
+    }
+}
+
 // Kotlin 2.4 таргетит JVM 26 при JDK 27, выравниваем javac по Kotlin
 tasks.withType<JavaCompile>().configureEach { options.release = 26 }

@@ -33,6 +33,7 @@ private data class StatusResponse(
     val isLocked: Boolean,
     val activeConflicts: Int,
     val accountEmail: String?,
+    val progress: SyncProgressDto? = null,
 )
 
 @Serializable
@@ -60,6 +61,15 @@ private data class AuthorizedResponse(val status: String, val email: String?)
 private data class ExpiredResponse(val status: String, val error: String)
 
 @Serializable
+private data class MethodsResponse(val methods: List<String>)
+
+@Serializable
+private data class AuthUrlResponse(val authUrl: String)
+
+@Serializable
+private data class FailedResponse(val status: String, val error: String)
+
+@Serializable
 private data class VaultRequest(val vaultPath: String = "")
 
 @Serializable
@@ -69,6 +79,7 @@ private fun SyncStatus.code(): String = when (this) {
     SyncStatus.NotConfigured -> "not_connected"
     SyncStatus.Idle -> "idle"
     SyncStatus.Syncing -> "syncing"
+    SyncStatus.Offline -> "offline"
     is SyncStatus.Error -> "error"
 }
 
@@ -110,6 +121,7 @@ fun Application.mimirRoutes(service: DaemonService, config: DaemonConfig) {
                         isLocked = service.isLocked,
                         activeConflicts = service.conflictsFlow.value.size,
                         accountEmail = service.accountEmail,
+                        progress = service.progress.value?.toDto(kotlin.time.Clock.System.now()),
                     ),
                 )
             }
@@ -181,6 +193,32 @@ fun Application.mimirRoutes(service: DaemonService, config: DaemonConfig) {
                     call.respond(HttpStatusCode.PreconditionFailed, ErrorBody(e.message ?: "Not configured"))
                 } catch (e: DriveHttpException) {
                     call.respond(HttpStatusCode.BadGateway, ErrorBody(e.message ?: "Google request failed"))
+                }
+            }
+
+            get("/auth/methods") {
+                val methods = service.loginMethods().sorted().map {
+                    when (it) {
+                        LoginMethod.Browser -> "browser"
+                        LoginMethod.DeviceCode -> "device_code"
+                    }
+                }
+                call.respond(MethodsResponse(methods))
+            }
+
+            post("/auth/browser/start") {
+                try {
+                    call.respond(AuthUrlResponse(service.startBrowserLogin()))
+                } catch (_: SyncNotConfiguredException) {
+                    call.respond(HttpStatusCode.Conflict, ErrorBody("Browser sign-in is not available"))
+                }
+            }
+
+            get("/auth/browser/poll") {
+                when (val result = service.pollBrowserLogin()) {
+                    BrowserLoginPoll.Pending -> call.respond(StatusOnly("pending"))
+                    is BrowserLoginPoll.Authorized -> call.respond(AuthorizedResponse("authorized", result.email))
+                    is BrowserLoginPoll.Failed -> call.respond(FailedResponse("failed", result.reason))
                 }
             }
 

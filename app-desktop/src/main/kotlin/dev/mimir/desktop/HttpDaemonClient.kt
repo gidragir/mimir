@@ -1,11 +1,16 @@
 package dev.mimir.desktop
 
+import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncStatus
+import dev.mimir.daemon.BrowserLoginPoll
 import dev.mimir.daemon.ConflictFileEntry
 import dev.mimir.daemon.DaemonService
 import dev.mimir.daemon.DevicePoll
 import dev.mimir.daemon.InvalidPasswordException
+import dev.mimir.daemon.LoginMethod
 import dev.mimir.daemon.SyncNotConfiguredException
+import dev.mimir.daemon.SyncProgressDto
+import dev.mimir.daemon.toModel
 import dev.mimir.drive.api.GoogleDeviceCodeResponse
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -42,6 +47,7 @@ private data class StatusDto(
     val lastSyncAt: String? = null,
     val isLocked: Boolean = true,
     val accountEmail: String? = null,
+    val progress: SyncProgressDto? = null,
 )
 
 @Serializable
@@ -52,6 +58,12 @@ private data class ConflictDto(val originalPath: String, val conflictPath: Strin
 
 @Serializable
 private data class PollDto(val status: String = "", val email: String? = null, val error: String? = null)
+
+@Serializable
+private data class MethodsDto(val methods: List<String> = emptyList())
+
+@Serializable
+private data class BrowserStartDto(val authUrl: String)
 
 @Serializable
 private data class ErrorDto(val error: String? = null)
@@ -78,6 +90,7 @@ class HttpDaemonClient(
     pollInterval: Duration = 1.seconds,
 ) : DaemonService {
     private val _status = MutableStateFlow<SyncStatus>(SyncStatus.NotConfigured)
+    private val _progress = MutableStateFlow<SyncProgress?>(null)
     private val _conflicts = MutableStateFlow<List<ConflictFileEntry>>(emptyList())
 
     @Volatile
@@ -85,10 +98,42 @@ class HttpDaemonClient(
 
     override val status: StateFlow<SyncStatus> = _status
     override val conflictsFlow: StateFlow<List<ConflictFileEntry>> = _conflicts
+
+    override val progress: StateFlow<SyncProgress?> = _progress
     override val vaultPath: String? get() = snapshot.vaultPath
     override val isLocked: Boolean get() = snapshot.isLocked
     override val lastSyncTime: Instant? get() = snapshot.lastSyncAt?.let { runCatching { Instant.parse(it) }.getOrNull() }
     override val accountEmail: String? get() = snapshot.accountEmail
+
+    override suspend fun loginMethods(): Set<LoginMethod> {
+        val response = get("/api/v1/auth/methods")
+        if (response.status != HttpStatusCode.OK) throw response.toException()
+        return response.body<MethodsDto>().methods.mapNotNull {
+            when (it) {
+                "browser" -> LoginMethod.Browser
+                "device_code" -> LoginMethod.DeviceCode
+                else -> null
+            }
+        }.toSet()
+    }
+
+    override suspend fun startBrowserLogin(): String {
+        val response = post("/api/v1/auth/browser/start")
+        if (response.status != HttpStatusCode.OK) throw response.toException()
+        return response.body<BrowserStartDto>().authUrl
+    }
+
+    override suspend fun pollBrowserLogin(): BrowserLoginPoll {
+        val response = get("/api/v1/auth/browser/poll")
+        if (response.status != HttpStatusCode.OK) throw response.toException()
+        val body = response.body<PollDto>()
+        return when (body.status) {
+            "pending" -> BrowserLoginPoll.Pending
+            "authorized" -> BrowserLoginPoll.Authorized(body.email)
+            "failed" -> BrowserLoginPoll.Failed(body.error ?: "Вход не удался")
+            else -> throw IllegalStateException("Unexpected sign-in status: ${body.status}")
+        }
+    }
 
     init {
         scope.launch {
@@ -103,9 +148,11 @@ class HttpDaemonClient(
         try {
             val dto = get("/api/v1/status").body<StatusDto>()
             snapshot = dto
+            _progress.value = dto.progress?.let { runCatching { it.toModel() }.getOrNull() }
             _status.value = when (dto.status) {
                 "idle" -> SyncStatus.Idle
                 "syncing" -> SyncStatus.Syncing
+                "offline" -> SyncStatus.Offline
                 "error" -> SyncStatus.Error(dto.label.removePrefix("Mimir: ").ifEmpty { "error" })
                 else -> SyncStatus.NotConfigured
             }

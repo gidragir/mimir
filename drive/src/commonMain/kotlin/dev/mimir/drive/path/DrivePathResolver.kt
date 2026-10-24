@@ -230,6 +230,23 @@ class DrivePathResolver(
         }
     }
 
+    /**
+     * Сбрасывает кэши путей (файлы, папки, id→путь), сохраняя найденную папку хранилища.
+     * Вызывается перед пакетным обходом: всё, что в нём не встретится, дальше ищется живым запросом,
+     * поэтому удалённый в Drive файл не «воскресает» из кэша прошлого прогона.
+     */
+    suspend fun resetPathCaches() {
+        mutex.withLock {
+            folderCache.clear()
+            fileCache.clear()
+            idToPath.clear()
+            rootFolderId?.let { id ->
+                folderCache[""] = id
+                idToPath[id] = RemotePath("")
+            }
+        }
+    }
+
     suspend fun clearCache() {
         mutex.withLock {
             rootFolderId = null

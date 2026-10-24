@@ -70,7 +70,7 @@ class ConflictAndDeviceAuthRoutesTest {
     private fun ApplicationTestBuilder.serve(withVault: Boolean = true, clientId: String? = "cid") {
         val config = DaemonConfig(
             vaultPath = vaultDir.toString().takeIf { withVault },
-            googleClientId = clientId,
+            googleDeviceClientId = clientId,
             configDir = configDir.toString(),
         )
         val runtime = DaemonRuntime(config, httpClient = mockGoogle(), conflictScanInterval = 50.milliseconds).also { runtime = it }
@@ -244,5 +244,51 @@ class ConflictAndDeviceAuthRoutesTest {
         serve()
 
         assertEquals(HttpStatusCode.BadRequest, client.get("/api/v1/auth/device/poll").status)
+    }
+
+    private fun ApplicationTestBuilder.serveFake(fake: FakeDaemonService) {
+        application { mimirRoutes(fake, DaemonConfig()) }
+    }
+
+    @Test
+    fun authMethodsListsAvailable() = testApplication {
+        val fake = FakeDaemonService().apply { methods = setOf(LoginMethod.DeviceCode, LoginMethod.Browser) }
+        serveFake(fake)
+
+        assertEquals("""{"methods":["browser","device_code"]}""", client.get("/api/v1/auth/methods").bodyAsText())
+        fake.methods = emptySet()
+        assertEquals("""{"methods":[]}""", client.get("/api/v1/auth/methods").bodyAsText())
+    }
+
+    @Test
+    fun browserStartReturnsUrl() = testApplication {
+        serveFake(FakeDaemonService().apply { browserUrl = "https://accounts.example/auth?x=1" })
+
+        val response = client.post("/api/v1/auth/browser/start")
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        assertEquals("https://accounts.example/auth?x=1", response.json().getValue("authUrl").jsonPrimitive.content)
+    }
+
+    @Test
+    fun browserStartConflictWhenUnavailable() = testApplication {
+        serveFake(FakeDaemonService().apply { browserUrl = null })
+
+        val response = client.post("/api/v1/auth/browser/start")
+
+        assertEquals(HttpStatusCode.Conflict, response.status)
+        assertEquals("""{"error":"Browser sign-in is not available"}""", response.bodyAsText())
+    }
+
+    @Test
+    fun browserPollMapsAllStates() = testApplication {
+        val fake = FakeDaemonService()
+        serveFake(fake)
+
+        assertEquals("""{"status":"pending"}""", client.get("/api/v1/auth/browser/poll").bodyAsText())
+        fake.browserPoll = BrowserLoginPoll.Authorized("u@x")
+        assertEquals("""{"status":"authorized","email":"u@x"}""", client.get("/api/v1/auth/browser/poll").bodyAsText())
+        fake.browserPoll = BrowserLoginPoll.Failed("Вход отменён")
+        assertEquals("""{"status":"failed","error":"Вход отменён"}""", client.get("/api/v1/auth/browser/poll").bodyAsText())
     }
 }

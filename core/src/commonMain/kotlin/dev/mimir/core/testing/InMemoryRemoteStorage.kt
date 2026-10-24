@@ -16,6 +16,9 @@ class InMemoryRemoteStorage : ChangeFeedStorage {
     private var changeVersion = 0L
     private val changeHistory = mutableListOf<ChangeRecord>()
 
+    /** Если задано, [list] бросает это исключение (тестовый хук). */
+    var failListWith: Throwable? = null
+
     override suspend fun getLatestChangeToken(): String = changeVersion.toString()
 
     override suspend fun getChanges(sinceToken: String): RemoteChangesResult {
@@ -25,6 +28,7 @@ class InMemoryRemoteStorage : ChangeFeedStorage {
     }
 
     override suspend fun list(dir: RemotePath): List<RemoteEntry> {
+        failListWith?.let { throw it }
         val prefix = dir.segments
         val result = LinkedHashMap<String, RemoteEntry>()
         for ((key, stored) in files) {

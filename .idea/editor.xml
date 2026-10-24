@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CodeInsightWorkspaceSettings">
+    <option name="optimizeImportsOnTheFly" value="true" />
+  </component>
+  <component name="EditorSettings">
+    <option name="STRIP_TRAILING_SPACES" value="Changed" />
+    <option name="ENSURE_NEWLINE_AT_EOF" value="true" />
+    <option name="SHOW_QUICK_DOC_ON_MOUSE_MOVE" value="true" />
+  </component>
+</project>

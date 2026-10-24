@@ -143,4 +143,72 @@ class FileSystemLocalVaultTest {
 
         assertTrue(failure.exceptionOrNull() is IllegalArgumentException)
     }
+
+    @Test
+    fun `list does not follow symbolic links`() = runTest {
+        put("real/a.md", "a")
+        put("note.md", "n")
+        val outside = Files.createTempDirectory("mimir-vault-outside")
+        try {
+            outside.resolve("secret.md").writeText("s")
+            Files.createSymbolicLink(root.resolve("linkdir"), outside)
+            Files.createSymbolicLink(root.resolve("linkfile.md"), root.resolve("note.md"))
+            val paths = vault.list().map { it.relativePath }
+            assertEquals(listOf("note.md", "real/a.md"), paths.sorted())
+            assertNull(vault.getEntry("linkdir/secret.md"))
+            assertNull(vault.getEntry("linkfile.md"))
+        } finally {
+            outside.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `hiddenPaths reports symbolic links at any depth`() = runTest {
+        put("note.md", "n")
+        put("sub/real.md", "r")
+        val outside = Files.createTempDirectory("mimir-vault-outside")
+        try {
+            Files.createSymbolicLink(root.resolve("linkdir"), outside)
+            Files.createSymbolicLink(root.resolve("sub/linkfile.md"), root.resolve("note.md"))
+            Files.createDirectories(root.resolve("node_modules"))
+            Files.createSymbolicLink(root.resolve("node_modules/excluded"), outside)
+
+            assertEquals(setOf("linkdir", "sub/linkfile.md"), vault.hiddenPaths())
+        } finally {
+            outside.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `list skips node_modules and nested git at any depth`() = runTest {
+        put("note.md", "n")
+        put("node_modules/pkg/index.js", "x")
+        put(".obsidian/plugins/p/node_modules/q/index.js", "x")
+        put(".obsidian/plugins/p/main.js", "m")
+        put("sub/repo/.git/HEAD", "ref")
+        assertEquals(
+            listOf(".obsidian/plugins/p/main.js", "note.md"),
+            vault.list().map { it.relativePath }.sorted(),
+        )
+        assertNull(vault.getEntry("node_modules/pkg/index.js"))
+        assertNull(vault.getEntry("sub/repo/.git/HEAD"))
+    }
+
+    @Test
+    fun `write read and delete refuse paths through symbolic links`() = runTest {
+        val outside = Files.createTempDirectory("mimir-vault-outside")
+        try {
+            outside.resolve("secret.md").writeText("s")
+            Files.createSymbolicLink(root.resolve("linkdir"), outside)
+
+            assertTrue(runCatching { vault.write("linkdir/new.md", source("x")) }.exceptionOrNull() is IllegalArgumentException)
+            assertTrue(runCatching { vault.deleteByPath("linkdir/secret.md") }.exceptionOrNull() is IllegalArgumentException)
+            assertTrue(runCatching { vault.read(VaultFileId("fs:linkdir/secret.md")) }.exceptionOrNull() is IllegalArgumentException)
+
+            assertFalse(outside.resolve("new.md").exists())
+            assertEquals("s", outside.resolve("secret.md").readText())
+        } finally {
+            outside.toFile().deleteRecursively()
+        }
+    }
 }

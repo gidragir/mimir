@@ -7,6 +7,7 @@ import dev.mimir.core.InMemoryRemoteStorage
 import dev.mimir.drive.auth.OAuthTokens
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import java.nio.file.Files
@@ -39,7 +40,7 @@ class DaemonRuntimeTest {
         port = 0,
         vaultPath = vaultDir.toString().takeIf { vault },
         password = password,
-        googleClientId = "client-id",
+        googleDeviceClientId = "client-id",
         syncIntervalSeconds = 3600,
         configDir = configDir.toString(),
     )
@@ -130,5 +131,33 @@ class DaemonRuntimeTest {
 
         assertTrue(runtime.isReady)
         assertFalse(runtime.isLocked)
+    }
+
+    @Test
+    fun `runtime exposes engine progress`() = run {
+        signIn()
+        vaultDir.resolve("a.md").writeText("hello")
+        val runtime = runtime(config(password = "secret"))
+        runtime.initialize()
+        eventually { runtime.progress.value?.phase == dev.mimir.core.SyncPhase.Finished }
+        assertEquals(dev.mimir.core.SyncPhase.Finished, runtime.progress.value?.phase)
+    }
+
+    @Test
+    fun `last sync summary survives engine rebuild`() = run {
+        signIn()
+        vaultDir.resolve("a.md").writeText("hello")
+        val runtime = runtime(config(password = "secret"))
+        runtime.initialize()
+        eventually { runtime.progress.value?.phase == dev.mimir.core.SyncPhase.Finished }
+
+        val seen = java.util.Collections.synchronizedList(mutableListOf<dev.mimir.core.SyncProgress?>())
+        val collector = launch(kotlinx.coroutines.Dispatchers.Unconfined) { runtime.progress.collect { seen += it } }
+        runtime.unlock("secret")
+        delay(500)
+        collector.cancel()
+
+        assertTrue(seen.none { it == null }, "progress was reset to null after rebuild: $seen")
+        assertNotNull(runtime.progress.value)
     }
 }

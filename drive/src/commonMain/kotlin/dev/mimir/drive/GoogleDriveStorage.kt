@@ -13,14 +13,18 @@ import dev.mimir.drive.client.DriveHttpClient
 import dev.mimir.drive.client.DriveHttpException
 import dev.mimir.drive.path.DrivePathResolver
 import io.ktor.client.call.body
-import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
+import io.ktor.client.request.patch
+import io.ktor.client.request.setBody
+import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
+import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import kotlinx.io.Buffer
 import kotlinx.io.Source
+import kotlinx.serialization.Serializable
 import kotlin.time.Clock
 import kotlin.time.Instant
 
@@ -149,6 +153,91 @@ class GoogleDriveStorage(
         return result
     }
 
+    /**
+     * Весь видимый приложению набор файлов (`drive.file`) одним постраничным запросом без фильтра по родителю,
+     * затем дерево строится в памяти от папки [root]. Всё, что не происходит от неё (чужие папки, сироты,
+     * циклы), отбрасывается. Дубликаты имён в одной папке — как в [list]: остаётся самый свежий по `modifiedTime`.
+     * Прогресс: после каждой страницы — всего увиденных (не удалённых) папок и файлов, ещё без проверки
+     * происхождения; в конце — точные числа для поддерева (папки включая сам [root]).
+     */
+    override suspend fun listAll(root: RemotePath, onProgress: (folders: Int, files: Int) -> Unit): List<RemoteEntry> {
+        val (client, pathResolver) = ensureConfigured()
+        val rootId = if (root.value.isEmpty()) {
+            pathResolver.resolveRootFolderId()
+        } else {
+            val folder = pathResolver.resolvePath(root) ?: return emptyList()
+            if (!folder.isDirectory) return emptyList()
+            folder.id
+        }
+        // Кэши заполняются заново из этого обхода (registerPath ниже). Пропавшее из списка
+        // больше не отдаётся из кэша: stat пойдёт живым запросом. Чистим всё, не только поддерево, —
+        // это проще и всегда корректно (лишь дороже для путей вне [root]).
+        pathResolver.resetPathCaches()
+
+        // parentId -> (name -> выбранный кандидат); порядок первых появлений сохраняется
+        val children = HashMap<String, LinkedHashMap<String, GoogleDriveFile>>()
+        var foldersSeen = 0
+        var filesSeen = 0
+        var pageToken: String? = null
+
+        do {
+            val response = client.executeWithRetry { token ->
+                client.httpClient.get("https://www.googleapis.com/drive/v3/files") {
+                    header(HttpHeaders.Authorization, "Bearer $token")
+                    parameter("q", "trashed = false")
+                    parameter("fields", "nextPageToken,files(id,name,mimeType,size,modifiedTime,md5Checksum,parents,trashed)")
+                    parameter("pageSize", 1000)
+                    if (pageToken != null) {
+                        parameter("pageToken", pageToken)
+                    }
+                }
+            }
+
+            if (!response.status.isSuccess()) {
+                throw DriveHttpException(response.status, "Failed to list Drive files")
+            }
+
+            val page = response.body<GoogleDriveFileList>()
+            for (file in page.files) {
+                if (file.trashed) continue
+                if (file.isDirectory) foldersSeen++ else filesSeen++
+                for (parent in file.parents) {
+                    val byName = children.getOrPut(parent) { LinkedHashMap() }
+                    val existing = byName[file.name]
+                    if (existing == null || (file.modifiedTime ?: "") > (existing.modifiedTime ?: "")) {
+                        byName[file.name] = file
+                    }
+                }
+            }
+            onProgress(foldersSeen, filesSeen)
+            pageToken = page.nextPageToken
+        } while (pageToken != null)
+
+        val result = mutableListOf<RemoteEntry>()
+        var folders = 1
+        val ancestors = mutableSetOf(rootId)
+
+        suspend fun walk(folderId: String, dir: RemotePath) {
+            val kids = children[folderId] ?: return
+            for (file in kids.values) {
+                if (file.id in ancestors) continue // цикл
+                val childPath = if (dir.value.isEmpty()) RemotePath(file.name) else RemotePath("${dir.value}/${file.name}")
+                pathResolver.registerPath(childPath, file)
+                if (file.isDirectory) {
+                    folders++
+                    ancestors += file.id
+                    walk(file.id, childPath)
+                    ancestors -= file.id
+                } else {
+                    result.add(toRemoteEntry(file, childPath))
+                }
+            }
+        }
+        walk(rootId, root)
+        onProgress(folders, result.size)
+        return result
+    }
+
     override suspend fun stat(path: RemotePath): RemoteEntry? {
         val (_, pathResolver) = ensureConfigured()
         val file = pathResolver.resolvePath(path) ?: return null
@@ -181,12 +270,15 @@ class GoogleDriveStorage(
         return uploader.upload(path, data)
     }
 
+    /** Файл переносится в корзину Drive, а не стирается: ошибочное удаление можно отменить в течение 30 дней. */
     override suspend fun delete(path: RemotePath) {
         val (client, pathResolver) = ensureConfigured()
         val file = pathResolver.resolvePath(path) ?: return
         val response = client.executeWithRetry { token ->
-            client.httpClient.delete("https://www.googleapis.com/drive/v3/files/${file.id}") {
+            client.httpClient.patch("https://www.googleapis.com/drive/v3/files/${file.id}") {
                 header(HttpHeaders.Authorization, "Bearer $token")
+                contentType(ContentType.Application.Json)
+                setBody(TrashRequest(trashed = true))
             }
         }
         if (!response.status.isSuccess() && response.status.value != 404) {
@@ -213,4 +305,7 @@ class GoogleDriveStorage(
             isDirectory = file.isDirectory,
         )
     }
+
+    @Serializable
+    private data class TrashRequest(val trashed: Boolean)
 }
