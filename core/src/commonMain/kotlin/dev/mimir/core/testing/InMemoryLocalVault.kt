@@ -34,6 +34,9 @@ class InMemoryLocalVault(
     var throwOnRead: Boolean = false
     var throwOnWrite: Boolean = false
 
+    /** Пути, чтение которых падает с [IOException] (тестовый хук). */
+    val failReadFor: MutableSet<String> = mutableSetOf()
+
     override suspend fun list(): List<LocalEntry> =
         files.values.map { it.toEntry() }
 
@@ -45,6 +48,7 @@ class InMemoryLocalVault(
     override suspend fun read(id: VaultFileId): Source {
         if (throwOnRead) throw IOException("Read failed")
         val path = idToPath[id] ?: throw NoSuchElementException("No such file: ${id.value}")
+        if (path in failReadFor) throw IOException("Read failed: $path")
         val stored = files[path] ?: throw NoSuchElementException("No such file: ${id.value}")
         return Buffer().also { it.write(stored.bytes) }
     }

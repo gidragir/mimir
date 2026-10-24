@@ -2,8 +2,11 @@ package dev.mimir.core.sync
 
 import dev.mimir.core.LocalEntry
 import dev.mimir.core.RemoteEntry
+import dev.mimir.core.RemoteAuthException
 import dev.mimir.core.RemotePath
+import dev.mimir.core.RemoteUnavailableException
 import dev.mimir.core.rules.SyncRules
+import kotlin.coroutines.cancellation.CancellationException
 
 class SyncPlanBuilder(
     private val rules: SyncRules = SyncRules(),
@@ -13,6 +16,7 @@ class SyncPlanBuilder(
         remote: List<RemoteEntry>,
         index: SyncIndex,
         hashCalculator: suspend (path: String, isLocal: Boolean) -> String,
+        onReconcileFailure: ((path: String, error: Throwable) -> Unit)? = null,
     ): SyncPlan {
         val localMap = local.associateBy { normalize(it.relativePath) }
         val remoteMap = remote.filterNot { it.isDirectory }.associateBy { normalize(it.path.value) }
@@ -28,7 +32,19 @@ class SyncPlanBuilder(
             val remoteEntry = remoteMap[path]
             val baseRecord = index.find(path)
 
-            val action = reconcile(path, localEntry, remoteEntry, baseRecord, hashCalculator)
+            val action = try {
+                reconcile(path, localEntry, remoteEntry, baseRecord, hashCalculator)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: RemoteUnavailableException) {
+                throw e
+            } catch (e: RemoteAuthException) {
+                throw e
+            } catch (e: Exception) {
+                if (onReconcileFailure == null) throw e
+                onReconcileFailure(path, e)
+                SyncAction.NoOp(path)
+            }
             actions.add(action)
         }
 

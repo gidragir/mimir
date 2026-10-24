@@ -6,7 +6,6 @@ import dev.mimir.core.sync.InMemorySyncStateStore
 import dev.mimir.core.testing.InMemoryLocalVault
 import kotlinx.coroutines.test.runTest
 import kotlinx.io.Buffer
-import kotlinx.io.IOException
 import kotlinx.io.Source
 import kotlinx.io.readByteArray
 import kotlin.test.Test
@@ -133,7 +132,7 @@ class SyncEngineIntegrationTest {
             override suspend fun write(path: RemotePath, data: Source): RemoteEntry {
                 writeCount++
                 if (failOnThirdWrite && writeCount == 3) {
-                    throw IOException("Network dropped on file 3")
+                    throw RemoteUnavailableException("Network dropped on file 3")
                 }
                 return delegate.write(path, data)
             }
@@ -152,11 +151,10 @@ class SyncEngineIntegrationTest {
         failingRemote.failOnThirdWrite = true
 
         // Первая синхронизация прерывается на 3-м файле
-        assertFailsWith<IOException> {
+        assertFailsWith<RemoteUnavailableException> {
             engine.syncNow()
         }
-        val status1 = engine.status.value
-        assertTrue(status1 is SyncStatus.Error)
+        assertEquals(SyncStatus.Offline, engine.status.value)
 
         // Индекс должен содержать ровно 2 успешно завершенных файла
         val indexMidway = store.load()
