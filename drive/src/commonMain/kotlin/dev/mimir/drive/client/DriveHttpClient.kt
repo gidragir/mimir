@@ -35,6 +35,10 @@ class DriveHttpClient(
     private inline fun <T> mapTokenErrors(block: () -> T): T = try {
         block()
     } catch (e: DriveAuthException) {
+        val code = e.statusCode.value
+        if (code >= 500 || code == 429) {
+            throw RemoteUnavailableException("Google sign-in service unavailable: ${e.message}", e)
+        }
         throw RemoteAuthException(e.message.orEmpty(), e)
     } catch (e: IOException) {
         throw RemoteUnavailableException("Google Drive is unreachable: ${e.message}", e)
@@ -92,14 +96,15 @@ class DriveHttpClient(
                 continue
             }
 
-            if (response.status == HttpStatusCode.TooManyRequests || response.status == HttpStatusCode.ServiceUnavailable) {
+            val transient = response.status.value in 500..599
+            if (response.status == HttpStatusCode.TooManyRequests || transient) {
                 attempt++
                 if (attempt < maxRetries) {
                     val backoffMs = (1L shl attempt) * 50L
                     delay(backoffMs)
                     continue
                 }
-                if (response.status == HttpStatusCode.ServiceUnavailable) {
+                if (transient) {
                     throw RemoteUnavailableException("Google Drive is unavailable (${response.status})")
                 }
             }

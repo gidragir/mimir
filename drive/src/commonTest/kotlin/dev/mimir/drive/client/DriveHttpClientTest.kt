@@ -171,4 +171,38 @@ class DriveHttpClientTest {
         assertFailsWith<RemoteAuthException> { c.getValidToken() }
         assertFailsWith<RemoteAuthException> { c.callAbout() }
     }
+
+    private suspend fun assertPersistent5xx(status: HttpStatusCode) {
+        var attempts = 0
+        val c = clientFor(MockEngine { attempts++; respond("err", status = status) }, validTokens)
+        assertFailsWith<RemoteUnavailableException> { c.callAbout() }
+        assertEquals(3, attempts)
+    }
+
+    @Test
+    fun persistent500BecomesRemoteUnavailable() = runTest { assertPersistent5xx(HttpStatusCode.InternalServerError) }
+
+    @Test
+    fun persistent502BecomesRemoteUnavailable() = runTest { assertPersistent5xx(HttpStatusCode.BadGateway) }
+
+    @Test
+    fun persistent504BecomesRemoteUnavailable() = runTest { assertPersistent5xx(HttpStatusCode.GatewayTimeout) }
+
+    @Test
+    fun persistent429PassesThrough() = runTest {
+        var attempts = 0
+        val c = clientFor(MockEngine { attempts++; respond("slow", status = HttpStatusCode.TooManyRequests) }, validTokens)
+        assertEquals(HttpStatusCode.TooManyRequests, c.callAbout().status)
+        assertEquals(3, attempts)
+    }
+
+    @Test
+    fun tokenEndpointOutageBecomesRemoteUnavailable() = runTest {
+        val c = clientFor(
+            MockEngine { respond("down", status = HttpStatusCode.ServiceUnavailable) },
+            OAuthTokens("old", "refresh", 1L),
+        )
+        assertFailsWith<RemoteUnavailableException> { c.getValidToken() }
+        assertFailsWith<RemoteUnavailableException> { c.forceRefreshToken() }
+    }
 }
