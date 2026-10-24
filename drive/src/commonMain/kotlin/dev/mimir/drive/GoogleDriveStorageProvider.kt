@@ -4,6 +4,9 @@ import dev.mimir.core.RemoteStorage
 import dev.mimir.core.RemoteStorageProvider
 import dev.mimir.core.StorageCapabilities
 import dev.mimir.drive.auth.GoogleAuthClient
+import dev.mimir.drive.auth.GoogleAuthClients
+import dev.mimir.drive.auth.GoogleClientCredentials
+import dev.mimir.drive.auth.GoogleClientKind
 import dev.mimir.drive.auth.InMemoryTokenStorage
 import dev.mimir.drive.auth.OAuthTokens
 import dev.mimir.drive.client.DriveHttpClient
@@ -27,7 +30,10 @@ object GoogleDriveStorageProvider : RemoteStorageProvider {
                     json(Json { ignoreUnknownKeys = true })
                 }
             }
-            val authClient = GoogleAuthClient(httpClient, clientId, config["clientSecret"])
+            val authClient = GoogleAuthClient(
+                httpClient,
+                GoogleClientCredentials(GoogleClientKind.Device, clientId, config["clientSecret"]),
+            )
             val storage = InMemoryTokenStorage(
                 OAuthTokens(
                     accessToken = token,
@@ -35,7 +41,7 @@ object GoogleDriveStorageProvider : RemoteStorageProvider {
                     expiresAtEpochSeconds = config["expiresAt"]?.toLongOrNull() ?: 2000000000L
                 )
             )
-            val driveClient = DriveHttpClient(httpClient, storage, authClient)
+            val driveClient = DriveHttpClient(httpClient, storage, GoogleAuthClients(null, authClient))
             val resolver = DrivePathResolver(driveClient, config["rootFolder"] ?: "Mimir")
             return GoogleDriveStorage(driveClient, resolver)
         }

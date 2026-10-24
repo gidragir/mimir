@@ -10,6 +10,7 @@ data class OAuthTokens(
     val expiresAtEpochSeconds: Long,
     val scope: String = "",
     val tokenType: String = "Bearer",
+    val clientKind: GoogleClientKind = GoogleClientKind.Device,
 ) {
     fun isExpired(clock: Clock = Clock.System, skewSeconds: Long = 60): Boolean =
         clock.now().epochSeconds >= (expiresAtEpochSeconds - skewSeconds)

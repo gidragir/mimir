@@ -12,6 +12,9 @@ import dev.mimir.drive.GoogleDriveStorage
 import dev.mimir.drive.api.GoogleDeviceCodeResponse
 import dev.mimir.drive.client.DriveAuthException
 import dev.mimir.drive.auth.GoogleAuthClient
+import dev.mimir.drive.auth.GoogleAuthClients
+import dev.mimir.drive.auth.GoogleClientCredentials
+import dev.mimir.drive.auth.GoogleClientKind
 import dev.mimir.drive.auth.TokenStorage
 import dev.mimir.drive.client.DriveHttpClient
 import dev.mimir.drive.path.DrivePathResolver
@@ -55,8 +58,8 @@ fun interface RemoteStorageFactory {
 
 private val googleDriveFactory = RemoteStorageFactory { httpClient, tokenStorage, config ->
     val clientId = config.googleClientId ?: return@RemoteStorageFactory null
-    val authClient = GoogleAuthClient(httpClient, clientId, config.googleClientSecret)
-    val driveClient = DriveHttpClient(httpClient, tokenStorage, authClient)
+    val authClient = GoogleAuthClient(httpClient, GoogleClientCredentials(GoogleClientKind.Device, clientId, config.googleClientSecret))
+    val driveClient = DriveHttpClient(httpClient, tokenStorage, GoogleAuthClients(null, authClient))
     GoogleDriveStorage(driveClient, DrivePathResolver(driveClient, config.rootFolder))
 }
 
@@ -93,7 +96,7 @@ class DaemonRuntime(
     private var conflictJob: Job? = null
 
     val tokenStorage: TokenStorage = FileTokenStorage(configDir.resolve("tokens.json"))
-    val authClient: GoogleAuthClient? = config.googleClientId?.let { GoogleAuthClient(httpClient, it, config.googleClientSecret) }
+    val authClient: GoogleAuthClient? = config.googleClientId?.let { GoogleAuthClient(httpClient, GoogleClientCredentials(GoogleClientKind.Device, it, config.googleClientSecret)) }
 
     override val status: StateFlow<SyncStatus> = _status.asStateFlow()
     override val conflictsFlow: StateFlow<List<ConflictFileEntry>> = _conflicts.asStateFlow()

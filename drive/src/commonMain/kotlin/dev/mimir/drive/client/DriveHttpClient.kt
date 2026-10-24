@@ -1,6 +1,7 @@
 package dev.mimir.drive.client
 
-import dev.mimir.drive.auth.GoogleAuthClient
+import dev.mimir.drive.auth.GoogleAuthClients
+import dev.mimir.drive.auth.OAuthTokens
 import dev.mimir.drive.auth.TokenStorage
 import io.ktor.client.HttpClient
 import io.ktor.client.statement.HttpResponse
@@ -13,10 +14,19 @@ import kotlin.time.Clock
 class DriveHttpClient(
     val httpClient: HttpClient,
     val tokenStorage: TokenStorage,
-    val authClient: GoogleAuthClient,
+    val authClients: GoogleAuthClients,
     val clock: Clock = Clock.System,
 ) {
     private val refreshMutex = Mutex()
+
+    private suspend fun refreshWith(tokens: OAuthTokens, refresh: String): OAuthTokens {
+        val client = authClients.forKind(tokens.clientKind)
+            ?: throw DriveAuthException(
+                HttpStatusCode.Unauthorized,
+                "Sign in again: no Google client for ${tokens.clientKind}",
+            )
+        return client.refreshTokens(refresh)
+    }
 
     suspend fun getValidToken(): String {
         return refreshMutex.withLock {
@@ -25,7 +35,7 @@ class DriveHttpClient(
             if (tokens.isExpired(clock)) {
                 val refresh = tokens.refreshToken
                     ?: throw DriveAuthException(HttpStatusCode.Unauthorized, "Access token expired and no refresh token available")
-                val refreshed = authClient.refreshTokens(refresh)
+                val refreshed = refreshWith(tokens, refresh)
                 tokenStorage.save(refreshed)
                 refreshed.accessToken
             } else {
@@ -40,7 +50,7 @@ class DriveHttpClient(
                 ?: throw DriveAuthException(HttpStatusCode.Unauthorized, "No OAuth tokens stored")
             val refresh = tokens.refreshToken
                 ?: throw DriveAuthException(HttpStatusCode.Unauthorized, "No refresh token available")
-            val refreshed = authClient.refreshTokens(refresh)
+            val refreshed = refreshWith(tokens, refresh)
             tokenStorage.save(refreshed)
             refreshed.accessToken
         }

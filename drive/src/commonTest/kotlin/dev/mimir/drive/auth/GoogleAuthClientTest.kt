@@ -36,7 +36,7 @@ class GoogleAuthClientTest {
         val client = HttpClient(mockEngine) {
             install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
         }
-        val authClient = GoogleAuthClient(client, "test-client-id", clock = fixedClock)
+        val authClient = GoogleAuthClient(client, GoogleClientCredentials(GoogleClientKind.Device, "test-client-id", null), clock = fixedClock)
         val refreshed = authClient.refreshTokens("old_refresh")
         assertEquals("new_access", refreshed.accessToken)
         assertEquals("old_refresh", refreshed.refreshToken)
@@ -64,7 +64,7 @@ class GoogleAuthClientTest {
         val client = HttpClient(mockEngine) {
             install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
         }
-        val authClient = GoogleAuthClient(client, "test-client-id", clock = fixedClock)
+        val authClient = GoogleAuthClient(client, GoogleClientCredentials(GoogleClientKind.Device, "test-client-id", null), clock = fixedClock)
         val devCode = authClient.requestDeviceCode()
         assertEquals("dev123", devCode.device_code)
         assertEquals("ABCD-EFGH", devCode.user_code)
@@ -82,7 +82,7 @@ class GoogleAuthClientTest {
         val client = HttpClient(mockEngine) {
             install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
         }
-        val authClient = GoogleAuthClient(client, "test-client-id", clock = fixedClock)
+        val authClient = GoogleAuthClient(client, GoogleClientCredentials(GoogleClientKind.Device, "test-client-id", null), clock = fixedClock)
         assertFailsWith<AuthRevokedException> {
             authClient.refreshTokens("revoked_refresh")
         }

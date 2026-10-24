@@ -2,6 +2,9 @@ package dev.mimir.drive.path
 
 import dev.mimir.core.RemotePath
 import dev.mimir.drive.auth.GoogleAuthClient
+import dev.mimir.drive.auth.GoogleAuthClients
+import dev.mimir.drive.auth.GoogleClientCredentials
+import dev.mimir.drive.auth.GoogleClientKind
 import dev.mimir.drive.auth.InMemoryTokenStorage
 import dev.mimir.drive.auth.OAuthTokens
 import dev.mimir.drive.client.DriveHttpClient
@@ -49,9 +52,9 @@ class DrivePathResolverTest {
         val http = HttpClient(mockEngine) {
             install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
         }
-        val authClient = GoogleAuthClient(http, "client-id")
+        val authClient = GoogleAuthClient(http, GoogleClientCredentials(GoogleClientKind.Device, "client-id", null))
         val storage = InMemoryTokenStorage(OAuthTokens("access", "refresh", 2000000000L))
-        val client = DriveHttpClient(http, storage, authClient)
+        val client = DriveHttpClient(http, storage, GoogleAuthClients(null, authClient))
         val resolver = DrivePathResolver(client, rootFolderName = "Mimir")
 
         val resolved = resolver.resolvePath(RemotePath("folder/note.md"))
@@ -82,9 +85,9 @@ class DrivePathResolverTest {
         val http = HttpClient(mockEngine) {
             install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
         }
-        val authClient = GoogleAuthClient(http, "client-id")
+        val authClient = GoogleAuthClient(http, GoogleClientCredentials(GoogleClientKind.Device, "client-id", null))
         val storage = InMemoryTokenStorage(OAuthTokens("access", "refresh", 2000000000L))
-        val client = DriveHttpClient(http, storage, authClient)
+        val client = DriveHttpClient(http, storage, GoogleAuthClients(null, authClient))
         val resolver = DrivePathResolver(client, rootFolderName = "Mimir")
 
         val folderId = resolver.resolveOrCreateFolderPath(RemotePath("new_dir"))

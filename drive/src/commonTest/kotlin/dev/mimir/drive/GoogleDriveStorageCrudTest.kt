@@ -2,6 +2,9 @@ package dev.mimir.drive
 
 import dev.mimir.core.RemotePath
 import dev.mimir.drive.auth.GoogleAuthClient
+import dev.mimir.drive.auth.GoogleAuthClients
+import dev.mimir.drive.auth.GoogleClientCredentials
+import dev.mimir.drive.auth.GoogleClientKind
 import dev.mimir.drive.auth.InMemoryTokenStorage
 import dev.mimir.drive.auth.OAuthTokens
 import dev.mimir.drive.client.DriveHttpClient
@@ -57,9 +60,9 @@ class GoogleDriveStorageCrudTest {
         val http = HttpClient(mockEngine) {
             install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
         }
-        val authClient = GoogleAuthClient(http, "client-id")
+        val authClient = GoogleAuthClient(http, GoogleClientCredentials(GoogleClientKind.Device, "client-id", null))
         val storage = InMemoryTokenStorage(OAuthTokens("access", "refresh", 2000000000L))
-        val driveClient = DriveHttpClient(http, storage, authClient)
+        val driveClient = DriveHttpClient(http, storage, GoogleAuthClients(null, authClient))
         val resolver = DrivePathResolver(driveClient, "Mimir")
         val driveStorage = GoogleDriveStorage(driveClient, resolver)
 
@@ -112,9 +115,9 @@ class GoogleDriveStorageCrudTest {
         val http = HttpClient(mockEngine) {
             install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
         }
-        val authClient = GoogleAuthClient(http, "client-id")
+        val authClient = GoogleAuthClient(http, GoogleClientCredentials(GoogleClientKind.Device, "client-id", null))
         val storage = InMemoryTokenStorage(OAuthTokens("access", "refresh", 2000000000L))
-        val driveClient = DriveHttpClient(http, storage, authClient)
+        val driveClient = DriveHttpClient(http, storage, GoogleAuthClients(null, authClient))
         val resolver = DrivePathResolver(driveClient, "Mimir")
         val driveStorage = GoogleDriveStorage(driveClient, resolver)
 
@@ -163,9 +166,9 @@ class GoogleDriveStorageCrudTest {
         val http = HttpClient(mockEngine) {
             install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
         }
-        val authClient = GoogleAuthClient(http, "client-id")
+        val authClient = GoogleAuthClient(http, GoogleClientCredentials(GoogleClientKind.Device, "client-id", null))
         val storage = InMemoryTokenStorage(OAuthTokens("access", "refresh", 2000000000L))
-        val driveClient = DriveHttpClient(http, storage, authClient)
+        val driveClient = DriveHttpClient(http, storage, GoogleAuthClients(null, authClient))
         val resolver = DrivePathResolver(driveClient, "Mimir")
         val driveStorage = GoogleDriveStorage(driveClient, resolver)
 

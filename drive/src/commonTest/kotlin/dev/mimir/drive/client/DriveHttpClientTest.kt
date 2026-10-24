@@ -1,6 +1,9 @@
 package dev.mimir.drive.client
 
 import dev.mimir.drive.auth.GoogleAuthClient
+import dev.mimir.drive.auth.GoogleAuthClients
+import dev.mimir.drive.auth.GoogleClientCredentials
+import dev.mimir.drive.auth.GoogleClientKind
 import dev.mimir.drive.auth.InMemoryTokenStorage
 import dev.mimir.drive.auth.OAuthTokens
 import io.ktor.client.HttpClient
@@ -44,7 +47,7 @@ class DriveHttpClientTest {
         val http = HttpClient(mockEngine) {
             install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
         }
-        val authClient = GoogleAuthClient(http, "client-id")
+        val authClient = GoogleAuthClient(http, GoogleClientCredentials(GoogleClientKind.Device, "client-id", null))
         val storage = InMemoryTokenStorage(
             OAuthTokens(
                 accessToken = "initial_access",
@@ -52,7 +55,7 @@ class DriveHttpClientTest {
                 expiresAtEpochSeconds = 2000000000L
             )
         )
-        val driveClient = DriveHttpClient(http, storage, authClient)
+        val driveClient = DriveHttpClient(http, storage, GoogleAuthClients(null, authClient))
 
         val response = driveClient.executeWithRetry { token ->
             http.get("https://www.googleapis.com/drive/v3/about") {
@@ -80,9 +83,9 @@ class DriveHttpClientTest {
         val http = HttpClient(mockEngine) {
             install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
         }
-        val authClient = GoogleAuthClient(http, "client-id")
+        val authClient = GoogleAuthClient(http, GoogleClientCredentials(GoogleClientKind.Device, "client-id", null))
         val storage = InMemoryTokenStorage(OAuthTokens("valid_token", "refresh", 2000000000L))
-        val driveClient = DriveHttpClient(http, storage, authClient)
+        val driveClient = DriveHttpClient(http, storage, GoogleAuthClients(null, authClient))
 
         val response = driveClient.executeWithRetry(maxRetries = 3) { token ->
             http.get("https://www.googleapis.com/drive/v3/about") {
