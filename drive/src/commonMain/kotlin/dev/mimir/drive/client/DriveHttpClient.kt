@@ -13,6 +13,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.io.IOException
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Clock
 
 class DriveHttpClient(
@@ -40,10 +41,10 @@ class DriveHttpClient(
             throw RemoteUnavailableException("Google sign-in service unavailable: ${e.message}", e)
         }
         throw RemoteAuthException(e.message.orEmpty(), e)
-    } catch (e: IOException) {
-        throw RemoteUnavailableException("Google Drive is unreachable: ${e.message}", e)
-    } catch (e: HttpRequestTimeoutException) {
-        throw RemoteUnavailableException("Google Drive is unreachable: ${e.message}", e)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        throw e.asRemoteUnavailableOrSelf()
     }
 
     suspend fun getValidToken(): String = mapTokenErrors {
@@ -85,10 +86,10 @@ class DriveHttpClient(
         while (true) {
             val response = try {
                 block(token)
-            } catch (e: IOException) {
-                throw RemoteUnavailableException("Google Drive is unreachable: ${e.message}", e)
-            } catch (e: HttpRequestTimeoutException) {
-                throw RemoteUnavailableException("Google Drive is unreachable: ${e.message}", e)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                throw e.asRemoteUnavailableOrSelf()
             }
             if (response.status == HttpStatusCode.Unauthorized && !refreshedOn401) {
                 refreshedOn401 = true
@@ -113,3 +114,18 @@ class DriveHttpClient(
         }
     }
 }
+
+/**
+ * Сетевой сбой (нет соединения, таймаут, не разрешился DNS) → [RemoteUnavailableException].
+ * Ktor CIO на JVM при недоступном DNS бросает `java.nio.channels.UnresolvedAddressException`
+ * (подкласс IllegalArgumentException); drive — common-код, поэтому она распознаётся по имени класса.
+ * [CancellationException] сюда попадать не должна: её перехватывают раньше и пробрасывают как есть.
+ */
+private fun isNetworkFailure(e: Throwable): Boolean =
+    e is IOException ||
+        e is HttpRequestTimeoutException ||
+        e::class.simpleName == "UnresolvedAddressException"
+
+private fun Exception.asRemoteUnavailableOrSelf(): Exception =
+    if (isNetworkFailure(this)) RemoteUnavailableException("Google Drive is unreachable: $message", this) else this
+

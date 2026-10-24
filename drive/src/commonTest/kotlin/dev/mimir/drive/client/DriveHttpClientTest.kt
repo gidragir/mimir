@@ -133,6 +133,19 @@ class DriveHttpClientTest {
     }
 
     @Test
+    fun dnsFailureBecomesRemoteUnavailable() = runTest {
+        val c = clientFor(MockEngine { throw UnresolvedAddressException() }, validTokens)
+        assertFailsWith<RemoteUnavailableException> { c.callAbout() }
+    }
+
+    @Test
+    fun dnsFailureOnTokenRefreshBecomesRemoteUnavailable() = runTest {
+        val c = clientFor(MockEngine { throw UnresolvedAddressException() }, OAuthTokens("old", "refresh", 1L))
+        assertFailsWith<RemoteUnavailableException> { c.getValidToken() }
+        assertFailsWith<RemoteUnavailableException> { c.forceRefreshToken() }
+    }
+
+    @Test
     fun cancellationIsNotWrapped() = runTest {
         val c = clientFor(MockEngine { throw kotlinx.coroutines.CancellationException("cancelled") }, validTokens)
         assertFailsWith<kotlinx.coroutines.CancellationException> { c.callAbout() }
@@ -206,3 +219,10 @@ class DriveHttpClientTest {
         assertFailsWith<RemoteUnavailableException> { c.forceRefreshToken() }
     }
 }
+
+/**
+ * Имитация `java.nio.channels.UnresolvedAddressException`: Ktor CIO на JVM бросает её
+ * (подкласс IllegalArgumentException) при недоступном DNS. drive — common-код, поэтому
+ * распознаётся по простому имени класса.
+ */
+private class UnresolvedAddressException : IllegalArgumentException()
