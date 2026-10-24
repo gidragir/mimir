@@ -7,7 +7,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.rememberWindowState
 import androidx.compose.ui.window.application
 import dev.mimir.core.BuildConfig
 import dev.mimir.core.label
@@ -89,7 +92,9 @@ private fun runDesktop(config: DaemonConfig) = application {
         onCloseRequest = { if (tray.available) visible = false else exitApplication() },
         visible = visible,
         title = BuildConfig.APP_NAME,
+        state = rememberWindowState(size = DpSize(960.dp, 680.dp)),
     ) {
+        LaunchedEffect(Unit) { window.minimumSize = java.awt.Dimension(720, 520) }
         val current = model
         if (current != null) {
             MimirApp(current)
