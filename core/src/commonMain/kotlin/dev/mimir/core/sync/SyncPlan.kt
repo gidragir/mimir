@@ -29,7 +29,11 @@ sealed interface SyncAction {
         val localId: VaultFileId,
     ) : SyncAction
 
-    data class Conflict(
+    /**
+     * Обе стороны есть, а метаданных не хватает для решения: содержимое сравнивается при исполнении,
+     * один раз (спека sync-io §4). Исход — только запись индекса, `Upload` или конфликт с копией.
+     */
+    data class Reconcile(
         override val path: String,
         val localEntry: LocalEntry,
         val remoteEntry: RemoteEntry,

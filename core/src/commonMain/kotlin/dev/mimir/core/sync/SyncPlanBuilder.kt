@@ -1,21 +1,31 @@
 package dev.mimir.core.sync
 
 import dev.mimir.core.LocalEntry
-import dev.mimir.core.RemoteEntry
 import dev.mimir.core.RemoteAuthException
+import dev.mimir.core.RemoteEntry
 import dev.mimir.core.RemotePath
 import dev.mimir.core.RemoteUnavailableException
 import dev.mimir.core.rules.SyncRules
 import kotlin.coroutines.cancellation.CancellationException
 
+/**
+ * Решение по метаданным и хэшу локального файла (спека sync-io §3). Удалённое содержимое здесь
+ * не читается никогда: где метаданных не хватает, план выдаёт [SyncAction.Reconcile], и содержимое
+ * сравнивается один раз при исполнении.
+ */
 class SyncPlanBuilder(
     private val rules: SyncRules = SyncRules(),
 ) {
+    /**
+     * [localHash] — SHA-256 локального файла (потоком); вызывается только там, где решение от него зависит.
+     * [onReconcileFailure] получает ошибки [localHash]: путь пропускается (`NoOp`), план строится дальше.
+     * Без него ошибка пробрасывается.
+     */
     suspend fun buildPlan(
         local: List<LocalEntry>,
         remote: List<RemoteEntry>,
         index: SyncIndex,
-        hashCalculator: suspend (path: String, isLocal: Boolean) -> String,
+        localHash: suspend (LocalEntry) -> String,
         hidden: Set<String> = emptySet(),
         onReconcileFailure: ((path: String, error: Throwable) -> Unit)? = null,
     ): SyncPlan {
@@ -29,12 +39,8 @@ class SyncPlanBuilder(
         val actions = mutableListOf<SyncAction>()
 
         for (path in allPaths) {
-            val localEntry = localMap[path]
-            val remoteEntry = remoteMap[path]
-            val baseRecord = index.find(path)
-
             val action = try {
-                reconcile(path, localEntry, remoteEntry, baseRecord, hashCalculator)
+                decide(path, localMap[path], remoteMap[path], index.find(path), localHash)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: RemoteUnavailableException) {
@@ -52,143 +58,91 @@ class SyncPlanBuilder(
         return SyncPlan(actions)
     }
 
-    private suspend fun reconcile(
+    private suspend fun decide(
         path: String,
         localEntry: LocalEntry?,
         remoteEntry: RemoteEntry?,
-        baseRecord: FileSyncRecord?,
-        hashCalculator: suspend (path: String, isLocal: Boolean) -> String,
+        base: FileSyncRecord?,
+        localHash: suspend (LocalEntry) -> String,
     ): SyncAction {
-        if (baseRecord == null) {
+        if (base == null) {
             return when {
-                localEntry != null && remoteEntry == null -> {
-                    SyncAction.Upload(path, localEntry, RemotePath(path))
-                }
-                localEntry == null && remoteEntry != null -> {
-                    SyncAction.Download(path, remoteEntry)
-                }
-                localEntry != null && remoteEntry != null -> {
-                    val localHash = hashCalculator(path, true)
-                    val remoteHash = hashCalculator(path, false)
-                    if (localHash == remoteHash) {
-                        val record = FileSyncRecord(
-                            relativePath = path,
-                            localId = localEntry.id,
-                            baseHash = localHash,
-                            localSize = localEntry.size,
-                            localModifiedAt = localEntry.modifiedAt,
-                            remotePath = remoteEntry.path,
-                            remoteRevision = remoteEntry.revision,
-                            remoteModifiedAt = remoteEntry.modifiedAt,
-                            remoteSize = remoteEntry.size,
-                        )
-                        SyncAction.UpdateMetadata(path, record)
-                    } else {
-                        SyncAction.Conflict(path, localEntry, remoteEntry, null)
-                    }
-                }
+                localEntry != null && remoteEntry != null -> SyncAction.Reconcile(path, localEntry, remoteEntry, null)
+                localEntry != null -> SyncAction.Upload(path, localEntry, RemotePath(path))
+                remoteEntry != null -> SyncAction.Download(path, remoteEntry)
                 else -> SyncAction.NoOp(path)
             }
         }
 
         return when {
             localEntry != null && remoteEntry != null -> {
-                val localChanged = localEntry.size != baseRecord.localSize ||
-                    localEntry.modifiedAt != baseRecord.localModifiedAt
-                val remoteChanged = remoteEntry.revision != baseRecord.remoteRevision ||
-                    remoteEntry.size != baseRecord.remoteSize ||
-                    remoteEntry.modifiedAt != baseRecord.remoteModifiedAt
-
+                val localChanged = localChanged(localEntry, base)
+                val remoteChanged = remoteChanged(remoteEntry, base)
                 when {
-                    !localChanged && !remoteChanged -> {
-                        SyncAction.NoOp(path)
-                    }
-                    localChanged && !remoteChanged -> {
-                        val localHash = hashCalculator(path, true)
-                        if (localHash == baseRecord.baseHash) {
-                            val record = baseRecord.copy(
+                    !localChanged && !remoteChanged ->
+                        if (remoteEntry.modifiedAt != base.remoteModifiedAt) {
+                            SyncAction.UpdateMetadata(path, base.copy(remoteModifiedAt = remoteEntry.modifiedAt))
+                        } else {
+                            SyncAction.NoOp(path)
+                        }
+
+                    localChanged && !remoteChanged ->
+                        if (localHash(localEntry) == base.baseHash) {
+                            val record = base.copy(
                                 localSize = localEntry.size,
                                 localModifiedAt = localEntry.modifiedAt,
+                                remoteModifiedAt = remoteEntry.modifiedAt,
                             )
                             SyncAction.UpdateMetadata(path, record)
                         } else {
                             SyncAction.Upload(path, localEntry, remoteEntry.path)
                         }
-                    }
-                    !localChanged && remoteChanged -> {
-                        val remoteHash = hashCalculator(path, false)
-                        if (remoteHash == baseRecord.baseHash) {
-                            val record = baseRecord.copy(
-                                remoteSize = remoteEntry.size,
-                                remoteModifiedAt = remoteEntry.modifiedAt,
-                                remoteRevision = remoteEntry.revision,
-                            )
-                            SyncAction.UpdateMetadata(path, record)
-                        } else {
+
+                    !localChanged && remoteChanged -> SyncAction.Download(path, remoteEntry)
+
+                    else ->
+                        if (localHash(localEntry) == base.baseHash) {
                             SyncAction.Download(path, remoteEntry)
+                        } else {
+                            SyncAction.Reconcile(path, localEntry, remoteEntry, base)
                         }
-                    }
-                    else -> {
-                        val localHash = hashCalculator(path, true)
-                        val remoteHash = hashCalculator(path, false)
-                        when {
-                            localHash == remoteHash -> {
-                                val record = FileSyncRecord(
-                                    relativePath = path,
-                                    localId = localEntry.id,
-                                    baseHash = localHash,
-                                    localSize = localEntry.size,
-                                    localModifiedAt = localEntry.modifiedAt,
-                                    remotePath = remoteEntry.path,
-                                    remoteRevision = remoteEntry.revision,
-                                    remoteModifiedAt = remoteEntry.modifiedAt,
-                                    remoteSize = remoteEntry.size,
-                                )
-                                SyncAction.UpdateMetadata(path, record)
-                            }
-                            localHash == baseRecord.baseHash -> {
-                                SyncAction.Download(path, remoteEntry)
-                            }
-                            remoteHash == baseRecord.baseHash -> {
-                                SyncAction.Upload(path, localEntry, remoteEntry.path)
-                            }
-                            else -> {
-                                SyncAction.Conflict(path, localEntry, remoteEntry, baseRecord)
-                            }
-                        }
-                    }
                 }
             }
-            localEntry == null && remoteEntry != null -> {
-                val remoteChanged = remoteEntry.revision != baseRecord.remoteRevision ||
-                    remoteEntry.size != baseRecord.remoteSize ||
-                    remoteEntry.modifiedAt != baseRecord.remoteModifiedAt
-                if (remoteChanged) {
-                    val remoteHash = hashCalculator(path, false)
-                    if (remoteHash != baseRecord.baseHash) {
-                        SyncAction.Download(path, remoteEntry)
-                    } else {
-                        SyncAction.DeleteRemote(path, remoteEntry.path)
-                    }
+
+            // Локальный удалён. Изменённый удалённый воскрешается: ошибка в сторону сохранения файла.
+            remoteEntry != null ->
+                if (remoteChanged(remoteEntry, base)) {
+                    SyncAction.Download(path, remoteEntry)
                 } else {
                     SyncAction.DeleteRemote(path, remoteEntry.path)
                 }
-            }
-            localEntry != null && remoteEntry == null -> {
-                val localChanged = localEntry.size != baseRecord.localSize ||
-                    localEntry.modifiedAt != baseRecord.localModifiedAt
-                if (localChanged) {
-                    val localHash = hashCalculator(path, true)
-                    if (localHash != baseRecord.baseHash) {
-                        SyncAction.Upload(path, localEntry, RemotePath(path))
-                    } else {
-                        SyncAction.DeleteLocal(path, localEntry.id)
-                    }
+
+            // Удалённый удалён. Изменённый локальный отправляется заново; при исполнении DeleteLocal — проверка stat.
+            localEntry != null ->
+                if (localChanged(localEntry, base) && localHash(localEntry) != base.baseHash) {
+                    SyncAction.Upload(path, localEntry, RemotePath(path))
                 } else {
                     SyncAction.DeleteLocal(path, localEntry.id)
                 }
-            }
+
             else -> SyncAction.NoOp(path)
+        }
+    }
+
+    private fun localChanged(entry: LocalEntry, base: FileSyncRecord): Boolean =
+        entry.size != base.localSize || entry.modifiedAt != base.localModifiedAt
+
+    /**
+     * Ревизия (у Drive — md5 шифротекста, новый при каждой записи) есть у обеих сторон — сравниваются
+     * ревизия и размер, а смена одного mtime изменением не считается. Иначе — размер и mtime.
+     */
+    private fun remoteChanged(entry: RemoteEntry, base: FileSyncRecord): Boolean {
+        val revision = entry.revision
+        val baseRevision = base.remoteRevision
+        return if (revision != null && baseRevision != null) {
+            revision != baseRevision || entry.size != base.remoteSize
+        } else {
+            entry.size != base.remoteSize || entry.modifiedAt != base.remoteModifiedAt
         }
     }
 

@@ -4,7 +4,7 @@ import kotlin.time.Instant
 
 enum class SyncPhase { Scanning, Comparing, Applying, Finished }
 
-enum class SyncItemAction { Upload, Download, DeleteLocal, DeleteRemote, Conflict }
+enum class SyncItemAction { Upload, Download, DeleteLocal, DeleteRemote, Conflict, Verify }
 
 enum class SyncProblemKind { ReadFailed, WriteFailed, DecryptFailed, Unknown }
 

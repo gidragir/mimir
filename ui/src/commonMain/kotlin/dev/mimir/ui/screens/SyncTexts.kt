@@ -47,6 +47,7 @@ object SyncTexts {
         SyncItemAction.Download -> "⬇ Загружаю: ${item.path}"
         SyncItemAction.DeleteLocal, SyncItemAction.DeleteRemote -> "Удаляю: ${item.path}"
         SyncItemAction.Conflict -> "Сохраняю обе версии: ${item.path}"
+        SyncItemAction.Verify -> "Сверяю с Google Drive: ${item.path}"
     }
 
     fun problemHint(kind: SyncProblemKind): String = when (kind) {

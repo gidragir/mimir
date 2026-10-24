@@ -4,14 +4,24 @@ import dev.mimir.core.rules.SyncRules
 import dev.mimir.core.sync.FileSyncRecord
 import dev.mimir.core.sync.SyncAction
 import dev.mimir.core.sync.SyncIndex
+import dev.mimir.core.sync.SyncPlan
 import dev.mimir.core.sync.SyncPlanBuilder
 import kotlinx.coroutines.test.runTest
+import kotlinx.io.IOException
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
+import kotlin.test.assertNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import kotlin.time.Instant
 
+/**
+ * Таблица решений §3 спеки sync-io построчно. План получает только локальный вычислитель хэша —
+ * удалённое содержимое на этапе плана недоступно by construction.
+ */
 class SyncPlanBuilderTest {
 
     private val t0 = Instant.parse("2026-10-23T20:00:00Z")
@@ -20,236 +30,334 @@ class SyncPlanBuilderTest {
 
     private val builder = SyncPlanBuilder()
 
+    /** Локальный вычислитель хэша, запоминающий, для каких путей его вызывали. */
+    private class LocalHashSpy(private val hash: String = "hash-base") {
+        val calls = mutableListOf<String>()
+        val fn: suspend (LocalEntry) -> String = { entry ->
+            calls += entry.relativePath
+            hash
+        }
+    }
+
     private fun local(path: String, size: Long = 100L, mtime: Instant = t0) =
         LocalEntry(VaultFileId("local-$path"), path, size, mtime)
 
-    private fun remote(path: String, size: Long = 100L, mtime: Instant = t0, rev: String = "rev-0") =
+    private fun remote(path: String, size: Long = 100L, mtime: Instant = t0, rev: String? = "rev-0") =
         RemoteEntry(RemotePath(path), size, mtime, rev, isDirectory = false)
 
-    private fun base(path: String, hash: String = "hash-base", size: Long = 100L, mtime: Instant = t0, rev: String = "rev-0") =
-        FileSyncRecord(
-            relativePath = path,
-            localId = VaultFileId("local-$path"),
-            baseHash = hash,
-            localSize = size,
-            localModifiedAt = mtime,
-            remotePath = RemotePath(path),
-            remoteRevision = rev,
-            remoteModifiedAt = mtime,
-            remoteSize = size,
-        )
+    private fun base(
+        path: String,
+        hash: String = "hash-base",
+        size: Long = 100L,
+        mtime: Instant = t0,
+        rev: String? = "rev-0",
+    ) = FileSyncRecord(
+        relativePath = path,
+        localId = VaultFileId("local-$path"),
+        baseHash = hash,
+        localSize = size,
+        localModifiedAt = mtime,
+        remotePath = RemotePath(path),
+        remoteRevision = rev,
+        remoteModifiedAt = mtime,
+        remoteSize = size,
+    )
 
+    private suspend fun plan(
+        local: List<LocalEntry>,
+        remote: List<RemoteEntry>,
+        index: SyncIndex = SyncIndex(),
+        spy: LocalHashSpy = LocalHashSpy(),
+    ): SyncPlan = builder.buildPlan(local, remote, index, spy.fn)
+
+    // L есть, R нет, B нет → Upload
     @Test
-    fun newLocalFile_producesUpload() = runTest {
-        val plan = builder.buildPlan(
-            local = listOf(local("new.md")),
-            remote = emptyList(),
-            index = SyncIndex(),
-            hashCalculator = { _, _ -> "hash-new" },
-        )
+    fun newLocalFileUploadsWithoutHashing() = runTest {
+        val spy = LocalHashSpy()
+        val plan = plan(listOf(local("new.md")), emptyList(), spy = spy)
 
-        assertEquals(1, plan.actions.size)
-        val action = plan.actions[0]
-        assertTrue(action is SyncAction.Upload)
+        val action = assertIs<SyncAction.Upload>(plan.actions.single())
         assertEquals("new.md", action.path)
+        assertTrue(spy.calls.isEmpty())
     }
 
+    // L нет, R есть, B нет → Download
     @Test
-    fun newRemoteFile_producesDownload() = runTest {
-        val plan = builder.buildPlan(
-            local = emptyList(),
-            remote = listOf(remote("remote.md")),
-            index = SyncIndex(),
-            hashCalculator = { _, _ -> "hash-remote" },
-        )
+    fun newRemoteFileDownloadsWithoutHashing() = runTest {
+        val spy = LocalHashSpy()
+        val plan = plan(emptyList(), listOf(remote("remote.md")), spy = spy)
 
-        assertEquals(1, plan.actions.size)
-        val action = plan.actions[0]
-        assertTrue(action is SyncAction.Download)
+        val action = assertIs<SyncAction.Download>(plan.actions.single())
         assertEquals("remote.md", action.path)
+        assertTrue(spy.calls.isEmpty())
     }
 
+    // L есть, R есть, B нет → Reconcile(base = null)
     @Test
-    fun newBothFiles_identicalHash_producesUpdateMetadata() = runTest {
-        val plan = builder.buildPlan(
-            local = listOf(local("note.md")),
-            remote = listOf(remote("note.md")),
-            index = SyncIndex(),
-            hashCalculator = { _, _ -> "identical-hash" },
-        )
+    fun bothExistWithoutRecordReconciles() = runTest {
+        val spy = LocalHashSpy()
+        val plan = plan(listOf(local("note.md")), listOf(remote("note.md")), spy = spy)
 
-        assertEquals(1, plan.actions.size)
-        val action = plan.actions[0]
-        assertTrue(action is SyncAction.UpdateMetadata)
+        val action = assertIs<SyncAction.Reconcile>(plan.actions.single())
         assertEquals("note.md", action.path)
+        assertEquals(local("note.md"), action.localEntry)
+        assertEquals(remote("note.md"), action.remoteEntry)
+        assertNull(action.baseRecord)
+        assertTrue(plan.hasChanges)
     }
 
+    // ничего не изменилось → NoOp
     @Test
-    fun newBothFiles_differentHash_producesConflict() = runTest {
-        val plan = builder.buildPlan(
-            local = listOf(local("note.md")),
-            remote = listOf(remote("note.md")),
-            index = SyncIndex(),
-            hashCalculator = { _, isLocal -> if (isLocal) "local-hash" else "remote-hash" },
+    fun unchangedIsNoOpWithoutHashing() = runTest {
+        val spy = LocalHashSpy()
+        val plan = plan(
+            listOf(local("note.md")),
+            listOf(remote("note.md")),
+            SyncIndex().withRecord(base("note.md")),
+            spy,
         )
 
-        assertEquals(1, plan.actions.size)
-        val action = plan.actions[0]
-        assertTrue(action is SyncAction.Conflict)
-        assertEquals("note.md", action.path)
-    }
-
-    @Test
-    fun unchanged_producesNoOp() = runTest {
-        val rec = base("note.md")
-        val plan = builder.buildPlan(
-            local = listOf(local("note.md")),
-            remote = listOf(remote("note.md")),
-            index = SyncIndex().withRecord(rec),
-            hashCalculator = { _, _ -> "hash-base" },
-        )
-
-        assertEquals(1, plan.actions.size)
-        assertTrue(plan.actions[0] is SyncAction.NoOp)
+        assertIs<SyncAction.NoOp>(plan.actions.single())
         assertFalse(plan.hasChanges)
+        assertTrue(spy.calls.isEmpty())
     }
 
+    // сменился только mtime удалённого при той же ревизии → UpdateMetadata без чтений
     @Test
-    fun localModified_remoteUnchanged_producesUpload() = runTest {
+    fun onlyRemoteMtimeChangedWithSameRevisionUpdatesMetadata() = runTest {
+        val spy = LocalHashSpy()
         val rec = base("note.md")
-        val plan = builder.buildPlan(
-            local = listOf(local("note.md", size = 200L, mtime = t1)),
-            remote = listOf(remote("note.md")),
-            index = SyncIndex().withRecord(rec),
-            hashCalculator = { _, isLocal -> if (isLocal) "hash-local-new" else "hash-base" },
+        val plan = plan(
+            listOf(local("note.md")),
+            listOf(remote("note.md", mtime = t1)),
+            SyncIndex().withRecord(rec),
+            spy,
         )
 
-        assertEquals(1, plan.actions.size)
-        val action = plan.actions[0]
-        assertTrue(action is SyncAction.Upload)
-        assertEquals("note.md", action.path)
+        val action = assertIs<SyncAction.UpdateMetadata>(plan.actions.single())
+        assertEquals(rec.copy(remoteModifiedAt = t1), action.record)
+        assertFalse(plan.hasChanges)
+        assertTrue(spy.calls.isEmpty())
+    }
+
+    // адаптер без ревизий: изменение mtime = изменение удалённого
+    @Test
+    fun withoutRevisionsRemoteMtimeChangeDownloads() = runTest {
+        val plan = plan(
+            listOf(local("note.md")),
+            listOf(remote("note.md", mtime = t1, rev = null)),
+            SyncIndex().withRecord(base("note.md", rev = null)),
+        )
+
+        assertIs<SyncAction.Download>(plan.actions.single())
+    }
+
+    // ревизия есть у одной стороны → сравнение по size+mtime
+    @Test
+    fun revisionOnOneSideOnlyFallsBackToSizeAndMtime() = runTest {
+        val plan = plan(
+            listOf(local("note.md")),
+            listOf(remote("note.md", rev = "rev-new")),
+            SyncIndex().withRecord(base("note.md", rev = null)),
+        )
+
+        assertIs<SyncAction.NoOp>(plan.actions.single())
+    }
+
+    // новая ревизия при тех же size и mtime — удалённый изменён
+    @Test
+    fun newRevisionWithSameSizeAndMtimeIsRemoteChange() = runTest {
+        val plan = plan(
+            listOf(local("note.md")),
+            listOf(remote("note.md", rev = "rev-1")),
+            SyncIndex().withRecord(base("note.md")),
+        )
+
+        assertIs<SyncAction.Download>(plan.actions.single())
+    }
+
+    // изменён только L, h(L) == B.hash → UpdateMetadata
+    @Test
+    fun localOnlyChangedWithSameHashUpdatesMetadata() = runTest {
+        val spy = LocalHashSpy("hash-base")
+        val rec = base("note.md")
+        val plan = plan(
+            listOf(local("note.md", mtime = t1)),
+            listOf(remote("note.md")),
+            SyncIndex().withRecord(rec),
+            spy,
+        )
+
+        val action = assertIs<SyncAction.UpdateMetadata>(plan.actions.single())
+        assertEquals(rec.copy(localModifiedAt = t1), action.record)
+        assertEquals(listOf("note.md"), spy.calls)
+    }
+
+    // изменён только L, h(L) != B.hash → Upload
+    @Test
+    fun localOnlyChangedWithNewHashUploads() = runTest {
+        val plan = plan(
+            listOf(local("note.md", size = 200L, mtime = t1)),
+            listOf(remote("note.md")),
+            SyncIndex().withRecord(base("note.md")),
+            LocalHashSpy("hash-local-new"),
+        )
+
+        val action = assertIs<SyncAction.Upload>(plan.actions.single())
+        assertEquals(RemotePath("note.md"), action.remotePath)
         assertTrue(plan.hasChanges)
     }
 
+    // изменён только R → Download без хэширования
     @Test
-    fun remoteModified_localUnchanged_producesDownload() = runTest {
-        val rec = base("note.md")
-        val plan = builder.buildPlan(
-            local = listOf(local("note.md")),
-            remote = listOf(remote("note.md", size = 250L, mtime = t1, rev = "rev-1")),
-            index = SyncIndex().withRecord(rec),
-            hashCalculator = { _, isLocal -> if (isLocal) "hash-base" else "hash-remote-new" },
+    fun remoteOnlyChangedDownloadsWithoutHashing() = runTest {
+        val spy = LocalHashSpy()
+        val plan = plan(
+            listOf(local("note.md")),
+            listOf(remote("note.md", size = 250L, mtime = t1, rev = "rev-1")),
+            SyncIndex().withRecord(base("note.md")),
+            spy,
         )
 
-        assertEquals(1, plan.actions.size)
-        val action = plan.actions[0]
-        assertTrue(action is SyncAction.Download)
-        assertEquals("note.md", action.path)
-        assertTrue(plan.hasChanges)
+        assertIs<SyncAction.Download>(plan.actions.single())
+        assertTrue(spy.calls.isEmpty())
+    }
+
+    // изменены оба, h(L) == B.hash → Download
+    @Test
+    fun bothChangedLocalEqualsBaseDownloads() = runTest {
+        val spy = LocalHashSpy("hash-base")
+        val plan = plan(
+            listOf(local("note.md", mtime = t1)),
+            listOf(remote("note.md", size = 200L, mtime = t2, rev = "rev-2")),
+            SyncIndex().withRecord(base("note.md")),
+            spy,
+        )
+
+        assertIs<SyncAction.Download>(plan.actions.single())
+        assertEquals(listOf("note.md"), spy.calls)
+    }
+
+    // изменены оба, h(L) != B.hash → Reconcile(base = B)
+    @Test
+    fun bothChangedLocalDiffersReconciles() = runTest {
+        val rec = base("note.md")
+        val plan = plan(
+            listOf(local("note.md", size = 150L, mtime = t1)),
+            listOf(remote("note.md", size = 200L, mtime = t2, rev = "rev-2")),
+            SyncIndex().withRecord(rec),
+            LocalHashSpy("hash-local"),
+        )
+
+        val action = assertIs<SyncAction.Reconcile>(plan.actions.single())
+        assertSame(rec, action.baseRecord)
+        assertEquals(local("note.md", size = 150L, mtime = t1), action.localEntry)
+        assertEquals(remote("note.md", size = 200L, mtime = t2, rev = "rev-2"), action.remoteEntry)
+    }
+
+    // L нет, R изменён → Download (воскрешение)
+    @Test
+    fun localDeletedRemoteChangedDownloads() = runTest {
+        val spy = LocalHashSpy()
+        val plan = plan(
+            emptyList(),
+            listOf(remote("note.md", size = 300L, mtime = t1, rev = "rev-modified")),
+            SyncIndex().withRecord(base("note.md")),
+            spy,
+        )
+
+        assertIs<SyncAction.Download>(plan.actions.single())
+        assertTrue(spy.calls.isEmpty())
+    }
+
+    // L нет, R не изменён → DeleteRemote
+    @Test
+    fun localDeletedRemoteUnchangedDeletesRemote() = runTest {
+        val plan = plan(
+            emptyList(),
+            listOf(remote("note.md")),
+            SyncIndex().withRecord(base("note.md")),
+        )
+
+        val action = assertIs<SyncAction.DeleteRemote>(plan.actions.single())
+        assertEquals(RemotePath("note.md"), action.remotePath)
+    }
+
+    // R нет, L изменён и h(L) != B.hash → Upload
+    @Test
+    fun remoteDeletedLocalChangedWithNewHashUploads() = runTest {
+        val plan = plan(
+            listOf(local("note.md", size = 350L, mtime = t1)),
+            emptyList(),
+            SyncIndex().withRecord(base("note.md")),
+            LocalHashSpy("hash-local-mod"),
+        )
+
+        assertIs<SyncAction.Upload>(plan.actions.single())
+    }
+
+    // R нет, L изменён только по mtime (хэш тот же) → DeleteLocal
+    @Test
+    fun remoteDeletedLocalTouchedWithSameHashDeletesLocal() = runTest {
+        val plan = plan(
+            listOf(local("note.md", mtime = t1)),
+            emptyList(),
+            SyncIndex().withRecord(base("note.md")),
+            LocalHashSpy("hash-base"),
+        )
+
+        assertIs<SyncAction.DeleteLocal>(plan.actions.single())
+    }
+
+    // R нет, L не изменён → DeleteLocal без хэширования
+    @Test
+    fun remoteDeletedLocalUnchangedDeletesLocalWithoutHashing() = runTest {
+        val spy = LocalHashSpy()
+        val plan = plan(
+            listOf(local("note.md")),
+            emptyList(),
+            SyncIndex().withRecord(base("note.md")),
+            spy,
+        )
+
+        val action = assertIs<SyncAction.DeleteLocal>(plan.actions.single())
+        assertEquals(VaultFileId("local-note.md"), action.localId)
+        assertTrue(spy.calls.isEmpty())
     }
 
     @Test
-    fun bothModified_sameHash_producesUpdateMetadata() = runTest {
-        val rec = base("note.md")
+    fun localHashFailureIsReportedAndSkipped() = runTest {
+        val failures = mutableListOf<Pair<String, Throwable>>()
         val plan = builder.buildPlan(
-            local = listOf(local("note.md", size = 150L, mtime = t1)),
-            remote = listOf(remote("note.md", size = 150L, mtime = t2, rev = "rev-2")),
-            index = SyncIndex().withRecord(rec),
-            hashCalculator = { _, _ -> "same-converged-hash" },
+            local = listOf(local("a.md", mtime = t1), local("b.md")),
+            remote = listOf(remote("a.md"), remote("b.md")),
+            index = SyncIndex().withRecord(base("a.md")).withRecord(base("b.md")),
+            localHash = { throw IOException("locked") },
+            onReconcileFailure = { path, error -> failures += path to error },
         )
 
-        assertEquals(1, plan.actions.size)
-        val action = plan.actions[0]
-        assertTrue(action is SyncAction.UpdateMetadata)
-        assertEquals("note.md", action.path)
+        assertEquals(listOf("a.md"), failures.map { it.first })
+        assertIs<IOException>(failures.single().second)
+        assertTrue(plan.actions.all { it is SyncAction.NoOp })
     }
 
     @Test
-    fun bothModified_differentHash_producesConflict() = runTest {
-        val rec = base("note.md")
-        val plan = builder.buildPlan(
-            local = listOf(local("note.md", size = 150L, mtime = t1)),
-            remote = listOf(remote("note.md", size = 200L, mtime = t2, rev = "rev-2")),
-            index = SyncIndex().withRecord(rec),
-            hashCalculator = { _, isLocal -> if (isLocal) "hash-local" else "hash-remote" },
-        )
-
-        assertEquals(1, plan.actions.size)
-        val action = plan.actions[0]
-        assertTrue(action is SyncAction.Conflict)
-        assertEquals("note.md", action.path)
+    fun localHashFailureWithoutCallbackPropagates() = runTest {
+        assertFailsWith<IOException> {
+            builder.buildPlan(
+                local = listOf(local("a.md", mtime = t1)),
+                remote = listOf(remote("a.md")),
+                index = SyncIndex().withRecord(base("a.md")),
+                localHash = { throw IOException("locked") },
+            )
+        }
     }
 
     @Test
-    fun localDeleted_remoteUnchanged_producesDeleteRemote() = runTest {
-        val rec = base("note.md")
-        val plan = builder.buildPlan(
-            local = emptyList(),
-            remote = listOf(remote("note.md")),
-            index = SyncIndex().withRecord(rec),
-            hashCalculator = { _, _ -> "hash-base" },
+    fun excludedFilesAreIgnoredInPlan() = runTest {
+        val customBuilder = SyncPlanBuilder(
+            rules = SyncRules(excludedGlobs = listOf(".obsidian/workspace*.json", ".trash/**")),
         )
-
-        assertEquals(1, plan.actions.size)
-        val action = plan.actions[0]
-        assertTrue(action is SyncAction.DeleteRemote)
-        assertEquals("note.md", action.path)
-    }
-
-    @Test
-    fun remoteDeleted_localUnchanged_producesDeleteLocal() = runTest {
-        val rec = base("note.md")
-        val plan = builder.buildPlan(
-            local = listOf(local("note.md")),
-            remote = emptyList(),
-            index = SyncIndex().withRecord(rec),
-            hashCalculator = { _, _ -> "hash-base" },
-        )
-
-        assertEquals(1, plan.actions.size)
-        val action = plan.actions[0]
-        assertTrue(action is SyncAction.DeleteLocal)
-        assertEquals("note.md", action.path)
-    }
-
-    @Test
-    fun localDeleted_remoteModified_producesDownload() = runTest {
-        val rec = base("note.md")
-        val plan = builder.buildPlan(
-            local = emptyList(),
-            remote = listOf(remote("note.md", size = 300L, mtime = t1, rev = "rev-modified")),
-            index = SyncIndex().withRecord(rec),
-            hashCalculator = { _, _ -> "hash-remote-mod" },
-        )
-
-        assertEquals(1, plan.actions.size)
-        val action = plan.actions[0]
-        assertTrue(action is SyncAction.Download)
-        assertEquals("note.md", action.path)
-    }
-
-    @Test
-    fun remoteDeleted_localModified_producesUpload() = runTest {
-        val rec = base("note.md")
-        val plan = builder.buildPlan(
-            local = listOf(local("note.md", size = 350L, mtime = t1)),
-            remote = emptyList(),
-            index = SyncIndex().withRecord(rec),
-            hashCalculator = { _, _ -> "hash-local-mod" },
-        )
-
-        assertEquals(1, plan.actions.size)
-        val action = plan.actions[0]
-        assertTrue(action is SyncAction.Upload)
-        assertEquals("note.md", action.path)
-    }
-
-    @Test
-    fun excludedFiles_areIgnoredInPlan() = runTest {
-        val customRules = SyncRules(
-            excludedGlobs = listOf(".obsidian/workspace*.json", ".trash/**")
-        )
-        val customBuilder = SyncPlanBuilder(rules = customRules)
 
         val plan = customBuilder.buildPlan(
             local = listOf(
@@ -262,16 +370,15 @@ class SyncPlanBuilderTest {
                 remote(".trash/sub/other.md"),
             ),
             index = SyncIndex(),
-            hashCalculator = { _, _ -> "hash" },
+            localHash = { "hash" },
         )
 
-        assertEquals(1, plan.actions.size)
-        assertEquals("valid.md", plan.actions[0].path)
-        assertTrue(plan.actions[0] is SyncAction.Upload)
+        assertEquals("valid.md", plan.actions.single().path)
+        assertIs<SyncAction.Upload>(plan.actions.single())
     }
 
     @Test
-    fun remoteFilesUnderBuiltinExcludes_areNeitherDownloadedNorDeleted() = runTest {
+    fun remoteFilesUnderBuiltinExcludesAreNeitherDownloadedNorDeleted() = runTest {
         val paths = listOf(
             ".obsidian/plugins/p/node_modules/q/index.js",
             "node_modules/pkg/index.js",
@@ -279,25 +386,15 @@ class SyncPlanBuilderTest {
             ".mimir_canary",
             "note.tmp",
         )
-        val plan = builder.buildPlan(
-            local = emptyList(),
-            remote = paths.map { remote(it) },
-            index = SyncIndex(),
-            hashCalculator = { _, _ -> "hash" },
-        )
+        val plan = plan(emptyList(), paths.map { remote(it) })
 
         assertTrue(plan.actions.isEmpty(), "unexpected actions: ${plan.actions}")
     }
 
     @Test
-    fun indexedFileUnderBuiltinExcludes_isNotDeletedFromRemote() = runTest {
+    fun indexedFileUnderBuiltinExcludesIsNotDeletedFromRemote() = runTest {
         val path = "node_modules/pkg/index.js"
-        val plan = builder.buildPlan(
-            local = emptyList(),
-            remote = listOf(remote(path)),
-            index = SyncIndex().withRecord(base(path)),
-            hashCalculator = { _, _ -> "hash-base" },
-        )
+        val plan = plan(emptyList(), listOf(remote(path)), SyncIndex().withRecord(base(path)))
 
         assertTrue(plan.actions.isEmpty(), "unexpected actions: ${plan.actions}")
     }

@@ -1,5 +1,7 @@
 package dev.mimir.ui
 
+import dev.mimir.core.SyncItem
+import dev.mimir.core.SyncItemAction
 import dev.mimir.ui.screens.SyncTexts
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -41,5 +43,13 @@ class SyncTextsTest {
         assertEquals("Проверено 3 файла в 5 папках", SyncTexts.scanned(3, 5))
         assertEquals("Проверено 3 файла в 11 папках", SyncTexts.scanned(3, 11))
         assertEquals("Проверено 3 файла в 21 папке", SyncTexts.scanned(3, 21))
+    }
+
+    @Test
+    fun verifyActionTellsThatContentIsComparedWithDrive() {
+        assertEquals(
+            "Сверяю с Google Drive: notes/a.md",
+            SyncTexts.actionNow(SyncItem("notes/a.md", SyncItemAction.Verify)),
+        )
     }
 }
