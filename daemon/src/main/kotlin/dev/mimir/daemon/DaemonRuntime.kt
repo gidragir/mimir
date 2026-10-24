@@ -37,6 +37,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
@@ -359,7 +360,8 @@ class DaemonRuntime(
             }
         }
         progressJob = scope.launch {
-            engine.progress.collect { _progress.value = it }
+            // Новый движок начинает с null — не затираем им сводку последнего прогона.
+            engine.progress.filterNotNull().collect { _progress.value = it }
         }
         _status.value = engine.status.value
         scheduler.start()
