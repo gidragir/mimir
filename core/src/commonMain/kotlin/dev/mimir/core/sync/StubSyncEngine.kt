@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.asStateFlow
 
 class StubSyncEngine : SyncEngine {
     override val status: StateFlow<SyncStatus> = MutableStateFlow<SyncStatus>(SyncStatus.NotConfigured).asStateFlow()
+    override val progress: StateFlow<SyncProgress?> = MutableStateFlow<SyncProgress?>(null).asStateFlow()
 
     override suspend fun start() = Unit
 

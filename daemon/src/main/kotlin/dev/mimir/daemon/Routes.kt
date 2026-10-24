@@ -78,6 +78,7 @@ private fun SyncStatus.code(): String = when (this) {
     SyncStatus.NotConfigured -> "not_connected"
     SyncStatus.Idle -> "idle"
     SyncStatus.Syncing -> "syncing"
+    SyncStatus.Offline -> "offline"
     is SyncStatus.Error -> "error"
 }
 

@@ -6,6 +6,7 @@ import dev.mimir.core.RemotePath
 import dev.mimir.core.RemoteStorage
 import dev.mimir.core.Sha256
 import dev.mimir.core.SyncEngine
+import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncStatus
 import dev.mimir.core.rules.SyncRules
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,6 +29,9 @@ class DefaultSyncEngine(
 
     private val _status = MutableStateFlow<SyncStatus>(SyncStatus.Idle)
     override val status: StateFlow<SyncStatus> = _status.asStateFlow()
+
+    private val _progress = MutableStateFlow<SyncProgress?>(null)
+    override val progress: StateFlow<SyncProgress?> = _progress.asStateFlow()
 
     private val syncMutex = Mutex()
     private val planBuilder = SyncPlanBuilder(rules)

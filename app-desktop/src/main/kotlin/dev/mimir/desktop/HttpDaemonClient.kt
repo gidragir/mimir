@@ -144,6 +144,7 @@ class HttpDaemonClient(
             _status.value = when (dto.status) {
                 "idle" -> SyncStatus.Idle
                 "syncing" -> SyncStatus.Syncing
+                "offline" -> SyncStatus.Offline
                 "error" -> SyncStatus.Error(dto.label.removePrefix("Mimir: ").ifEmpty { "error" })
                 else -> SyncStatus.NotConfigured
             }

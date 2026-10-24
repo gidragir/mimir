@@ -2,6 +2,7 @@ package dev.mimir.daemon
 
 import dev.mimir.core.LocalEntry
 import dev.mimir.core.SyncEngine
+import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncStatus
 import dev.mimir.core.VaultChange
 import dev.mimir.core.VaultFileId
@@ -30,6 +31,7 @@ import kotlin.time.Instant
 class SyncSchedulerTest {
     private class FakeEngine : SyncEngine {
         override val status: StateFlow<SyncStatus> = MutableStateFlow(SyncStatus.Idle)
+        override val progress: StateFlow<SyncProgress?> = MutableStateFlow(null)
         var calls = 0
         var gate: CompletableDeferred<Unit>? = null
         var failNext = false
