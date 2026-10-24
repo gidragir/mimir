@@ -31,6 +31,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -222,8 +224,11 @@ class DaemonRuntime(
     override suspend fun startBrowserLogin(): String = browserMutex.withLock {
         val client = authClients.desktop ?: throw SyncNotConfiguredException("Google desktop client is not configured")
         browserAttempt?.let {
+            // Дожидаемся завершения старой попытки, чтобы она не сохранила вход параллельно с новой.
+            // Задача попытки browserMutex не берёт, поэтому join под ним не взаимоблокируется.
             it.job.cancel()
             it.receiver.close()
+            it.job.join()
         }
         browserAttempt = null
         val receiver = BrowserLoginReceiver(browserLoginTimeout)
@@ -273,8 +278,16 @@ class DaemonRuntime(
 
     /** Сохраняет токены, запоминает аккаунт и перезапускает синхронизацию. */
     private suspend fun completeLogin(tokens: OAuthTokens, client: GoogleAuthClient): String? {
+        val email = try {
+            client.fetchAccount(tokens.accessToken).email.takeIf { it.isNotEmpty() }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null
+        }
+        // Отменённая (перезапущенная) попытка входа не должна ничего сохранять.
+        currentCoroutineContext().ensureActive()
         tokenStorage.save(tokens)
-        val email = runCatching { client.fetchAccount(tokens.accessToken).email }.getOrNull()?.takeIf { it.isNotEmpty() }
         accountEmail = email
         writeFileAtomically(configDir.resolve("account.json"), Json.encodeToString(AccountFile(email)))
         rebuildLenient()

@@ -12,7 +12,9 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -157,6 +159,52 @@ class BrowserLoginTest {
 
         browser.get("http://127.0.0.1:${port(second)}/callback?code=c&state=${state(second)}")
         assertEquals(BrowserLoginPoll.Authorized("u@x"), awaitNotPending(runtime))
+    }
+
+    @Test
+    fun restartDiscardsStaleAttemptPastTokenExchange() = run {
+        val firstUserinfoEntered = CompletableDeferred<Unit>()
+        var tokenCalls = 0
+        val google = HttpClient(
+            MockEngine { request ->
+                val body = when {
+                    request.url.encodedPath.endsWith("/token") -> {
+                        val n = synchronized(this@BrowserLoginTest) { ++tokenCalls }
+                        """{"access_token":"at$n","refresh_token":"rt$n","expires_in":3600,"token_type":"Bearer"}"""
+                    }
+                    request.url.encodedPath.endsWith("/userinfo") -> {
+                        if (request.headers[HttpHeaders.Authorization] == "Bearer at1") {
+                            // Первая попытка уже прошла обмен кода и ждёт профиль, когда вход перезапускают.
+                            firstUserinfoEntered.complete(Unit)
+                            awaitCancellation()
+                        }
+                        """{"email":"second@x"}"""
+                    }
+                    else -> "{}"
+                }
+                respond(body, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
+            },
+        ) { install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
+        val runtime = DaemonRuntime(
+            DaemonConfig(googleDesktopClientId = "desktop-id", configDir = configDir.toString()),
+            httpClient = google,
+        ).also { runtime = it }
+
+        val first = runtime.startBrowserLogin()
+        browser.get("http://127.0.0.1:${port(first)}/callback?code=c1&state=${state(first)}")
+        withTimeout(15_000) { firstUserinfoEntered.await() }
+
+        val second = runtime.startBrowserLogin()
+        delay(300)
+        // Отменённая попытка не должна ничего сохранить.
+        assertNull(runtime.tokenStorage.load())
+        assertTrue(!Files.exists(configDir.resolve("account.json")))
+        assertEquals(BrowserLoginPoll.Pending, runtime.pollBrowserLogin())
+
+        browser.get("http://127.0.0.1:${port(second)}/callback?code=c2&state=${state(second)}")
+        assertEquals(BrowserLoginPoll.Authorized("second@x"), awaitNotPending(runtime))
+        assertEquals("at2", runtime.tokenStorage.load()!!.accessToken)
+        assertEquals("second@x", runtime.accountEmail)
     }
 
     @Test
