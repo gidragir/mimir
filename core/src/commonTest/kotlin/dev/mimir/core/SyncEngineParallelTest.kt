@@ -2,6 +2,7 @@ package dev.mimir.core
 
 import dev.mimir.core.sync.DefaultSyncEngine
 import dev.mimir.core.sync.InMemorySyncStateStore
+import dev.mimir.core.sync.SyncIndex
 import dev.mimir.core.testing.InMemoryLocalVault
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -90,6 +91,102 @@ class SyncEngineParallelTest {
             dispatcher = StandardTestDispatcher(scope.testScheduler),
             indexSaveEvery = indexSaveEvery,
         )
+    }
+
+    /**
+     * Затвор после завершённой записи: `inner.write` (счётчик [CountingRemoteStorage]) уже выполнен,
+     * файл в облаке, а движок ещё не получил ответ — отмена здесь оставляет индекс без записи о нём.
+     */
+    private class GateAfterWrite(val counting: CountingRemoteStorage) : RemoteStorage by counting {
+        val gates = mutableMapOf<String, CompletableDeferred<Unit>>()
+        val written = mutableListOf<String>()
+
+        override suspend fun write(path: RemotePath, data: Source): RemoteEntry {
+            val entry = counting.write(path, data)
+            written += path.value
+            gates[path.value]?.await()
+            return entry
+        }
+    }
+
+    private class ResumeFixture(scope: TestScope) {
+        val vault = InMemoryLocalVault()
+        val inner = InMemoryRemoteStorage()
+        val counting = CountingRemoteStorage(inner)
+        val remote = GateAfterWrite(counting)
+        val store = InMemorySyncStateStore()
+        val engine = DefaultSyncEngine(
+            vault,
+            remote,
+            store,
+            parallelism = 4,
+            dispatcher = StandardTestDispatcher(scope.testScheduler),
+        )
+    }
+
+    /** Первый прогон отменяется, когда запись `a.md` в облако уже завершена, а индекс о ней не знает. */
+    private suspend fun TestScope.cancelAfterRemoteWriteOf(f: ResumeFixture, path: String) {
+        f.remote.gates[path] = CompletableDeferred() // никогда не открывается
+        val run = launch { f.engine.syncNow() }
+        runCurrent()
+        assertTrue(path in f.remote.written, "the remote write has finished: ${f.remote.written}")
+        run.cancelAndJoin()
+        f.remote.gates.clear()
+        f.counting.reset()
+    }
+
+    private fun SyncIndex.hashOf(path: String): String = assertNotNull(find(path)).baseHash
+
+    @Test
+    fun resumeAfterCancelledUploadWithoutBaseReconcilesWithoutRewriting() = runTest {
+        val f = ResumeFixture(this)
+        f.vault.write("a.md", bufferOf("A"))
+        f.vault.write("b.md", bufferOf("B"))
+        cancelAfterRemoteWriteOf(f, "a.md")
+        assertEquals(setOf("b.md"), f.store.load().records.keys, "a.md is in Drive but not in the index")
+
+        f.engine.syncNow()
+
+        assertEquals(1, f.counting.readCalls, "one content comparison for a.md")
+        assertEquals(0, f.counting.writeCalls)
+        assertEquals(0, f.counting.deleteCalls)
+        val index = f.store.load()
+        assertEquals(setOf("a.md", "b.md"), index.records.keys)
+        assertEquals(bufferOf("A").sha256Hex(), index.hashOf("a.md"))
+        val p = assertNotNull(f.engine.progress.value)
+        assertEquals(1, p.total, "only the Reconcile of a.md")
+        assertTrue(p.completed.isEmpty() && p.problems.isEmpty(), "$p")
+        assertEquals(SyncStatus.Idle, f.engine.status.value)
+    }
+
+    @Test
+    fun resumeAfterCancelledUploadOfEditReconcilesWithoutRewriting() = runTest {
+        val f = ResumeFixture(this)
+        f.vault.write("a.md", bufferOf("A"))
+        f.vault.write("b.md", bufferOf("B"))
+        f.engine.syncNow()
+        f.vault.write("a.md", bufferOf("A, edited"))
+        cancelAfterRemoteWriteOf(f, "a.md")
+        assertEquals(bufferOf("A").sha256Hex(), f.store.load().hashOf("a.md"), "the index still has the old base")
+
+        f.engine.syncNow()
+
+        assertEquals(1, f.counting.readCalls, "one content comparison for a.md")
+        assertEquals(0, f.counting.writeCalls)
+        assertEquals(0, f.counting.deleteCalls)
+        val index = f.store.load()
+        assertEquals(setOf("a.md", "b.md"), index.records.keys)
+        assertEquals(bufferOf("A, edited").sha256Hex(), index.hashOf("a.md"))
+        val p = assertNotNull(f.engine.progress.value)
+        assertEquals(1, p.total, "only the Reconcile of a.md")
+        assertTrue(p.completed.isEmpty() && p.problems.isEmpty(), "$p")
+        assertEquals(SyncStatus.Idle, f.engine.status.value)
+
+        // и следующий прогон уже ничего не читает
+        f.counting.reset()
+        f.engine.syncNow()
+        assertEquals(0, f.counting.readCalls)
+        assertEquals(0, f.counting.writeCalls)
     }
 
     @Test
