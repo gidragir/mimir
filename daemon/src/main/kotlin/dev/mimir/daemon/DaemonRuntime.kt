@@ -146,14 +146,14 @@ class DaemonRuntime(
         refreshConflicts()
         startConflictScan()
         rebuildLenient()
-        return withContext(Dispatchers.IO) { FileSystemLocalVault(Path(normalized)).list().size }
+        return FileSystemLocalVault(Path(normalized), ioDispatcher = Dispatchers.IO).list().size
     }
 
     override suspend fun inspectVault(): VaultInspectionDto {
         check(!isLocked) { "Vault is locked" }
         val remote = encryptedRemote ?: throw SyncNotConfiguredException("Vault path, encryption password or cloud storage not configured")
-        val local = FileSystemLocalVault(Path(config.vaultPath ?: throw SyncNotConfiguredException("Vault path not configured")))
-        val localCount = withContext(Dispatchers.IO) { local.list().size }
+        val local = FileSystemLocalVault(Path(config.vaultPath ?: throw SyncNotConfiguredException("Vault path not configured")), ioDispatcher = Dispatchers.IO)
+        val localCount = local.list().size
         val remoteCount = remote.listAll().size
         return VaultInspectionDto(localCount, remoteCount, localCount > 0 && remoteCount > 0)
     }
