@@ -71,6 +71,42 @@ class SyncEngineDeleteSafetyTest {
         assertEquals(setOf("a.md", "b.md"), store.load().records.keys)
     }
 
+    /**
+     * Процесс упал после `DeleteRemote`, но до пакетного сохранения индекса: файла нет нигде, а запись
+     * осталась. Прогон забывает её без обращений к облаку; файл, позже восстановленный с тем же
+     * содержимым, — новый файл (`Upload`), а не «удалённый в Drive» (`DeleteLocal`).
+     */
+    @Test
+    fun staleRecordIsForgottenSoRestoredFileUploads() = runTest {
+        val f = Fixture()
+        f.syncTwoFiles()
+        val staleIndex = f.store.load()
+        f.vault.deleteByPath("a.md")
+        f.remote.delegate.delete(RemotePath("a.md"))
+        f.store.save(staleIndex)
+        f.remote.writes = 0
+        f.remote.deletes = 0
+
+        f.engine.syncNow()
+
+        assertEquals(setOf("b.md"), f.store.load().records.keys)
+        assertEquals(0, f.remote.writes)
+        assertEquals(0, f.remote.deletes)
+        assertTrue(f.remote.statCalls.isEmpty())
+        val p = assertNotNull(f.engine.progress.value)
+        assertEquals(0, p.total)
+        assertTrue(p.completed.isEmpty() && p.problems.isEmpty(), "$p")
+        assertEquals(SyncStatus.Idle, f.engine.status.value)
+
+        f.vault.write("a.md", bufferOf("A"))
+        f.engine.syncNow()
+
+        assertNotNull(f.vault.getEntry("a.md"), "restored file must not be deleted")
+        assertNotNull(f.remote.delegate.stat(RemotePath("a.md")))
+        assertEquals(1, f.remote.writes)
+        assertEquals(setOf("a.md", "b.md"), f.store.load().records.keys)
+    }
+
     @Test
     fun emptyRemoteWithNonEmptyIndexAbortsWithoutTouchingFiles() = runTest {
         val f = Fixture()

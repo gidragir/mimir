@@ -125,7 +125,8 @@ class SyncPlanBuilder(
                     SyncAction.DeleteLocal(path, localEntry.id)
                 }
 
-            else -> SyncAction.NoOp(path)
+            // Нет нигде, запись осталась — устаревшая: забыть, иначе восстановленный файл уйдёт в DeleteLocal.
+            else -> SyncAction.ForgetRecord(path)
         }
     }
 

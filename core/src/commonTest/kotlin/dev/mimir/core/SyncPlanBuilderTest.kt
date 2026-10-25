@@ -352,6 +352,18 @@ class SyncPlanBuilderTest {
         assertTrue(spy.calls.isEmpty())
     }
 
+    // L нет, R нет, B есть → ForgetRecord: устаревшая запись (упали до сохранения индекса после удаления)
+    @Test
+    fun goneOnBothSidesForgetsRecordWithoutHashing() = runTest {
+        val spy = LocalHashSpy()
+        val plan = plan(emptyList(), listOf(remote("other.md")), SyncIndex().withRecord(base("note.md")), spy)
+
+        val action = assertIs<SyncAction.ForgetRecord>(plan.actions.single { it.path == "note.md" })
+        assertEquals("note.md", action.path)
+        assertTrue(spy.calls.isEmpty())
+        assertFalse(SyncPlan(listOf(action)).hasChanges, "forgetting a record is metadata, not a change")
+    }
+
     @Test
     fun localHashFailureIsReportedAndSkipped() = runTest {
         val failures = mutableListOf<Pair<String, Throwable>>()

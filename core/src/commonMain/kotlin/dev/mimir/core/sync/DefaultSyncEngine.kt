@@ -131,13 +131,24 @@ class DefaultSyncEngine(
     }
 
     /**
-     * Спека §6: метаданные — сразу в индекс, затем переносы, затем удаления (переименование =
+     * Спека §6: метаданные (`UpdateMetadata`, `ForgetRecord`) — сразу в индекс, без IO, затем переносы, затем удаления (переименование =
      * удаление + отправка: новая копия появляется до удаления старой). Каждая фаза — [parallelism]
      * воркеров над общей очередью.
      */
     private suspend fun applyPlan(plan: SyncPlan, index: IndexUpdater) {
-        val transfers = plan.actions.filter { it is SyncAction.Upload || it is SyncAction.Download || it is SyncAction.Reconcile }
-        val deletes = plan.actions.filter { it is SyncAction.DeleteRemote || it is SyncAction.DeleteLocal }
+        val metadata = mutableListOf<(SyncIndex) -> SyncIndex>()
+        val transfers = mutableListOf<SyncAction>()
+        val deletes = mutableListOf<SyncAction>()
+        // Исчерпывающий when: новое действие плана не потеряется молча ни в одной фазе.
+        for (action in plan.actions) {
+            when (action) {
+                is SyncAction.UpdateMetadata -> metadata += { it.withRecord(action.record) }
+                is SyncAction.ForgetRecord -> metadata += { it.withoutRecord(action.path) }
+                is SyncAction.Upload, is SyncAction.Download, is SyncAction.Reconcile -> transfers += action
+                is SyncAction.DeleteRemote, is SyncAction.DeleteLocal -> deletes += action
+                is SyncAction.NoOp -> Unit
+            }
+        }
         val counted = (transfers + deletes).mapNotNull { action -> action.toItemAction()?.let { SyncItem(action.path, it) } }
         _progress.update {
             it?.copy(
@@ -149,9 +160,7 @@ class DefaultSyncEngine(
             )
         }
 
-        for (action in plan.actions) {
-            if (action is SyncAction.UpdateMetadata) index.update { it.withRecord(action.record) }
-        }
+        for (change in metadata) index.update(change)
         runPhase(transfers, offset = 0, counted, index)
         runPhase(deletes, offset = transfers.size, counted, index)
     }
@@ -218,7 +227,7 @@ class DefaultSyncEngine(
         is SyncAction.DeleteLocal -> SyncItemAction.DeleteLocal
         is SyncAction.DeleteRemote -> SyncItemAction.DeleteRemote
         is SyncAction.Reconcile -> SyncItemAction.Verify
-        is SyncAction.UpdateMetadata, is SyncAction.NoOp -> null
+        is SyncAction.UpdateMetadata, is SyncAction.ForgetRecord, is SyncAction.NoOp -> null
     }
 
     private fun SyncAction.weight(): Long = when (this) {
@@ -226,7 +235,7 @@ class DefaultSyncEngine(
         is SyncAction.Download -> remoteEntry.size
         is SyncAction.Reconcile -> localEntry.size + remoteEntry.size
         is SyncAction.DeleteLocal, is SyncAction.DeleteRemote -> SyncProgress.DELETE_WEIGHT_BYTES
-        is SyncAction.UpdateMetadata, is SyncAction.NoOp -> 0L
+        is SyncAction.UpdateMetadata, is SyncAction.ForgetRecord, is SyncAction.NoOp -> 0L
     }
 
     private companion object {

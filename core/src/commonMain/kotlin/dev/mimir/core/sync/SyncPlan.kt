@@ -45,11 +45,18 @@ sealed interface SyncAction {
         val record: FileSyncRecord,
     ) : SyncAction
 
+    /**
+     * Файла нет ни локально, ни в облаке, а запись индекса осталась (например, процесс упал после
+     * удаления, но до сохранения индекса). Запись удаляется в фазе метаданных, без IO: иначе файл,
+     * позже восстановленный с тем же содержимым, план принял бы за удалённый в облаке (`DeleteLocal`).
+     */
+    data class ForgetRecord(override val path: String) : SyncAction
+
     data class NoOp(override val path: String) : SyncAction
 }
 
 data class SyncPlan(
     val actions: List<SyncAction>,
 ) {
-    val hasChanges: Boolean get() = actions.any { it !is SyncAction.NoOp && it !is SyncAction.UpdateMetadata }
+    val hasChanges: Boolean get() = actions.any { it !is SyncAction.NoOp && it !is SyncAction.UpdateMetadata && it !is SyncAction.ForgetRecord }
 }

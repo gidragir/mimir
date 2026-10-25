@@ -90,6 +90,8 @@ internal class ActionExecutor(
 
         is SyncAction.UpdateMetadata -> ActionResult(completedAs = null, put = listOf(action.record))
 
+        is SyncAction.ForgetRecord -> ActionResult(completedAs = null, remove = action.path)
+
         is SyncAction.NoOp -> ActionResult(completedAs = null)
     }
 
