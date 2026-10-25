@@ -209,4 +209,32 @@ class DaemonConfigTest {
         val text = DaemonConfig(googleDesktopClientSecret = "s3cr3t", googleDeviceClientSecret = "s3cr3t").toString()
         assertFalse("s3cr3t" in text)
     }
+
+    @Test
+    fun `sync parallelism defaults to 4`() {
+        assertEquals(4, DaemonConfig.fromEnv(emptyMap()).syncParallelism)
+    }
+
+    @Test
+    fun `sync parallelism from env`() {
+        assertEquals(8, DaemonConfig.fromEnv(mapOf("MIMIR_SYNC_PARALLELISM" to "8")).syncParallelism)
+    }
+
+    @Test
+    fun `sync parallelism out of range fails`() {
+        for (bad in listOf("0", "17", "abc")) {
+            val e = assertFailsWith<IllegalArgumentException> {
+                DaemonConfig.fromEnv(mapOf("MIMIR_SYNC_PARALLELISM" to bad))
+            }
+            assertEquals("MIMIR_SYNC_PARALLELISM must be a number from 1 to 16, got '$bad'", e.message)
+        }
+    }
+
+    @Test
+    fun `sync parallelism is saved to and read from config json`() {
+        val dir = createTempDirectory("mimir-config")
+        DaemonConfig(syncParallelism = 6).save(dir.toString())
+
+        assertEquals(6, DaemonConfig.readFile(dir.toString()).syncParallelism)
+    }
 }

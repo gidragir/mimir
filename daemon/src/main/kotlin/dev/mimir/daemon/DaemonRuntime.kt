@@ -341,9 +341,16 @@ class DaemonRuntime(
 
         val rules = dev.mimir.core.rules.SyncRules()
         val watcher = NioWatchServiceVaultWatcher(Paths.get(vaultPath), rules)
-        val vault = FileSystemLocalVault(Path(vaultPath), rules, watcher)
+        val vault = FileSystemLocalVault(Path(vaultPath), rules, watcher, ioDispatcher = Dispatchers.IO)
         val encrypted = EncryptedRemoteStorage(remote, cipher, reservedRootNames = setOf(CANARY_FILENAME))
-        val engine = DefaultSyncEngine(vault, encrypted, JsonSyncStateStore(configDir.resolve("index.json")), rules = rules)
+        val engine = DefaultSyncEngine(
+            vault,
+            encrypted,
+            JsonSyncStateStore(configDir.resolve("index.json")),
+            rules = rules,
+            parallelism = config.syncParallelism,
+            dispatcher = Dispatchers.IO,
+        )
         val scheduler = SyncScheduler(
             syncEngine = engine,
             syncInterval = config.syncIntervalSeconds.seconds,
