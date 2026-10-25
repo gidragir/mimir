@@ -98,12 +98,10 @@ class ConflictResolverTest {
         )
 
         val localContent = "Local changes content"
-        val remoteContent = "Remote conflicting content"
 
         val outcome = resolver.resolveConflict(
             details = details,
             localSource = bufferOf(localContent),
-            remoteSource = bufferOf(remoteContent),
         )
 
         assertEquals("notes/todo.md", outcome.mainPath)

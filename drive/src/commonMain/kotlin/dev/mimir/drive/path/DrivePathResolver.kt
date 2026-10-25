@@ -24,6 +24,13 @@ class DrivePathResolver(
     private val rootFolderName: String = "Mimir",
 ) {
     private val mutex = Mutex()
+
+    /**
+     * Сериализует «найти → создать» папок: без неё параллельные загрузки в новую папку оба не находят её
+     * и создают дубликаты с одним именем. Отдельный от [mutex] кэша; [mutex] никогда не удерживается
+     * при захвате этого, поэтому самоблокировки нет.
+     */
+    private val folderCreationMutex = Mutex()
     private var rootFolderId: String? = null
     private val folderCache = mutableMapOf<String, String>()
     private val fileCache = mutableMapOf<String, GoogleDriveFile>()
@@ -172,7 +179,12 @@ class DrivePathResolver(
         if (dir.value.isEmpty()) {
             return resolveRootFolderId()
         }
+        // Только поиск ничего не создаёт — блокировка не нужна.
+        if (!createIfMissing) return walkFolders(dir, createIfMissing = false)
+        return folderCreationMutex.withLock { walkFolders(dir, createIfMissing = true) }
+    }
 
+    private suspend fun walkFolders(dir: RemotePath, createIfMissing: Boolean): String? {
         var currentParentId = resolveRootFolderId()
         val currentSegments = mutableListOf<String>()
 

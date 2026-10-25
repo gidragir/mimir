@@ -3,6 +3,8 @@ package dev.mimir.core
 import dev.mimir.core.sync.DefaultSyncEngine
 import dev.mimir.core.sync.InMemorySyncStateStore
 import dev.mimir.core.testing.InMemoryLocalVault
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.test.runTest
 import kotlinx.io.Buffer
 import kotlinx.io.Source
@@ -20,8 +22,12 @@ class SyncEngineDeleteSafetyTest {
     private fun bufferOf(text: String): Buffer =
         Buffer().also { it.write(text.encodeToByteArray()) }
 
-    /** Обёртка над [InMemoryRemoteStorage]: может «прятать» файлы из списка и ломать [stat]. */
+    /**
+     * Обёртка над [InMemoryRemoteStorage]: может «прятать» файлы из списка и ломать [stat].
+     * Движок вызывает её из параллельных воркеров, поэтому счётчики — под [lock].
+     */
     private class FlakyRemote(val delegate: InMemoryRemoteStorage = InMemoryRemoteStorage()) : RemoteStorage {
+        private val lock = Mutex()
         val hiddenFromListing = mutableSetOf<String>()
         var failStatWith: Exception? = null
         var writes = 0
@@ -32,7 +38,7 @@ class SyncEngineDeleteSafetyTest {
             delegate.list(dir).filterNot { !it.isDirectory && it.path.value in hiddenFromListing }
 
         override suspend fun stat(path: RemotePath): RemoteEntry? {
-            statCalls += path.value
+            lock.withLock { statCalls += path.value }
             failStatWith?.let { throw it }
             return delegate.stat(path)
         }
@@ -40,12 +46,12 @@ class SyncEngineDeleteSafetyTest {
         override suspend fun read(path: RemotePath): Source = delegate.read(path)
 
         override suspend fun write(path: RemotePath, data: Source): RemoteEntry {
-            writes++
+            lock.withLock { writes++ }
             return delegate.write(path, data)
         }
 
         override suspend fun delete(path: RemotePath) {
-            deletes++
+            lock.withLock { deletes++ }
             delegate.delete(path)
         }
     }
@@ -63,6 +69,42 @@ class SyncEngineDeleteSafetyTest {
         vault.write("b.md", bufferOf("B"))
         engine.syncNow()
         assertEquals(setOf("a.md", "b.md"), store.load().records.keys)
+    }
+
+    /**
+     * Процесс упал после `DeleteRemote`, но до пакетного сохранения индекса: файла нет нигде, а запись
+     * осталась. Прогон забывает её без обращений к облаку; файл, позже восстановленный с тем же
+     * содержимым, — новый файл (`Upload`), а не «удалённый в Drive» (`DeleteLocal`).
+     */
+    @Test
+    fun staleRecordIsForgottenSoRestoredFileUploads() = runTest {
+        val f = Fixture()
+        f.syncTwoFiles()
+        val staleIndex = f.store.load()
+        f.vault.deleteByPath("a.md")
+        f.remote.delegate.delete(RemotePath("a.md"))
+        f.store.save(staleIndex)
+        f.remote.writes = 0
+        f.remote.deletes = 0
+
+        f.engine.syncNow()
+
+        assertEquals(setOf("b.md"), f.store.load().records.keys)
+        assertEquals(0, f.remote.writes)
+        assertEquals(0, f.remote.deletes)
+        assertTrue(f.remote.statCalls.isEmpty())
+        val p = assertNotNull(f.engine.progress.value)
+        assertEquals(0, p.total)
+        assertTrue(p.completed.isEmpty() && p.problems.isEmpty(), "$p")
+        assertEquals(SyncStatus.Idle, f.engine.status.value)
+
+        f.vault.write("a.md", bufferOf("A"))
+        f.engine.syncNow()
+
+        assertNotNull(f.vault.getEntry("a.md"), "restored file must not be deleted")
+        assertNotNull(f.remote.delegate.stat(RemotePath("a.md")))
+        assertEquals(1, f.remote.writes)
+        assertEquals(setOf("a.md", "b.md"), f.store.load().records.keys)
     }
 
     @Test

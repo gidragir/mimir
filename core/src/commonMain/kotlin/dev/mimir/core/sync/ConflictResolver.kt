@@ -33,10 +33,13 @@ data class ConflictOutcome(
 interface ConflictResolver {
     suspend fun resolve(conflict: Conflict): Resolution = Resolution.KeepLocal
 
+    /**
+     * Куда положить версии при настоящем конфликте. [localSource] — локальное содержимое основного файла;
+     * удалённое до решения не скачивается (спека sync-io §4).
+     */
     suspend fun resolveConflict(
         details: ConflictDetails,
         localSource: Source,
-        remoteSource: Source,
     ): ConflictOutcome
 
     companion object {
@@ -75,7 +78,6 @@ class DefaultConflictResolver(
     override suspend fun resolveConflict(
         details: ConflictDetails,
         localSource: Source,
-        remoteSource: Source,
     ): ConflictOutcome {
         val conflictPath = ConflictResolver.generateConflictPath(details.path, clock.now())
         return ConflictOutcome(

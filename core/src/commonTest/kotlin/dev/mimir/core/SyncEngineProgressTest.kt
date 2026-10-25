@@ -12,7 +12,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlinx.io.Buffer
+import kotlinx.io.IOException
+import kotlinx.io.RawSource
 import kotlinx.io.Source
+import kotlinx.io.buffered
 import kotlinx.io.readByteArray
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -332,6 +335,93 @@ class SyncEngineProgressTest {
         assertNotNull(f.vault.getEntry("a/b/deep.md"))
         assertNotNull(f.vault.getEntry("top.md"))
     }
+
+    @Test
+    fun reconcileShowsVerifyAndCompletesAsConflict() = runTest {
+        val f = Fixture()
+        f.vault.write("a.md", bufferOf("base"))
+        f.engine.syncNow()
+        f.vault.write("a.md", bufferOf("local edit"))
+        f.remote.write(RemotePath("a.md"), bufferOf("remote edit, longer"))
+
+        val seen = mutableListOf<SyncProgress>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            f.engine.progress.collect { p -> if (p != null) seen += p }
+        }
+
+        f.engine.syncNow()
+
+        val applying = seen.first { it.phase == SyncPhase.Applying }
+        assertEquals(listOf(SyncItem("a.md", SyncItemAction.Verify)), applying.upcoming)
+        assertTrue(seen.any { it.current == SyncItem("a.md", SyncItemAction.Verify) })
+        val p = assertNotNull(f.engine.progress.value)
+        assertEquals(1, p.total)
+        assertEquals(1, p.done)
+        assertEquals(listOf("a.md" to SyncItemAction.Conflict), p.completed.map { it.path to it.action })
+        assertTrue(p.problems.isEmpty())
+    }
+
+    @Test
+    fun matchingReconcileIsDoneButNotCompleted() = runTest {
+        val f = Fixture()
+        f.vault.write("same.md", bufferOf("identical"))
+        f.remote.write(RemotePath("same.md"), bufferOf("identical"))
+
+        f.engine.syncNow()
+
+        val p = assertNotNull(f.engine.progress.value)
+        assertEquals(1, p.total)
+        assertEquals(1, p.done)
+        assertTrue(p.completed.isEmpty())
+        assertTrue(p.problems.isEmpty())
+        val record = assertNotNull(f.store.load().find("same.md"))
+        assertEquals(Sha256.digest("identical".encodeToByteArray()).toHex(), record.baseHash)
+        assertEquals(f.remote.stat(RemotePath("same.md"))?.revision, record.remoteRevision)
+    }
+
+    @Test
+    fun localReadFailureWhileStreamingUploadIsReadProblem() = runTest {
+        val inner = InMemoryLocalVault()
+        val vault = object : LocalVault by inner {
+            override suspend fun read(id: VaultFileId): Source = failingSource(IOException("disk went away"))
+        }
+        val remote = InMemoryRemoteStorage()
+        val store = InMemorySyncStateStore()
+        val engine = DefaultSyncEngine(vault, remote, store)
+        inner.write("a.md", bufferOf("A"))
+
+        engine.syncNow()
+
+        val problem = assertNotNull(engine.progress.value).problems.single()
+        assertEquals("a.md", problem.path)
+        assertEquals(SyncItemAction.Upload, problem.action)
+        assertEquals(SyncProblemKind.ReadFailed, problem.kind)
+        assertNull(store.load().find("a.md"))
+    }
+
+    @Test
+    fun decryptFailureWhileStreamingDownloadIsDecryptProblem() = runTest {
+        val raw = InMemoryRemoteStorage()
+        raw.write(RemotePath("bad.md"), bufferOf("garbage"))
+        val lazilyFailing = object : RemoteStorage by raw {
+            override suspend fun read(path: RemotePath): Source = failingSource(CryptException("bad block"))
+        }
+        val f = Fixture(remote = raw, remoteStorage = lazilyFailing)
+
+        f.engine.syncNow()
+
+        val problem = assertNotNull(f.engine.progress.value).problems.single()
+        assertEquals("bad.md", problem.path)
+        assertEquals(SyncItemAction.Download, problem.action)
+        assertEquals(SyncProblemKind.DecryptFailed, problem.kind)
+        assertNull(f.store.load().find("bad.md"))
+    }
+
+    /** Источник, который открывается успешно, а падает при первом чтении — как потоковая расшифровка. */
+    private fun failingSource(error: Exception): Source = object : RawSource {
+        override fun readAtMostTo(sink: Buffer, byteCount: Long): Long = throw error
+        override fun close() = Unit
+    }.buffered()
 
     private fun assertContentEqualsText(expected: String, source: Source) =
         assertEquals(expected, source.readByteArray().decodeToString())

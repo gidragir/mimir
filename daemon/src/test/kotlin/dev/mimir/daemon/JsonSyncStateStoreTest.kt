@@ -11,6 +11,7 @@ import kotlin.io.path.listDirectoryEntries
 import kotlin.io.path.readText
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import kotlin.time.Instant
 
 class JsonSyncStateStoreTest {
@@ -62,5 +63,24 @@ class JsonSyncStateStoreTest {
 
         assertEquals(true, failure.isFailure)
         assertEquals("{ garbage", file.readText())
+    }
+
+    @Test
+    fun `blocking file io runs on the injected io dispatcher`() = runTest {
+        var dispatched = 0
+        val counting = object : kotlinx.coroutines.CoroutineDispatcher() {
+            override fun dispatch(context: kotlin.coroutines.CoroutineContext, block: Runnable) {
+                dispatched++
+                block.run()
+            }
+        }
+        val store = JsonSyncStateStore(file, counting)
+
+        store.save(SyncIndex(records = mapOf(record.relativePath to record)))
+        val afterSave = dispatched
+        store.load()
+
+        assertTrue(afterSave > 0, "save must switch to the io dispatcher")
+        assertTrue(dispatched > afterSave, "load must switch to the io dispatcher")
     }
 }

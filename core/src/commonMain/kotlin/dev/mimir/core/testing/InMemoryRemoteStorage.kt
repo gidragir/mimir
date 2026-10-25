@@ -1,13 +1,19 @@
 package dev.mimir.core
 
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.io.Buffer
 import kotlinx.io.Source
 import kotlinx.io.readByteArray
 import kotlin.time.Clock
 import kotlin.time.Instant
 
-/** Хранилище в памяти: для тестов и как образец адаптера. */
+/**
+ * Хранилище в памяти: для тестов и как образец адаптера. Состояние — под [lock]: движок вызывает
+ * хранилище из параллельных воркеров на многопоточном диспетчере.
+ */
 class InMemoryRemoteStorage : ChangeFeedStorage {
+    private val lock = Mutex()
     private class Stored(val bytes: ByteArray, val modifiedAt: Instant, val revision: String)
     private data class ChangeRecord(val version: Long, val change: RemoteChange)
 
@@ -19,16 +25,20 @@ class InMemoryRemoteStorage : ChangeFeedStorage {
     /** Если задано, [list] бросает это исключение (тестовый хук). */
     var failListWith: Throwable? = null
 
-    override suspend fun getLatestChangeToken(): String = changeVersion.toString()
+    override suspend fun getLatestChangeToken(): String = lock.withLock { changeVersion.toString() }
 
-    override suspend fun getChanges(sinceToken: String): RemoteChangesResult {
+    override suspend fun getChanges(sinceToken: String): RemoteChangesResult = lock.withLock {
         val since = sinceToken.toLongOrNull() ?: 0L
         val filtered = changeHistory.filter { it.version > since }.map { it.change }
-        return RemoteChangesResult(filtered, changeVersion.toString())
+        RemoteChangesResult(filtered, changeVersion.toString())
     }
 
     override suspend fun list(dir: RemotePath): List<RemoteEntry> {
         failListWith?.let { throw it }
+        return lock.withLock { listLocked(dir) }
+    }
+
+    private fun listLocked(dir: RemotePath): List<RemoteEntry> {
         val prefix = dir.segments
         val result = LinkedHashMap<String, RemoteEntry>()
         for ((key, stored) in files) {
@@ -43,25 +53,29 @@ class InMemoryRemoteStorage : ChangeFeedStorage {
         return result.values.toList()
     }
 
-    override suspend fun stat(path: RemotePath): RemoteEntry? {
-        files[path.value]?.let { return entry(path, it) }
-        return list(path).firstOrNull()?.let { RemoteEntry(path, 0, it.modifiedAt, null, isDirectory = true) }
+    override suspend fun stat(path: RemotePath): RemoteEntry? = lock.withLock {
+        files[path.value]?.let { return@withLock entry(path, it) }
+        listLocked(path).firstOrNull()?.let { RemoteEntry(path, 0, it.modifiedAt, null, isDirectory = true) }
     }
 
-    override suspend fun read(path: RemotePath): Source {
+    override suspend fun read(path: RemotePath): Source = lock.withLock {
         val stored = files[path.value] ?: throw NoSuchElementException("No such file: ${path.value}")
-        return Buffer().also { it.write(stored.bytes) }
+        Buffer().also { it.write(stored.bytes) }
     }
 
     override suspend fun write(path: RemotePath, data: Source): RemoteEntry {
-        val stored = Stored(data.readByteArray(), Clock.System.now(), "r${++revisionCounter}")
-        files[path.value] = stored
-        val resultEntry = entry(path, stored)
-        changeHistory.add(ChangeRecord(++changeVersion, RemoteChange(path, isDeleted = false, entry = resultEntry)))
-        return resultEntry
+        // поток читается до захвата блокировки: он может идти из другого хранилища
+        val bytes = data.readByteArray()
+        return lock.withLock {
+            val stored = Stored(bytes, Clock.System.now(), "r${++revisionCounter}")
+            files[path.value] = stored
+            val resultEntry = entry(path, stored)
+            changeHistory.add(ChangeRecord(++changeVersion, RemoteChange(path, isDeleted = false, entry = resultEntry)))
+            resultEntry
+        }
     }
 
-    override suspend fun delete(path: RemotePath) {
+    override suspend fun delete(path: RemotePath): Unit = lock.withLock {
         if (files.remove(path.value) != null) {
             changeHistory.add(ChangeRecord(++changeVersion, RemoteChange(path, isDeleted = true, entry = null)))
         }

@@ -1,12 +1,14 @@
 package dev.mimir.core.fs
 
 import dev.mimir.core.VaultFileId
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlinx.io.Buffer
 import kotlinx.io.buffered
 import kotlinx.io.files.Path
 import kotlinx.io.readByteArray
 import java.nio.file.Files
+import kotlin.coroutines.CoroutineContext
 import kotlin.io.path.createDirectories
 import kotlin.io.path.exists
 import kotlin.io.path.listDirectoryEntries
@@ -210,5 +212,40 @@ class FileSystemLocalVaultTest {
         } finally {
             outside.toFile().deleteRecursively()
         }
+    }
+
+    private class CountingDispatcher : CoroutineDispatcher() {
+        var dispatches = 0
+            private set
+
+        override fun isDispatchNeeded(context: CoroutineContext): Boolean = true
+
+        override fun dispatch(context: CoroutineContext, block: Runnable) {
+            dispatches++
+            block.run()
+        }
+    }
+
+    @Test
+    fun `operations run on the injected dispatcher`() = runTest {
+        put("a.md", "a")
+        put("b.md", "b")
+        val dispatcher = CountingDispatcher()
+        val injected = FileSystemLocalVault(Path(root.toString()), ioDispatcher = dispatcher)
+
+        suspend fun assertDispatches(name: String, block: suspend () -> Unit) {
+            val before = dispatcher.dispatches
+            block()
+            assertTrue(dispatcher.dispatches > before, "$name did not use the injected dispatcher")
+        }
+
+        assertDispatches("list") { injected.list() }
+        assertDispatches("hiddenPaths") { injected.hiddenPaths() }
+        assertDispatches("getEntry") { assertNotNull(injected.getEntry("a.md")) }
+        assertDispatches("read") { injected.read(VaultFileId("fs:a.md")).close() }
+        assertDispatches("write") { injected.write("c.md", source("c")) }
+        assertDispatches("deleteByPath") { injected.deleteByPath("b.md") }
+        assertDispatches("write by id") { injected.write(VaultFileId("fs:a.md"), source("z")) }
+        assertDispatches("delete by id") { injected.delete(VaultFileId("fs:c.md")) }
     }
 }

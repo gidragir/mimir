@@ -1,34 +1,33 @@
 package dev.mimir.core.sync
 
 import dev.mimir.core.CompletedItem
-import dev.mimir.core.CryptException
-import dev.mimir.core.LocalEntry
 import dev.mimir.core.LocalVault
 import dev.mimir.core.RemoteAuthException
-import dev.mimir.core.RemoteEntry
 import dev.mimir.core.RemotePath
 import dev.mimir.core.RemoteStorage
 import dev.mimir.core.RemoteUnavailableException
-import dev.mimir.core.Sha256
 import dev.mimir.core.SyncEngine
 import dev.mimir.core.SyncItem
 import dev.mimir.core.SyncItemAction
 import dev.mimir.core.SyncPhase
 import dev.mimir.core.SyncProblem
-import dev.mimir.core.SyncProblemKind
 import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncAbortedException
 import dev.mimir.core.SyncStatus
-import dev.mimir.core.VaultFileId
 import dev.mimir.core.rules.SyncRules
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.io.Buffer
-import kotlinx.io.readByteArray
+import kotlinx.coroutines.withContext
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Clock
 
@@ -39,7 +38,14 @@ class DefaultSyncEngine(
     private val conflictResolver: ConflictResolver = DefaultConflictResolver(),
     private val rules: SyncRules = SyncRules(),
     private val clock: Clock = Clock.System,
+    private val parallelism: Int = 4,
+    dispatcher: CoroutineDispatcher = Dispatchers.Default,
+    private val indexSaveEvery: Int = 100,
 ) : SyncEngine {
+
+    init {
+        require(parallelism in 1..16) { "parallelism must be from 1 to 16, got $parallelism" }
+    }
 
     private val _status = MutableStateFlow<SyncStatus>(SyncStatus.Idle)
     override val status: StateFlow<SyncStatus> = _status.asStateFlow()
@@ -49,6 +55,7 @@ class DefaultSyncEngine(
 
     private val syncMutex = Mutex()
     private val planBuilder = SyncPlanBuilder(rules)
+    private val executor = ActionExecutor(localVault, remoteStorage, conflictResolver, dispatcher)
 
     override suspend fun start() = Unit
 
@@ -83,9 +90,8 @@ class DefaultSyncEngine(
 
     private suspend fun performSync() {
         _progress.value = SyncProgress(phase = SyncPhase.Scanning, startedAt = clock.now())
-        val problems = mutableListOf<SyncProblem>()
 
-        var currentIndex = stateStore.load()
+        val index = IndexUpdater(stateStore, stateStore.load(), indexSaveEvery)
         val localFiles = localVault.list()
         val hiddenPaths = localVault.hiddenPaths()
         _progress.update { it?.copy(scanned = localFiles.size) }
@@ -96,28 +102,54 @@ class DefaultSyncEngine(
         // Пустой удалённый список при непустом индексе почти наверняка означает сбой
         // (отстающий поиск Drive, пустой дубль папки хранилища, чужой аккаунт), а не то,
         // что пользователь удалил всё. Иначе план превратил бы это в удаление всех локальных файлов.
-        if (remoteFiles.isEmpty() && currentIndex.records.isNotEmpty()) {
+        if (remoteFiles.isEmpty() && index.current.records.isNotEmpty()) {
             throw SyncAbortedException(EMPTY_REMOTE_MESSAGE)
         }
 
-        val hashCalculator: suspend (String, Boolean) -> String = { path, isLocal ->
-            if (isLocal) {
-                val entry = localVault.getEntry(path)
-                    ?: throw NoSuchElementException("Local file not found for hash: $path")
-                Sha256.digest(readLocal(entry.id)).toHex()
-            } else {
-                val bytes = remoteStorage.read(RemotePath(path)).readByteArray()
-                Sha256.digest(bytes).toHex()
+        _progress.update { it?.copy(phase = SyncPhase.Comparing) }
+        val plan = planBuilder.buildPlan(localFiles, remoteFiles, index.current, executor::localHash, hiddenPaths) { path, error ->
+            val problem = problemOf(path, SyncItemAction.Upload, error)
+            _progress.update { it?.copy(problems = it.problems + problem) }
+        }
+
+        var failure: Throwable? = null
+        try {
+            applyPlan(plan, index)
+        } catch (e: Throwable) {
+            failure = e
+            throw e
+        } finally {
+            // Отмена или сбой посреди переносов: всё уже выполненное должно попасть в индекс.
+            withContext(NonCancellable) {
+                try {
+                    index.flush()
+                } catch (e: Throwable) {
+                    failure?.addSuppressed(e) ?: throw e
+                }
             }
         }
+    }
 
-        _progress.update { it?.copy(phase = SyncPhase.Comparing) }
-        val plan = planBuilder.buildPlan(localFiles, remoteFiles, currentIndex, hashCalculator, hiddenPaths) { path, error ->
-            problems += problemOf(path, SyncItemAction.Upload, error)
-            _progress.update { it?.copy(problems = problems.toList()) }
+    /**
+     * Спека §6: метаданные (`UpdateMetadata`, `ForgetRecord`) — сразу в индекс, без IO, затем переносы, затем удаления (переименование =
+     * удаление + отправка: новая копия появляется до удаления старой). Каждая фаза — [parallelism]
+     * воркеров над общей очередью.
+     */
+    private suspend fun applyPlan(plan: SyncPlan, index: IndexUpdater) {
+        val metadata = mutableListOf<(SyncIndex) -> SyncIndex>()
+        val transfers = mutableListOf<SyncAction>()
+        val deletes = mutableListOf<SyncAction>()
+        // Исчерпывающий when: новое действие плана не потеряется молча ни в одной фазе.
+        for (action in plan.actions) {
+            when (action) {
+                is SyncAction.UpdateMetadata -> metadata += { it.withRecord(action.record) }
+                is SyncAction.ForgetRecord -> metadata += { it.withoutRecord(action.path) }
+                is SyncAction.Upload, is SyncAction.Download, is SyncAction.Reconcile -> transfers += action
+                is SyncAction.DeleteRemote, is SyncAction.DeleteLocal -> deletes += action
+                is SyncAction.NoOp -> Unit
+            }
         }
-
-        val counted = plan.actions.mapNotNull { action -> action.toItemAction()?.let { SyncItem(action.path, it) } }
+        val counted = (transfers + deletes).mapNotNull { action -> action.toItemAction()?.let { SyncItem(action.path, it) } }
         _progress.update {
             it?.copy(
                 phase = SyncPhase.Applying,
@@ -128,65 +160,37 @@ class DefaultSyncEngine(
             )
         }
 
-        var position = 0
-        for (action in plan.actions) {
-            val itemAction = action.toItemAction()
-            if (itemAction == null) {
-                currentIndex = applySilently(action, currentIndex)
-                continue
-            }
-            val item = counted[position]
-            position++
-            val upcoming = counted.subList(position, minOf(position + SyncProgress.UPCOMING_LIMIT, counted.size))
-            _progress.update { it?.copy(current = item, upcoming = upcoming.toList()) }
+        for (change in metadata) index.update(change)
+        runPhase(transfers, offset = 0, counted, index)
+        runPhase(deletes, offset = transfers.size, counted, index)
+    }
 
-            val succeeded = try {
-                if (action is SyncAction.DeleteLocal && remoteStillExists(action, currentIndex)) {
-                    // Список удалённых файлов отстал: файл на месте. Локальный файл и запись индекса
-                    // не трогаем — следующий прогон проверит снова. Для прогресса это «обработано»
-                    // (done растёт), но не «выполнено» (в completed не попадает) и не проблема.
-                    false
-                } else {
-                    currentIndex = apply(action, currentIndex)
-                    true
+    /**
+     * Ошибка воркера, которую он не превратил в проблему (отмена, нет сети, нет доступа, сбой записи
+     * индекса), отменяет остальных через [coroutineScope] и пробрасывается.
+     */
+    private suspend fun runPhase(actions: List<SyncAction>, offset: Int, counted: List<SyncItem>, index: IndexUpdater) {
+        if (actions.isEmpty()) return
+        val queue = Channel<Int>(Channel.UNLIMITED)
+        actions.indices.forEach { queue.trySend(it) }
+        queue.close()
+        coroutineScope {
+            repeat(minOf(parallelism, actions.size)) {
+                launch {
+                    for (i in queue) applyAction(actions[i], offset + i, counted, index)
                 }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: RemoteUnavailableException) {
-                throw e
-            } catch (e: RemoteAuthException) {
-                throw e
-            } catch (e: Exception) {
-                problems += problemOf(action.path, itemAction, e)
-                false
-            }
-
-            val finishedAt = clock.now()
-            _progress.update { p ->
-                p?.copy(
-                    done = p.done + 1,
-                    bytesDone = p.bytesDone + action.weight(),
-                    completed = if (succeeded) {
-                        (p.completed + CompletedItem(item.path, item.action, finishedAt))
-                            .takeLast(SyncProgress.COMPLETED_LIMIT)
-                    } else {
-                        p.completed
-                    },
-                    problems = problems.toList(),
-                )
             }
         }
     }
 
-    /**
-     * Перед удалением локального файла заново спрашивает удалённое хранилище ([RemoteStorage.stat]).
-     * Сетевые/авторизационные ошибки прерывают прогон; любая другая ошибка проверки —
-     * [DeleteVerificationFailure] (файл не удаляется, пользователь видит проблему).
-     */
-    private suspend fun remoteStillExists(action: SyncAction.DeleteLocal, index: SyncIndex): Boolean {
-        val remotePath = index.find(action.path)?.remotePath ?: RemotePath(action.path)
-        return try {
-            remoteStorage.stat(remotePath) != null
+    private suspend fun applyAction(action: SyncAction, position: Int, counted: List<SyncItem>, index: IndexUpdater) {
+        val item = counted[position]
+        val upcoming = counted.subList(position + 1, minOf(position + 1 + SyncProgress.UPCOMING_LIMIT, counted.size)).toList()
+        _progress.update { it?.copy(current = item, upcoming = upcoming) }
+
+        var problem: SyncProblem? = null
+        val result = try {
+            executor.execute(action, index.current)
         } catch (e: CancellationException) {
             throw e
         } catch (e: RemoteUnavailableException) {
@@ -194,175 +198,45 @@ class DefaultSyncEngine(
         } catch (e: RemoteAuthException) {
             throw e
         } catch (e: Exception) {
-            throw DeleteVerificationFailure(e)
+            problem = problemOf(action.path, item.action, e)
+            null
+        }
+        if (result != null && result.changesIndex) index.update(result::applyTo)
+
+        val completedAs = result?.completedAs
+        val finishedAt = clock.now()
+        _progress.update { p ->
+            p?.copy(
+                done = p.done + 1,
+                bytesDone = p.bytesDone + action.weight(),
+                completed = if (completedAs != null) {
+                    (p.completed + CompletedItem(item.path, completedAs, finishedAt))
+                        .takeLast(SyncProgress.COMPLETED_LIMIT)
+                } else {
+                    p.completed
+                },
+                problems = if (problem != null) p.problems + problem else p.problems,
+            )
         }
     }
 
-    private suspend fun applySilently(action: SyncAction, index: SyncIndex): SyncIndex = when (action) {
-        is SyncAction.UpdateMetadata -> index.withRecord(action.record).also { stateStore.save(it) }
-        else -> index
-    }
-
-    private suspend fun apply(action: SyncAction, index: SyncIndex): SyncIndex {
-        var currentIndex = index
-        when (action) {
-            is SyncAction.Upload -> {
-                val bytes = readLocal(action.localEntry.id)
-                val hash = Sha256.digest(bytes).toHex()
-                val remoteEntry = remoteStorage.write(action.remotePath, Buffer().also { it.write(bytes) })
-                val record = FileSyncRecord(
-                    relativePath = action.path,
-                    localId = action.localEntry.id,
-                    baseHash = hash,
-                    localSize = action.localEntry.size,
-                    localModifiedAt = action.localEntry.modifiedAt,
-                    remotePath = remoteEntry.path,
-                    remoteRevision = remoteEntry.revision,
-                    remoteModifiedAt = remoteEntry.modifiedAt,
-                    remoteSize = remoteEntry.size,
-                )
-                currentIndex = currentIndex.withRecord(record)
-                stateStore.save(currentIndex)
-            }
-
-            is SyncAction.Download -> {
-                val bytes = remoteStorage.read(action.remoteEntry.path).readByteArray()
-                val hash = Sha256.digest(bytes).toHex()
-                val localEntry = writeLocal(action.path, bytes)
-                val record = FileSyncRecord(
-                    relativePath = action.path,
-                    localId = localEntry.id,
-                    baseHash = hash,
-                    localSize = localEntry.size,
-                    localModifiedAt = localEntry.modifiedAt,
-                    remotePath = action.remoteEntry.path,
-                    remoteRevision = action.remoteEntry.revision,
-                    remoteModifiedAt = action.remoteEntry.modifiedAt,
-                    remoteSize = action.remoteEntry.size,
-                )
-                currentIndex = currentIndex.withRecord(record)
-                stateStore.save(currentIndex)
-            }
-
-            is SyncAction.Conflict -> {
-                val localSource = Buffer().also { it.write(readLocal(action.localEntry.id)) }
-                val remoteSource = remoteStorage.read(action.remoteEntry.path)
-                val details = ConflictDetails(action.path, action.localEntry, action.remoteEntry, action.baseRecord)
-                val outcome = conflictResolver.resolveConflict(details, localSource, remoteSource)
-
-                val remoteFresh = remoteStorage.read(action.remoteEntry.path)
-                val remoteBytes = remoteFresh.readByteArray()
-                val remoteHash = Sha256.digest(remoteBytes).toHex()
-
-                // Сначала локальная копия конфликта, и только потом перезапись основного файла:
-                // если копию записать не удалось, локальная правка остаётся на месте
-                // (следующий прогон снова увидит конфликт). Упадёт запись основного файла —
-                // в худшем случае появится лишняя копия, но не потеря данных.
-                val conflictBytes = outcome.conflictSource.readByteArray()
-                val conflictHash = Sha256.digest(conflictBytes).toHex()
-                val conflictLocalEntry = writeLocal(outcome.conflictPath, conflictBytes)
-
-                val mainLocalEntry = writeLocal(outcome.mainPath, remoteBytes)
-
-                val conflictRemotePath = RemotePath(outcome.conflictPath)
-                val conflictRemoteEntry = remoteStorage.write(conflictRemotePath, Buffer().also { it.write(conflictBytes) })
-
-                val mainRecord = FileSyncRecord(
-                    relativePath = outcome.mainPath,
-                    localId = mainLocalEntry.id,
-                    baseHash = remoteHash,
-                    localSize = mainLocalEntry.size,
-                    localModifiedAt = mainLocalEntry.modifiedAt,
-                    remotePath = action.remoteEntry.path,
-                    remoteRevision = action.remoteEntry.revision,
-                    remoteModifiedAt = action.remoteEntry.modifiedAt,
-                    remoteSize = action.remoteEntry.size,
-                )
-                val conflictRecord = FileSyncRecord(
-                    relativePath = outcome.conflictPath,
-                    localId = conflictLocalEntry.id,
-                    baseHash = conflictHash,
-                    localSize = conflictLocalEntry.size,
-                    localModifiedAt = conflictLocalEntry.modifiedAt,
-                    remotePath = conflictRemoteEntry.path,
-                    remoteRevision = conflictRemoteEntry.revision,
-                    remoteModifiedAt = conflictRemoteEntry.modifiedAt,
-                    remoteSize = conflictRemoteEntry.size,
-                )
-                currentIndex = currentIndex.withRecord(mainRecord).withRecord(conflictRecord)
-                stateStore.save(currentIndex)
-            }
-
-            is SyncAction.DeleteRemote -> {
-                remoteStorage.delete(action.remotePath)
-                currentIndex = currentIndex.withoutRecord(action.path)
-                stateStore.save(currentIndex)
-            }
-
-            is SyncAction.DeleteLocal -> {
-                deleteLocal(action.localId)
-                currentIndex = currentIndex.withoutRecord(action.path)
-                stateStore.save(currentIndex)
-            }
-
-            is SyncAction.UpdateMetadata, is SyncAction.NoOp -> currentIndex = applySilently(action, currentIndex)
-        }
-        return currentIndex
-    }
-
-    private suspend fun readLocal(id: VaultFileId): ByteArray =
-        localIo(SyncProblemKind.ReadFailed) { localVault.read(id).readByteArray() }
-
-    private suspend fun writeLocal(path: String, bytes: ByteArray): LocalEntry =
-        localIo(SyncProblemKind.WriteFailed) { localVault.write(path, Buffer().also { it.write(bytes) }) }
-
-    private suspend fun deleteLocal(id: VaultFileId) =
-        localIo(SyncProblemKind.WriteFailed) { localVault.delete(id) }
-
-    private inline fun <T> localIo(kind: SyncProblemKind, block: () -> T): T =
-        try {
-            block()
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            throw LocalIoFailure(kind, e)
-        }
-
-    private class DeleteVerificationFailure(override val cause: Exception) :
-        Exception("Не удалось проверить удалённый файл перед удалением: ${cause.message ?: cause::class.simpleName}", cause)
-
-    private class LocalIoFailure(val kind: SyncProblemKind, override val cause: Exception) : Exception(cause.message, cause)
-
-    private fun problemOf(path: String, action: SyncItemAction, error: Throwable): SyncProblem {
-        val (kind, origin) = when (error) {
-            is LocalIoFailure -> error.kind to error.cause
-            is DeleteVerificationFailure -> SyncProblemKind.Unknown to error
-            is CryptException -> SyncProblemKind.DecryptFailed to error
-            else -> SyncProblemKind.Unknown to error
-        }
-        val detail = origin.message ?: origin::class.simpleName ?: "Unknown error"
-        return SyncProblem(path, action, kind, detail)
-    }
-
+    /** Пункт прогресса; `Reconcile` показывается как сверка, его исход — в `completed`. */
     private fun SyncAction.toItemAction(): SyncItemAction? = when (this) {
         is SyncAction.Upload -> SyncItemAction.Upload
         is SyncAction.Download -> SyncItemAction.Download
         is SyncAction.DeleteLocal -> SyncItemAction.DeleteLocal
         is SyncAction.DeleteRemote -> SyncItemAction.DeleteRemote
-        is SyncAction.Conflict -> SyncItemAction.Conflict
-        is SyncAction.UpdateMetadata, is SyncAction.NoOp -> null
+        is SyncAction.Reconcile -> SyncItemAction.Verify
+        is SyncAction.UpdateMetadata, is SyncAction.ForgetRecord, is SyncAction.NoOp -> null
     }
 
     private fun SyncAction.weight(): Long = when (this) {
         is SyncAction.Upload -> localEntry.size
         is SyncAction.Download -> remoteEntry.size
-        is SyncAction.Conflict -> localEntry.size + remoteEntry.size
+        is SyncAction.Reconcile -> localEntry.size + remoteEntry.size
         is SyncAction.DeleteLocal, is SyncAction.DeleteRemote -> SyncProgress.DELETE_WEIGHT_BYTES
-        is SyncAction.UpdateMetadata, is SyncAction.NoOp -> 0L
+        is SyncAction.UpdateMetadata, is SyncAction.ForgetRecord, is SyncAction.NoOp -> 0L
     }
-
-    private fun ByteArray.toHex(): String =
-        joinToString("") { (it.toInt() and 0xFF).toString(16).padStart(2, '0') }
 
     private companion object {
         const val EMPTY_REMOTE_MESSAGE =

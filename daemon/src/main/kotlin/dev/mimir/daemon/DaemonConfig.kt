@@ -25,6 +25,7 @@ data class DaemonConfig(
     @JsonNames("googleClientId") val googleDeviceClientId: String? = null,
     @JsonNames("googleClientSecret") val googleDeviceClientSecret: String? = null,
     val syncIntervalSeconds: Long = 30L,
+    val syncParallelism: Int = 4,
     val rootFolder: String = "MimirVault",
     val configDir: String? = null,
 ) {
@@ -57,7 +58,7 @@ data class DaemonConfig(
             "passwordFile=$passwordFile, googleDesktopClientId=$googleDesktopClientId, " +
             "googleDesktopClientSecret=${redact(googleDesktopClientSecret)}, googleDeviceClientId=$googleDeviceClientId, " +
             "googleDeviceClientSecret=${redact(googleDeviceClientSecret)}, " +
-            "syncIntervalSeconds=$syncIntervalSeconds, rootFolder=$rootFolder, configDir=$configDir)"
+            "syncIntervalSeconds=$syncIntervalSeconds, syncParallelism=$syncParallelism, rootFolder=$rootFolder, configDir=$configDir)"
 
     companion object {
         private const val CONFIG_FILE = "config.json"
@@ -106,6 +107,10 @@ private fun DaemonConfig.applyEnv(env: Map<String, String>): DaemonConfig {
         it.toLongOrNull()?.takeIf { seconds -> seconds > 0 }
             ?: throw IllegalArgumentException("MIMIR_SYNC_INTERVAL must be a positive number of seconds, got '$it'")
     } ?: syncIntervalSeconds
+    val parallelism = env["MIMIR_SYNC_PARALLELISM"]?.let {
+        it.toIntOrNull()?.takeIf { n -> n in 1..16 }
+            ?: throw IllegalArgumentException("MIMIR_SYNC_PARALLELISM must be a number from 1 to 16, got '$it'")
+    } ?: syncParallelism
     val legacyId = deprecatedEnv(env, "MIMIR_GOOGLE_CLIENT_ID", "MIMIR_GOOGLE_DEVICE_CLIENT_ID")
     val legacySecret = deprecatedEnv(env, "MIMIR_GOOGLE_CLIENT_SECRET", "MIMIR_GOOGLE_DEVICE_CLIENT_SECRET")
     return copy(
@@ -120,6 +125,7 @@ private fun DaemonConfig.applyEnv(env: Map<String, String>): DaemonConfig {
         googleDeviceClientId = env.nonEmpty("MIMIR_GOOGLE_DEVICE_CLIENT_ID") ?: legacyId ?: googleDeviceClientId,
         googleDeviceClientSecret = env.nonEmpty("MIMIR_GOOGLE_DEVICE_CLIENT_SECRET") ?: legacySecret ?: googleDeviceClientSecret,
         syncIntervalSeconds = interval,
+        syncParallelism = parallelism,
         rootFolder = env["MIMIR_ROOT_FOLDER"] ?: rootFolder,
     )
 }

@@ -37,10 +37,8 @@ Drive — медленное квотируемое сетевое хранил�
 
 ## Известный долг (не копировать как образец)
 
-- `DefaultSyncEngine.performSync` исполняет действия последовательно.
-- `apply` и `hashCalculator` читают файлы целиком в `ByteArray`; удалённый хэш считается скачиванием файла.
-- `FileSystemLocalVault` блокирует вызывающий поток, диспетчер не внедрён.
-- `executeWithRetry`: нет джиттера, `Retry-After` и 403 rate limit.
+- Оставшиеся пункты §10 спеки и `changeFeed` (инкрементальный список изменений Drive вместо полного `listAll`).
+- Эталоны правильного: `IndexUpdater` (пакетное сохранение индекса поверх `SyncStateStore`), `RetryPolicy` (джиттер, `Retry-After`, 403 rate limit), `CountingRemoteStorage` (бюджет вызовов в тестах).
 
 ## Красные флаги
 
