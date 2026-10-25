@@ -2,11 +2,16 @@ package dev.mimir.core
 
 import dev.mimir.core.sync.DefaultSyncEngine
 import dev.mimir.core.sync.InMemorySyncStateStore
+import dev.mimir.core.sync.SyncIndex
+import dev.mimir.core.sync.SyncStateStore
 import dev.mimir.core.testing.InMemoryLocalVault
 import kotlinx.coroutines.test.runTest
 import kotlinx.io.Buffer
 import kotlinx.io.Source
 import kotlinx.io.readByteArray
+import kotlin.concurrent.atomics.AtomicInt
+import kotlin.concurrent.atomics.ExperimentalAtomicApi
+import kotlin.concurrent.atomics.incrementAndFetch
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -17,23 +22,24 @@ class SyncEngineIoBudgetTest {
 
     private fun bufferOf(text: String): Buffer = Buffer().also { it.write(text.encodeToByteArray()) }
 
-    /** Vault, считающий локальные записи. */
+    /** Vault, считающий локальные записи (атомарно: движок пишет из параллельных воркеров). */
+    @OptIn(ExperimentalAtomicApi::class)
     private class CountingVault(private val inner: InMemoryLocalVault = InMemoryLocalVault()) : LocalVault by inner {
-        var writes = 0
-            private set
+        private val writeCount = AtomicInt(0)
+        val writes: Int get() = writeCount.load()
 
         override suspend fun write(relativePath: String, data: Source): LocalEntry {
-            writes++
+            writeCount.incrementAndFetch()
             return inner.write(relativePath, data)
         }
 
         override suspend fun write(id: VaultFileId, data: Source) {
-            writes++
+            writeCount.incrementAndFetch()
             inner.write(id, data)
         }
 
         fun resetWrites() {
-            writes = 0
+            writeCount.store(0)
         }
     }
 
@@ -201,6 +207,33 @@ class SyncEngineIoBudgetTest {
         assertEquals(1, f.remote.writeCalls)
         val p = assertNotNull(f.engine.progress.value)
         assertEquals(listOf(SyncItemAction.Conflict), p.completed.map { it.action })
+    }
+
+    @Test
+    fun indexSavesAreBatched() = runTest {
+        val saves = CountingStateStore()
+        val vault = CountingVault()
+        val batched = DefaultSyncEngine(vault, InMemoryRemoteStorage(), saves)
+        for (i in 1..250) vault.write("notes/n$i.md", bufferOf("note $i"))
+
+        batched.syncNow()
+
+        assertEquals(250, saves.load().records.size)
+        assertTrue(saves.saves in 1..4, "250 uploads → at most 3 + 1 index saves, got ${saves.saves}")
+    }
+
+    /** Хранилище индекса, считающее сохранения. */
+    private class CountingStateStore : SyncStateStore {
+        private val inner = InMemorySyncStateStore()
+        var saves = 0
+            private set
+
+        override suspend fun load(): SyncIndex = inner.load()
+
+        override suspend fun save(index: SyncIndex) {
+            saves++
+            inner.save(index)
+        }
     }
 
     private companion object {

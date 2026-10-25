@@ -15,12 +15,19 @@ import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncAbortedException
 import dev.mimir.core.SyncStatus
 import dev.mimir.core.rules.SyncRules
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Clock
 
@@ -31,7 +38,14 @@ class DefaultSyncEngine(
     private val conflictResolver: ConflictResolver = DefaultConflictResolver(),
     private val rules: SyncRules = SyncRules(),
     private val clock: Clock = Clock.System,
+    private val parallelism: Int = 4,
+    dispatcher: CoroutineDispatcher = Dispatchers.Default,
+    private val indexSaveEvery: Int = 100,
 ) : SyncEngine {
+
+    init {
+        require(parallelism in 1..16) { "parallelism must be from 1 to 16, got $parallelism" }
+    }
 
     private val _status = MutableStateFlow<SyncStatus>(SyncStatus.Idle)
     override val status: StateFlow<SyncStatus> = _status.asStateFlow()
@@ -41,7 +55,7 @@ class DefaultSyncEngine(
 
     private val syncMutex = Mutex()
     private val planBuilder = SyncPlanBuilder(rules)
-    private val executor = ActionExecutor(localVault, remoteStorage, conflictResolver)
+    private val executor = ActionExecutor(localVault, remoteStorage, conflictResolver, dispatcher)
 
     override suspend fun start() = Unit
 
@@ -76,9 +90,8 @@ class DefaultSyncEngine(
 
     private suspend fun performSync() {
         _progress.value = SyncProgress(phase = SyncPhase.Scanning, startedAt = clock.now())
-        val problems = mutableListOf<SyncProblem>()
 
-        var currentIndex = stateStore.load()
+        val index = IndexUpdater(stateStore, stateStore.load(), indexSaveEvery)
         val localFiles = localVault.list()
         val hiddenPaths = localVault.hiddenPaths()
         _progress.update { it?.copy(scanned = localFiles.size) }
@@ -89,17 +102,43 @@ class DefaultSyncEngine(
         // Пустой удалённый список при непустом индексе почти наверняка означает сбой
         // (отстающий поиск Drive, пустой дубль папки хранилища, чужой аккаунт), а не то,
         // что пользователь удалил всё. Иначе план превратил бы это в удаление всех локальных файлов.
-        if (remoteFiles.isEmpty() && currentIndex.records.isNotEmpty()) {
+        if (remoteFiles.isEmpty() && index.current.records.isNotEmpty()) {
             throw SyncAbortedException(EMPTY_REMOTE_MESSAGE)
         }
 
         _progress.update { it?.copy(phase = SyncPhase.Comparing) }
-        val plan = planBuilder.buildPlan(localFiles, remoteFiles, currentIndex, executor::localHash, hiddenPaths) { path, error ->
-            problems += problemOf(path, SyncItemAction.Upload, error)
-            _progress.update { it?.copy(problems = problems.toList()) }
+        val plan = planBuilder.buildPlan(localFiles, remoteFiles, index.current, executor::localHash, hiddenPaths) { path, error ->
+            val problem = problemOf(path, SyncItemAction.Upload, error)
+            _progress.update { it?.copy(problems = it.problems + problem) }
         }
 
-        val counted = plan.actions.mapNotNull { action -> action.toItemAction()?.let { SyncItem(action.path, it) } }
+        var failure: Throwable? = null
+        try {
+            applyPlan(plan, index)
+        } catch (e: Throwable) {
+            failure = e
+            throw e
+        } finally {
+            // Отмена или сбой посреди переносов: всё уже выполненное должно попасть в индекс.
+            withContext(NonCancellable) {
+                try {
+                    index.flush()
+                } catch (e: Throwable) {
+                    failure?.addSuppressed(e) ?: throw e
+                }
+            }
+        }
+    }
+
+    /**
+     * Спека §6: метаданные — сразу в индекс, затем переносы, затем удаления (переименование =
+     * удаление + отправка: новая копия появляется до удаления старой). Каждая фаза — [parallelism]
+     * воркеров над общей очередью.
+     */
+    private suspend fun applyPlan(plan: SyncPlan, index: IndexUpdater) {
+        val transfers = plan.actions.filter { it is SyncAction.Upload || it is SyncAction.Download || it is SyncAction.Reconcile }
+        val deletes = plan.actions.filter { it is SyncAction.DeleteRemote || it is SyncAction.DeleteLocal }
+        val counted = (transfers + deletes).mapNotNull { action -> action.toItemAction()?.let { SyncItem(action.path, it) } }
         _progress.update {
             it?.copy(
                 phase = SyncPhase.Applying,
@@ -110,56 +149,66 @@ class DefaultSyncEngine(
             )
         }
 
-        var position = 0
         for (action in plan.actions) {
-            val itemAction = action.toItemAction()
-            if (itemAction == null) {
-                currentIndex = applySilently(action, currentIndex)
-                continue
-            }
-            val item = counted[position]
-            position++
-            val upcoming = counted.subList(position, minOf(position + SyncProgress.UPCOMING_LIMIT, counted.size))
-            _progress.update { it?.copy(current = item, upcoming = upcoming.toList()) }
+            if (action is SyncAction.UpdateMetadata) index.update { it.withRecord(action.record) }
+        }
+        runPhase(transfers, offset = 0, counted, index)
+        runPhase(deletes, offset = transfers.size, counted, index)
+    }
 
-            val result = try {
-                executor.execute(action, currentIndex)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: RemoteUnavailableException) {
-                throw e
-            } catch (e: RemoteAuthException) {
-                throw e
-            } catch (e: Exception) {
-                problems += problemOf(action.path, itemAction, e)
-                null
-            }
-            if (result != null && result.changesIndex) {
-                currentIndex = result.applyTo(currentIndex)
-                stateStore.save(currentIndex)
-            }
-
-            val completedAs = result?.completedAs
-            val finishedAt = clock.now()
-            _progress.update { p ->
-                p?.copy(
-                    done = p.done + 1,
-                    bytesDone = p.bytesDone + action.weight(),
-                    completed = if (completedAs != null) {
-                        (p.completed + CompletedItem(item.path, completedAs, finishedAt))
-                            .takeLast(SyncProgress.COMPLETED_LIMIT)
-                    } else {
-                        p.completed
-                    },
-                    problems = problems.toList(),
-                )
+    /**
+     * Ошибка воркера, которую он не превратил в проблему (отмена, нет сети, нет доступа, сбой записи
+     * индекса), отменяет остальных через [coroutineScope] и пробрасывается.
+     */
+    private suspend fun runPhase(actions: List<SyncAction>, offset: Int, counted: List<SyncItem>, index: IndexUpdater) {
+        if (actions.isEmpty()) return
+        val queue = Channel<Int>(Channel.UNLIMITED)
+        actions.indices.forEach { queue.trySend(it) }
+        queue.close()
+        coroutineScope {
+            repeat(minOf(parallelism, actions.size)) {
+                launch {
+                    for (i in queue) applyAction(actions[i], offset + i, counted, index)
+                }
             }
         }
     }
 
-    private suspend fun applySilently(action: SyncAction, index: SyncIndex): SyncIndex = when (action) {
-        is SyncAction.UpdateMetadata -> index.withRecord(action.record).also { stateStore.save(it) }
-        else -> index
+    private suspend fun applyAction(action: SyncAction, position: Int, counted: List<SyncItem>, index: IndexUpdater) {
+        val item = counted[position]
+        val upcoming = counted.subList(position + 1, minOf(position + 1 + SyncProgress.UPCOMING_LIMIT, counted.size)).toList()
+        _progress.update { it?.copy(current = item, upcoming = upcoming) }
+
+        var problem: SyncProblem? = null
+        val result = try {
+            executor.execute(action, index.current)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: RemoteUnavailableException) {
+            throw e
+        } catch (e: RemoteAuthException) {
+            throw e
+        } catch (e: Exception) {
+            problem = problemOf(action.path, item.action, e)
+            null
+        }
+        if (result != null && result.changesIndex) index.update(result::applyTo)
+
+        val completedAs = result?.completedAs
+        val finishedAt = clock.now()
+        _progress.update { p ->
+            p?.copy(
+                done = p.done + 1,
+                bytesDone = p.bytesDone + action.weight(),
+                completed = if (completedAs != null) {
+                    (p.completed + CompletedItem(item.path, completedAs, finishedAt))
+                        .takeLast(SyncProgress.COMPLETED_LIMIT)
+                } else {
+                    p.completed
+                },
+                problems = if (problem != null) p.problems + problem else p.problems,
+            )
+        }
     }
 
     /** Пункт прогресса; `Reconcile` показывается как сверка, его исход — в `completed`. */

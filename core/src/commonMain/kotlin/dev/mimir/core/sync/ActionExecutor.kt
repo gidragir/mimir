@@ -14,6 +14,8 @@ import dev.mimir.core.SyncProblem
 import dev.mimir.core.SyncProblemKind
 import dev.mimir.core.VaultFileId
 import dev.mimir.core.sha256Hex
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.withContext
 import kotlinx.io.Buffer
 import kotlinx.io.RawSource
 import kotlinx.io.buffered
@@ -45,14 +47,23 @@ internal class ActionExecutor(
     private val localVault: LocalVault,
     private val remoteStorage: RemoteStorage,
     private val conflictResolver: ConflictResolver,
+    private val dispatcher: CoroutineDispatcher,
 ) {
 
-    /** SHA-256 локального файла потоком; ошибки — [LocalIoFailure] с [SyncProblemKind.ReadFailed]. */
-    suspend fun localHash(entry: LocalEntry): String =
+    /** SHA-256 локального файла потоком на [dispatcher]; ошибки — [LocalIoFailure] с [SyncProblemKind.ReadFailed]. */
+    suspend fun localHash(entry: LocalEntry): String = withContext(dispatcher) {
         localIo(SyncProblemKind.ReadFailed) { localVault.read(entry.id).sha256Hex() }
+    }
 
-    /** [index] нужен только `DeleteLocal`: путь удалённого файла для проверки `stat`. */
-    suspend fun execute(action: SyncAction, index: SyncIndex): ActionResult = when (action) {
+    /**
+     * Действие целиком (сеть, чтение и хэширование потока) идёт на [dispatcher].
+     * [index] нужен только `DeleteLocal`: путь удалённого файла для проверки `stat`.
+     */
+    suspend fun execute(action: SyncAction, index: SyncIndex): ActionResult = withContext(dispatcher) {
+        executeHere(action, index)
+    }
+
+    private suspend fun executeHere(action: SyncAction, index: SyncIndex): ActionResult = when (action) {
         is SyncAction.Upload ->
             ActionResult(SyncItemAction.Upload, put = listOf(upload(action.path, action.localEntry, action.remotePath)))
 

@@ -3,6 +3,8 @@ package dev.mimir.core
 import dev.mimir.core.sync.DefaultSyncEngine
 import dev.mimir.core.sync.InMemorySyncStateStore
 import dev.mimir.core.testing.InMemoryLocalVault
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.test.runTest
 import kotlinx.io.Buffer
 import kotlinx.io.Source
@@ -20,8 +22,12 @@ class SyncEngineDeleteSafetyTest {
     private fun bufferOf(text: String): Buffer =
         Buffer().also { it.write(text.encodeToByteArray()) }
 
-    /** Обёртка над [InMemoryRemoteStorage]: может «прятать» файлы из списка и ломать [stat]. */
+    /**
+     * Обёртка над [InMemoryRemoteStorage]: может «прятать» файлы из списка и ломать [stat].
+     * Движок вызывает её из параллельных воркеров, поэтому счётчики — под [lock].
+     */
     private class FlakyRemote(val delegate: InMemoryRemoteStorage = InMemoryRemoteStorage()) : RemoteStorage {
+        private val lock = Mutex()
         val hiddenFromListing = mutableSetOf<String>()
         var failStatWith: Exception? = null
         var writes = 0
@@ -32,7 +38,7 @@ class SyncEngineDeleteSafetyTest {
             delegate.list(dir).filterNot { !it.isDirectory && it.path.value in hiddenFromListing }
 
         override suspend fun stat(path: RemotePath): RemoteEntry? {
-            statCalls += path.value
+            lock.withLock { statCalls += path.value }
             failStatWith?.let { throw it }
             return delegate.stat(path)
         }
@@ -40,12 +46,12 @@ class SyncEngineDeleteSafetyTest {
         override suspend fun read(path: RemotePath): Source = delegate.read(path)
 
         override suspend fun write(path: RemotePath, data: Source): RemoteEntry {
-            writes++
+            lock.withLock { writes++ }
             return delegate.write(path, data)
         }
 
         override suspend fun delete(path: RemotePath) {
-            deletes++
+            lock.withLock { deletes++ }
             delegate.delete(path)
         }
     }

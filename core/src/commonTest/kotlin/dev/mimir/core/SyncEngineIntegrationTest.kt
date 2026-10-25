@@ -165,7 +165,8 @@ class SyncEngineIntegrationTest {
         val encryptedRemote = EncryptedRemoteStorage(failingRemote, cipher)
         val vault = InMemoryLocalVault()
         val store = InMemorySyncStateStore()
-        val engine = DefaultSyncEngine(vault, encryptedRemote, store)
+        // Последовательно: «ровно 2 файла до сбоя на 3-й записи» имеет смысл только при одном воркере.
+        val engine = DefaultSyncEngine(vault, encryptedRemote, store, parallelism = 1)
 
         // Добавляем 5 файлов
         for (i in 1..5) {
