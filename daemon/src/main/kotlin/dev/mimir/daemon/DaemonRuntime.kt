@@ -39,7 +39,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.io.Buffer
@@ -180,7 +179,7 @@ class DaemonRuntime(
         val found = if (vault == null) {
             emptyList()
         } else {
-            withContext(Dispatchers.IO) { ConflictFiles.find(vault.list().map { it.relativePath }) }
+            ConflictFiles.find(vault.list().map { it.relativePath })
         }
         _conflicts.value = found
         return found
@@ -313,7 +312,9 @@ class DaemonRuntime(
     }
 
     // Отдельный экземпляр без watcher'а: правки разрешения конфликта подхватит обычный watcher демона.
-    private fun conflictVault(): FileSystemLocalVault? = config.vaultPath?.let { FileSystemLocalVault(Path(it)) }
+    // Блокирующий файловый IO (обход, чтение, запись, удаление) — на Dispatchers.IO, как у основного vault.
+    private fun conflictVault(): FileSystemLocalVault? =
+        config.vaultPath?.let { FileSystemLocalVault(Path(it), ioDispatcher = Dispatchers.IO) }
 
     // Неверный пароль не должен ронять вход в облако или старт: демон просто остаётся заблокированным.
     private suspend fun rebuildLenient() {
