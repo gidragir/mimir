@@ -5,26 +5,35 @@ import dev.mimir.core.VaultFileId
 import dev.mimir.core.sync.FileSyncRecord
 import dev.mimir.core.sync.SyncIndex
 import dev.mimir.core.sync.SyncStateStore
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.time.Instant
 
-class JsonSyncStateStore(val indexFile: Path) : SyncStateStore {
+class JsonSyncStateStore(
+    val indexFile: Path,
+    /** Где исполняется блокирующая запись и чтение индекса. */
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+) : SyncStateStore {
     private val mutex = Mutex()
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = true }
 
     override suspend fun load(): SyncIndex = mutex.withLock {
-        if (!Files.isRegularFile(indexFile)) return SyncIndex()
-        // Повреждённый индекс не сбрасываем молча: пустой индекс вызвал бы полную пересверку.
-        json.decodeFromString<IndexDto>(Files.readString(indexFile)).toIndex()
+        withContext(ioDispatcher) {
+            if (!Files.isRegularFile(indexFile)) return@withContext SyncIndex()
+            // Повреждённый индекс не сбрасываем молча: пустой индекс вызвал бы полную пересверку.
+            json.decodeFromString<IndexDto>(Files.readString(indexFile)).toIndex()
+        }
     }
 
     override suspend fun save(index: SyncIndex) {
-        mutex.withLock { writeFileAtomically(indexFile, json.encodeToString(IndexDto.of(index))) }
+        mutex.withLock { withContext(ioDispatcher) { writeFileAtomically(indexFile, json.encodeToString(IndexDto.of(index))) } }
     }
 
     @Serializable

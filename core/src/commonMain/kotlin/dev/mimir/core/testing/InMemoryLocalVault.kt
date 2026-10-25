@@ -7,6 +7,8 @@ import dev.mimir.core.VaultFileId
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.io.Buffer
 import kotlinx.io.IOException
 import kotlinx.io.Source
@@ -14,9 +16,11 @@ import kotlinx.io.readByteArray
 import kotlin.time.Clock
 import kotlin.time.Instant
 
+/** Vault в памяти для тестов. Состояние — под [lock]: движок обращается к vault из параллельных воркеров. */
 class InMemoryLocalVault(
     private val clock: Clock = Clock.System,
 ) : LocalVault {
+    private val lock = Mutex()
 
     private class StoredFile(
         val id: VaultFileId,
@@ -40,24 +44,24 @@ class InMemoryLocalVault(
     /** Пути, запись которых падает с [IOException] (тестовый хук). */
     val failWriteFor: MutableSet<String> = mutableSetOf()
 
-    override suspend fun list(): List<LocalEntry> =
+    override suspend fun list(): List<LocalEntry> = lock.withLock {
         files.values.map { it.toEntry() }
-
-    override suspend fun getEntry(relativePath: String): LocalEntry? {
-        val normalized = normalize(relativePath)
-        return files[normalized]?.toEntry()
     }
 
-    override suspend fun read(id: VaultFileId): Source {
+    override suspend fun getEntry(relativePath: String): LocalEntry? = lock.withLock {
+        files[normalize(relativePath)]?.toEntry()
+    }
+
+    override suspend fun read(id: VaultFileId): Source = lock.withLock {
         if (throwOnRead) throw IOException("Read failed")
         val path = idToPath[id] ?: throw NoSuchElementException("No such file: ${id.value}")
         if (path in failReadFor) throw IOException("Read failed: $path")
         val stored = files[path] ?: throw NoSuchElementException("No such file: ${id.value}")
-        return Buffer().also { it.write(stored.bytes) }
+        Buffer().also { it.write(stored.bytes) }
     }
 
     override suspend fun write(id: VaultFileId, data: Source) {
-        val path = idToPath[id] ?: id.value
+        val path = lock.withLock { idToPath[id] } ?: id.value
         write(path, data)
     }
 
@@ -65,7 +69,12 @@ class InMemoryLocalVault(
         if (throwOnWrite) throw IOException("Write failed")
         val normalized = normalize(relativePath)
         if (normalized in failWriteFor) throw IOException("Write failed: $normalized")
+        // поток читается до захвата блокировки: он может идти из другого хранилища
         val bytes = data.readByteArray()
+        return lock.withLock { store(normalized, bytes) }
+    }
+
+    private fun store(normalized: String, bytes: ByteArray): LocalEntry {
         val now = clock.now()
 
         val existing = files[normalized]
@@ -87,15 +96,15 @@ class InMemoryLocalVault(
         return entry
     }
 
-    override suspend fun delete(id: VaultFileId) {
-        val path = idToPath.remove(id) ?: return
+    override suspend fun delete(id: VaultFileId): Unit = lock.withLock {
+        val path = idToPath.remove(id) ?: return@withLock
         files.remove(path)
         _changes.tryEmit(VaultChange.Deleted(id))
     }
 
-    override suspend fun deleteByPath(relativePath: String) {
+    override suspend fun deleteByPath(relativePath: String): Unit = lock.withLock {
         val normalized = normalize(relativePath)
-        val stored = files.remove(normalized) ?: return
+        val stored = files.remove(normalized) ?: return@withLock
         idToPath.remove(stored.id)
         _changes.tryEmit(VaultChange.Deleted(stored.id))
     }

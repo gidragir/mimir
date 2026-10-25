@@ -119,6 +119,30 @@ class SyncEngineIntegrationTest {
     }
 
     @Test
+    fun emptyFileRoundTrip() = runTest {
+        val emptyHash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        for (remote in listOf<RemoteStorage>(InMemoryRemoteStorage(), EncryptedRemoteStorage(InMemoryRemoteStorage(), cipher))) {
+            val vaultA = InMemoryLocalVault()
+            val storeA = InMemorySyncStateStore()
+            vaultA.write("empty.md", Buffer())
+            DefaultSyncEngine(vaultA, remote, storeA).syncNow()
+
+            assertEquals(emptyHash, storeA.load().find("empty.md")?.baseHash)
+            assertEquals(0, remote.read(RemotePath("empty.md")).readByteArray().size)
+
+            val vaultB = InMemoryLocalVault()
+            val storeB = InMemorySyncStateStore()
+            val engineB = DefaultSyncEngine(vaultB, remote, storeB)
+            engineB.syncNow()
+
+            val downloaded = assertNotNull(vaultB.getEntry("empty.md"))
+            assertEquals(0L, downloaded.size)
+            assertEquals(emptyHash, storeB.load().find("empty.md")?.baseHash)
+            assertTrue(assertNotNull(engineB.progress.value).problems.isEmpty())
+        }
+    }
+
+    @Test
     fun endToEnd_failureRecovery_resumesWithoutDuplication() = runTest {
         val failingRemote = object : RemoteStorage {
             val delegate = InMemoryRemoteStorage()
@@ -141,7 +165,8 @@ class SyncEngineIntegrationTest {
         val encryptedRemote = EncryptedRemoteStorage(failingRemote, cipher)
         val vault = InMemoryLocalVault()
         val store = InMemorySyncStateStore()
-        val engine = DefaultSyncEngine(vault, encryptedRemote, store)
+        // Последовательно: «ровно 2 файла до сбоя на 3-й записи» имеет смысл только при одном воркере.
+        val engine = DefaultSyncEngine(vault, encryptedRemote, store, parallelism = 1)
 
         // Добавляем 5 файлов
         for (i in 1..5) {

@@ -15,6 +15,9 @@ sealed interface UiDevicePoll {
     data class Expired(val reason: String) : UiDevicePoll
 }
 
+/** Сколько файлов лежит в локальной папке и в облаке; [requiresStrategyConfirmation] — есть данные с обеих сторон. */
+data class UiVaultInspection(val localFileCount: Int, val remoteFileCount: Int, val requiresStrategyConfirmation: Boolean)
+
 enum class UiLoginMethod { Browser, DeviceCode }
 
 sealed interface UiBrowserPoll {
@@ -36,8 +39,11 @@ interface MimirUiModel {
     /** `false`, если синхронизация уже идёт. */
     suspend fun triggerSync(): Boolean
 
-    /** Бросает [IllegalArgumentException], если каталога нет. */
-    suspend fun configureVault(path: String)
+    /** Возвращает число найденных локальных файлов; бросает [IllegalArgumentException], если каталога нет. */
+    suspend fun configureVault(path: String): Int
+
+    /** Сверка локальной папки и облака после ввода пароля. */
+    suspend fun inspectVault(): UiVaultInspection
 
     /** Бросает [IllegalArgumentException] с понятным сообщением, если пароль не подходит. */
     suspend fun unlock(password: String, rememberOnDevice: Boolean = true)

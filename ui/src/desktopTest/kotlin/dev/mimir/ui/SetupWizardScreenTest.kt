@@ -1,6 +1,7 @@
 package dev.mimir.ui
 
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.waitUntilExactlyOneExists
@@ -12,6 +13,10 @@ import dev.mimir.ui.model.FakeMimirUiModel
 import dev.mimir.ui.model.UiBrowserPoll
 import dev.mimir.ui.model.UiDevicePoll
 import dev.mimir.ui.model.UiLoginMethod
+import dev.mimir.ui.model.UiVaultInspection
+import dev.mimir.ui.picker.LocalFolderPicker
+import dev.mimir.ui.platform.LocalBringToFront
+import dev.mimir.ui.picker.PlatformFolderPicker
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
@@ -182,5 +187,99 @@ class SetupWizardScreenTest {
         onNodeWithText("Войти через Google").performClick()
         waitUntilExactlyOneExists(hasText("Скопировать ссылку"))
         onNodeWithText("https://auth.example/login").assertExists()
+    }
+
+    @Test
+    fun `vault step invokes platform folder picker and displays file count`() = runComposeUiTest {
+        val model = FakeMimirUiModel(fileCount = 42)
+        val picker = object : PlatformFolderPicker {
+            override suspend fun pickDirectory(initialPath: String?): String? = "/notes/vault"
+        }
+        setContent { CompositionLocalProvider(LocalFolderPicker provides picker) { SetupWizardScreen(model, onComplete = {}) } }
+
+        onNodeWithText("📁 Обзор…").performClick()
+        waitUntilExactlyOneExists(hasText("✓ Найдено заметок: 42"))
+        onNodeWithText("/notes/vault").assertIsDisplayed()
+    }
+
+    @Test
+    fun `cancelling the folder picker keeps the typed path`() = runComposeUiTest {
+        var configured = false
+        val model = FakeMimirUiModel(onConfigureVault = { configured = true })
+        val picker = object : PlatformFolderPicker {
+            override suspend fun pickDirectory(initialPath: String?): String? = null
+        }
+        setContent { CompositionLocalProvider(LocalFolderPicker provides picker) { SetupWizardScreen(model, onComplete = {}) } }
+
+        onNodeWithText("Введите путь к папке").performTextInput("/typed")
+        onNodeWithText("📁 Обзор…").performClick()
+        waitForIdle()
+        onNodeWithText("/typed").assertIsDisplayed()
+        assertTrue(!configured)
+    }
+
+    @Test
+    fun `browse button is hidden when the platform has no folder picker`() = runComposeUiTest {
+        setContent { SetupWizardScreen(FakeMimirUiModel(), onComplete = {}) }
+        onNodeWithText("📁 Обзор…").assertDoesNotExist()
+    }
+
+    private fun androidx.compose.ui.test.ComposeUiTest.throughPassword(model: FakeMimirUiModel, onComplete: () -> Unit) {
+        setContent { SetupWizardScreen(model, onComplete = onComplete, pollIntervalMillis = 10) }
+        onNodeWithText("Введите путь к папке").performTextInput("/v")
+        onNodeWithText("Продолжить").performClick()
+        waitUntilExactlyOneExists(hasText("Мастер-пароль шифрования"))
+        onNodeWithText("Пароль").performTextInput("good")
+        onNodeWithText("Разблокировать").performClick()
+    }
+
+    @Test
+    fun `wizard asks to confirm the merge when both sides have notes`() = runComposeUiTest {
+        var completed = false
+        var syncs = 0
+        val model = FakeMimirUiModel(
+            devicePoll = { UiDevicePoll.Authorized(null) },
+            inspection = UiVaultInspection(localFileCount = 10, remoteFileCount = 15, requiresStrategyConfirmation = true),
+            onTriggerSync = { syncs++; true },
+        )
+        throughPassword(model) { completed = true }
+
+        waitUntilExactlyOneExists(hasText("Двустороннее слияние с защитой от потерь"))
+        assertTrue(!completed)
+        assertEquals(0, syncs)
+        onNodeWithText("Завершить настройку и синхронизировать").performClick()
+        waitUntil { completed }
+        assertEquals(1, syncs)
+    }
+
+    @Test
+    fun `wizard skips the confirmation and starts sync when one side is empty`() = runComposeUiTest {
+        var completed = false
+        var syncs = 0
+        val model = FakeMimirUiModel(
+            devicePoll = { UiDevicePoll.Authorized(null) },
+            inspection = UiVaultInspection(localFileCount = 0, remoteFileCount = 15, requiresStrategyConfirmation = false),
+            onTriggerSync = { syncs++; true },
+        )
+        throughPassword(model) { completed = true }
+
+        waitUntil { completed }
+        assertEquals(1, syncs)
+        onNodeWithText("Двустороннее слияние с защитой от потерь").assertDoesNotExist()
+    }
+
+    @Test
+    fun `window is brought back to the front once google login is authorized`() = runComposeUiTest {
+        var fronted = 0
+        val model = FakeMimirUiModel(devicePoll = { UiDevicePoll.Authorized("me@x") })
+        setContent {
+            CompositionLocalProvider(LocalBringToFront provides { fronted++ }) {
+                SetupWizardScreen(model, onComplete = {}, pollIntervalMillis = 10)
+            }
+        }
+        onNodeWithText("Введите путь к папке").performTextInput("/v")
+        onNodeWithText("Продолжить").performClick()
+        waitUntilExactlyOneExists(hasText("Мастер-пароль шифрования"))
+        assertEquals(1, fronted)
     }
 }

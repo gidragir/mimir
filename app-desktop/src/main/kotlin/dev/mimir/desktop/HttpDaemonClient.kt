@@ -10,6 +10,7 @@ import dev.mimir.daemon.InvalidPasswordException
 import dev.mimir.daemon.LoginMethod
 import dev.mimir.daemon.SyncNotConfiguredException
 import dev.mimir.daemon.SyncProgressDto
+import dev.mimir.daemon.VaultInspectionDto
 import dev.mimir.daemon.toModel
 import dev.mimir.drive.api.GoogleDeviceCodeResponse
 import io.ktor.client.HttpClient
@@ -49,6 +50,9 @@ private data class StatusDto(
     val accountEmail: String? = null,
     val progress: SyncProgressDto? = null,
 )
+
+@Serializable
+private data class VaultConfiguredDto(val vaultPath: String = "", val fileCount: Int = 0)
 
 @Serializable
 private data class ConflictsDto(val conflicts: List<ConflictDto> = emptyList())
@@ -212,9 +216,16 @@ class HttpDaemonClient(
         }
     }
 
-    override suspend fun configureVault(vaultPath: String) {
+    override suspend fun configureVault(vaultPath: String): Int {
         val response = post("/api/v1/vault", VaultDto(vaultPath))
         if (response.status != HttpStatusCode.OK) throw response.toException()
+        return response.body<VaultConfiguredDto>().fileCount
+    }
+
+    override suspend fun inspectVault(): VaultInspectionDto {
+        val response = get("/api/v1/vault/inspect")
+        if (response.status != HttpStatusCode.OK) throw response.toException()
+        return response.body()
     }
 
     private suspend fun get(path: String): HttpResponse =

@@ -17,6 +17,8 @@ class FakeMimirUiModel(
     override val progress: MutableStateFlow<SyncProgress?> = MutableStateFlow(null),
     private val onTriggerSync: () -> Boolean = { true },
     private val onConfigureVault: (String) -> Unit = {},
+    private val fileCount: Int = 0,
+    private val inspection: UiVaultInspection = UiVaultInspection(0, 0, false),
     private val onUnlock: (String, Boolean) -> Unit = { _, _ -> },
     private val onResolveConflict: (String, String, Boolean) -> Unit = { _, _, _ -> },
     private val deviceCode: UiDeviceCode = UiDeviceCode("ABCD-EFGH", "https://www.google.com/device", 1800, "device-code"),
@@ -34,10 +36,13 @@ class FakeMimirUiModel(
 
     override suspend fun triggerSync(): Boolean = onTriggerSync()
 
-    override suspend fun configureVault(path: String) {
+    override suspend fun configureVault(path: String): Int {
         onConfigureVault(path)
         vaultPath.value = path
+        return fileCount
     }
+
+    override suspend fun inspectVault(): UiVaultInspection = inspection
 
     override suspend fun unlock(password: String, rememberOnDevice: Boolean) {
         onUnlock(password, rememberOnDevice)

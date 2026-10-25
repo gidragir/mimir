@@ -301,7 +301,8 @@ class GoogleDriveStorage(
             path = path,
             size = file.size ?: 0L,
             modifiedAt = instant,
-            revision = file.md5Checksum ?: file.id,
+            // только md5 содержимого: у папок его нет, и это честное «ревизии нет» (план сравнит size+mtime)
+            revision = file.md5Checksum,
             isDirectory = file.isDirectory,
         )
     }

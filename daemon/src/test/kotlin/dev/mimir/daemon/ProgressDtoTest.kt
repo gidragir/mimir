@@ -32,4 +32,17 @@ class ProgressDtoTest {
         assertEquals(0, dto.foldersScanned)
         assertEquals(0, dto.toModel().foldersScanned)
     }
+
+    @Test
+    fun `verify action round trips`() {
+        val t = Instant.parse("2026-10-24T12:00:00Z")
+        val model = SyncProgress(
+            phase = SyncPhase.Applying, startedAt = t,
+            current = SyncItem("a.md", SyncItemAction.Verify),
+            upcoming = listOf(SyncItem("b.md", SyncItemAction.Verify)),
+        )
+        val dto = model.toDto(t)
+        assertEquals("verify", dto.current?.action)
+        assertEquals(model, dto.toModel())
+    }
 }

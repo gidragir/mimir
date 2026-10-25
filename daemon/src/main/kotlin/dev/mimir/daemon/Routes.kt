@@ -73,6 +73,9 @@ private data class FailedResponse(val status: String, val error: String)
 private data class VaultRequest(val vaultPath: String = "")
 
 @Serializable
+private data class VaultConfigResponse(val vaultPath: String, val fileCount: Int)
+
+@Serializable
 private data class UnlockRequest(val password: String = "")
 
 private fun SyncStatus.code(): String = when (this) {
@@ -229,10 +232,21 @@ fun Application.mimirRoutes(service: DaemonService, config: DaemonConfig) {
                     return@post call.respond(HttpStatusCode.BadRequest, ErrorBody("Expected {\"vaultPath\": \"...\"}"))
                 }
                 try {
-                    service.configureVault(request.vaultPath)
-                    call.respond(StatusOnly("configured"))
+                    val fileCount = service.configureVault(request.vaultPath)
+                    call.respond(VaultConfigResponse(service.vaultPath ?: request.vaultPath, fileCount))
                 } catch (e: IllegalArgumentException) {
                     call.respond(HttpStatusCode.BadRequest, ErrorBody(e.message ?: "Invalid vault path"))
+                }
+            }
+
+            get("/vault/inspect") {
+                if (service.isLocked) {
+                    return@get call.respond(HttpStatusCode.Forbidden, ErrorBody("Vault is locked"))
+                }
+                try {
+                    call.respond(service.inspectVault())
+                } catch (e: SyncNotConfiguredException) {
+                    call.respond(HttpStatusCode.PreconditionFailed, ErrorBody(e.message ?: "Not configured"))
                 }
             }
 

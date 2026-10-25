@@ -23,6 +23,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import dev.mimir.ui.MimirTheme
+import dev.mimir.ui.ObsidianStyle
+import dev.mimir.ui.ObsidianStyle.compactButton
 import dev.mimir.ui.model.FakeMimirUiModel
 import dev.mimir.ui.model.MimirUiModel
 import dev.mimir.ui.model.UiConflictEntry
@@ -62,14 +64,30 @@ fun ConflictsScreen(model: MimirUiModel, onBack: () -> Unit) {
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(conflicts, key = { it.conflictPath }) { entry ->
-                    Card(Modifier.fillMaxWidth()) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.small,
+                        colors = ObsidianStyle.panelColors(),
+                        border = ObsidianStyle.panelBorder(),
+                    ) {
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(entry.originalPath, style = MaterialTheme.typography.titleMedium)
                             Text(entry.conflictPath, style = MaterialTheme.typography.bodySmall)
                             Text("Создан: ${entry.createdAt}", style = MaterialTheme.typography.bodySmall)
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Button(onClick = { resolve(entry, keepConflict = false) }) { Text("Оставить оригинал") }
-                                OutlinedButton(onClick = { resolve(entry, keepConflict = true) }) { Text("Оставить копию") }
+                                Button(
+                                    onClick = { resolve(entry, keepConflict = false) },
+                                    shape = MaterialTheme.shapes.extraSmall,
+                                    colors = ObsidianStyle.buttonColors(),
+                                    contentPadding = ObsidianStyle.buttonPadding,
+                                    modifier = Modifier.compactButton(),
+                                ) { Text("Оставить оригинал") }
+                                OutlinedButton(
+                                    onClick = { resolve(entry, keepConflict = true) },
+                                    shape = MaterialTheme.shapes.extraSmall,
+                                    contentPadding = ObsidianStyle.buttonPadding,
+                                    modifier = Modifier.compactButton(),
+                                ) { Text("Оставить копию") }
                             }
                         }
                     }

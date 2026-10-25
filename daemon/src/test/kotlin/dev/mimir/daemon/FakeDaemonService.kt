@@ -17,11 +17,16 @@ class FakeDaemonService : DaemonService {
 
     override val conflictsFlow = MutableStateFlow<List<ConflictFileEntry>>(emptyList())
     var rejectVault = false
+    var fileCount = 0
+    var inspection = VaultInspectionDto(0, 0, false)
 
-    override suspend fun configureVault(vaultPath: String) {
+    override suspend fun configureVault(vaultPath: String): Int {
         require(!rejectVault) { "Not a directory: $vaultPath" }
         this.vaultPath = vaultPath
+        return fileCount
     }
+
+    override suspend fun inspectVault(): VaultInspectionDto = inspection
 
     override suspend fun conflicts(): List<ConflictFileEntry> = emptyList()
     override suspend fun resolveConflict(originalPath: String, conflictPath: String, keepConflict: Boolean) = Unit

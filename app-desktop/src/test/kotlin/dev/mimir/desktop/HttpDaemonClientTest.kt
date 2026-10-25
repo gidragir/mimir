@@ -122,8 +122,19 @@ class HttpDaemonClientTest {
         val client = client(backgroundScope)
         replies["POST /api/v1/vault"] = HttpStatusCode.BadRequest to """{"error":"Not a directory: /x"}"""
         assertFailsWith<IllegalArgumentException> { client.configureVault("/x") }
-        replies["POST /api/v1/vault"] = HttpStatusCode.OK to """{"status":"configured"}"""
-        client.configureVault("/ok")
+        replies["POST /api/v1/vault"] = HttpStatusCode.OK to """{"vaultPath":"/ok","fileCount":3}"""
+        assertEquals(3, client.configureVault("/ok"))
+    }
+
+    @Test
+    fun `inspectVault parses inspection response correctly`() = runTest {
+        val client = client(backgroundScope)
+        replies["GET /api/v1/vault/inspect"] = HttpStatusCode.OK to
+            """{"localFileCount":10,"remoteFileCount":20,"requiresStrategyConfirmation":true}"""
+        val inspection = client.inspectVault()
+        assertEquals(10, inspection.localFileCount)
+        assertEquals(20, inspection.remoteFileCount)
+        assertTrue(inspection.requiresStrategyConfirmation)
     }
 
     @Test
