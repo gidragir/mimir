@@ -1,0 +1,7 @@
+<RegistryKey Root="HKCU" Key="Software\Classes\mimir">
+    <RegistryValue Type="string" Value="URL:Mimir Protocol" />
+    <RegistryValue Type="string" Name="URL Protocol" Value="" />
+    <RegistryKey Key="shell\open\command">
+        <RegistryValue Type="string" Value="&quot;[#mimir.exe]&quot; &quot;%1&quot;" />
+    </RegistryKey>
+</RegistryKey>

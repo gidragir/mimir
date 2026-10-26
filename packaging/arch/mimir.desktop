@@ -2,7 +2,8 @@
 Type=Application
 Name=Mimir
 Comment=Obsidian vault sync with encryption over Google Drive
-Exec=mimir
+Exec=mimir %u
 Icon=mimir
 Terminal=false
 Categories=Utility;
+MimeType=x-scheme-handler/mimir;

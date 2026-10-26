@@ -38,9 +38,28 @@ compose.desktop {
             targetFormats(TargetFormat.Msi)
             packageName = providers.gradleProperty("mimir.appName").get()
             packageVersion = providers.gradleProperty("mimir.version").get()
+            appResourcesRootDir.set(project.layout.projectDirectory.dir("src/packaging"))
             windows {
                 perUserInstall = true
                 upgradeUuid = providers.gradleProperty("mimir.msiUpgradeUuid").get()
+            }
+            macOS {
+                bundleID = providers.gradleProperty("mimir.appId").get()
+                infoPlist {
+                    extraKeysRawXml = """
+                        <key>CFBundleURLTypes</key>
+                        <array>
+                            <dict>
+                                <key>CFBundleURLName</key>
+                                <string>Mimir Protocol</string>
+                                <key>CFBundleURLSchemes</key>
+                                <array>
+                                    <string>mimir</string>
+                                </array>
+                            </dict>
+                        </array>
+                    """.trimIndent()
+                }
             }
         }
     }
