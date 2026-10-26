@@ -50,6 +50,7 @@ dependencies {
     implementation(project(":ui"))
     implementation(libs.compose.ui)
     implementation(libs.activity.compose)
+    implementation(libs.work.runtime.ktx)
     testImplementation(libs.kotlin.test.junit)
     testImplementation(libs.junit)
 }
