@@ -18,6 +18,7 @@ import io.ktor.client.request.header
 import io.ktor.client.request.parameter
 import io.ktor.client.request.patch
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.contentType
@@ -260,8 +261,7 @@ class GoogleDriveStorage(
             throw DriveHttpException(response.status, "Failed to read file ${file.id}")
         }
 
-        val bytes = response.body<ByteArray>()
-        return Buffer().also { it.write(bytes) }
+        return response.bodyAsChannel().toSource()
     }
 
     override suspend fun write(path: RemotePath, data: Source): RemoteEntry {
