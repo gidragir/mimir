@@ -59,6 +59,10 @@ class NioWatchServiceVaultWatcher(
             }
         } catch (_: ClosedWatchServiceException) {
             // stop(): наблюдение завершено
+        } catch (_: NoSuchFileException) {
+            // директория удалена во время наблюдения
+        } catch (_: java.io.IOException) {
+            // ошибка ввода-вывода или закрытие сервиса
         } finally {
             services -= service
             runCatching { service.close() }

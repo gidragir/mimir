@@ -36,6 +36,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -114,6 +115,7 @@ class DaemonRuntime(
     private var statusJob: Job? = null
     private var progressJob: Job? = null
     private var conflictJob: Job? = null
+    private var vaultWatcher: NioWatchServiceVaultWatcher? = null
 
     val tokenStorage: TokenStorage = FileTokenStorage(configDir.resolve("tokens.json"))
     val authClients: GoogleAuthClients = config.authClients(httpClient)
@@ -136,7 +138,7 @@ class DaemonRuntime(
         accountEmail = readAccountEmail()
         config.resolvePassword()?.takeIf { it.isNotEmpty() }?.let { cipher = RcloneCipher.create(it) }
         refreshConflicts()
-        startConflictScan()
+        startConflictWatcher()
         rebuildLenient()
     }
 
@@ -148,7 +150,7 @@ class DaemonRuntime(
         // Первая настройка: пользователь подтвердит стратегию слияния, и только потом пойдёт синхронизация.
         holdInitialSync = !Files.exists(configDir.resolve("index.json"))
         refreshConflicts()
-        startConflictScan()
+        startConflictWatcher()
         rebuildLenient()
         return FileSystemLocalVault(Path(normalized), ioDispatcher = Dispatchers.IO).list().size
     }
@@ -192,13 +194,29 @@ class DaemonRuntime(
 
     override suspend fun conflicts(): List<ConflictFileEntry> = refreshConflicts()
 
-    // Периодическое обновление снимка: конфликтные копии могут появиться и без нашей синхронизации (Obsidian, другие клиенты).
-    private fun startConflictScan() {
+    private fun startConflictWatcher() {
+        val vaultPath = config.vaultPath ?: return
+        if (!Files.isDirectory(Paths.get(vaultPath))) return
         conflictJob?.cancel()
+        vaultWatcher?.stop()
+        val rules = dev.mimir.core.rules.SyncRules()
+        val watcher = NioWatchServiceVaultWatcher(
+            root = Paths.get(vaultPath),
+            rules = rules,
+            debounce = conflictScanInterval.coerceAtMost(1.seconds),
+        )
+        vaultWatcher = watcher
         conflictJob = scope.launch {
-            while (true) {
-                delay(conflictScanInterval)
-                runCatching { refreshConflicts() }
+            launch {
+                watcher.start().collect {
+                    runCatching { refreshConflicts() }
+                }
+            }
+            if (conflictScanInterval < 1.seconds) {
+                while (isActive) {
+                    delay(conflictScanInterval)
+                    runCatching { refreshConflicts() }
+                }
             }
         }
     }
@@ -222,8 +240,9 @@ class DaemonRuntime(
         }
         val conflict = vault.getEntry(parsed.conflictPath) ?: throw NoSuchElementException("No such conflict: $conflictPath")
         if (keepConflict) {
-            val bytes = vault.read(conflict.id).use { it.readByteArray() }
-            vault.write(parsed.originalPath, Buffer().also { it.write(bytes) })
+            vault.read(conflict.id).use { source ->
+                vault.write(parsed.originalPath, source)
+            }
         }
         vault.deleteByPath(parsed.conflictPath)
         refreshConflicts()
@@ -335,6 +354,8 @@ class DaemonRuntime(
         browserAttempt?.receiver?.close()
         scheduler?.stop()
         watcher?.stop()
+        vaultWatcher?.stop()
+        conflictJob?.cancel()
         scope.cancel()
         httpClient.close()
     }
