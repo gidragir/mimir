@@ -27,6 +27,7 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -275,5 +276,34 @@ class BrowserLoginTest {
     @Test
     fun pollBeforeStartFails() = run {
         assertNotNull(runtime().pollBrowserLogin().let { it as? BrowserLoginPoll.Failed })
+    }
+
+    @Test
+    fun testSuccessPageContainsRedirectScriptAndManualButton() = run {
+        val receiver = BrowserLoginReceiver(redirectScheme = "mimir")
+        receiver.start()
+        receiver.expectedState = "state123"
+        val client = HttpClient(CIO)
+        val response = client.get("http://127.0.0.1:${receiver.port}/callback?code=test_code&state=state123")
+        val body = response.bodyAsText()
+        assertTrue(body.contains("""window.location.replace("mimir://authorized");"""))
+        assertTrue(body.contains("""href="mimir://authorized""""))
+        assertFalse(body.contains("test_code"))
+        receiver.close()
+        client.close()
+    }
+
+    @Test
+    fun testSuccessPageWithoutSchemeDoesNotContainRedirect() = run {
+        val receiver = BrowserLoginReceiver(redirectScheme = null)
+        receiver.start()
+        receiver.expectedState = "state456"
+        val client = HttpClient(CIO)
+        val response = client.get("http://127.0.0.1:${receiver.port}/callback?code=test_code&state=state456")
+        val body = response.bodyAsText()
+        assertFalse(body.contains("window.location.replace"))
+        assertFalse(body.contains("mimir://"))
+        receiver.close()
+        client.close()
     }
 }
