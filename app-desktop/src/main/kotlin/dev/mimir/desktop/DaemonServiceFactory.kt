@@ -48,8 +48,7 @@ object DaemonServiceFactory {
             logger.info("Mimir daemon found on ${config.bind}:${config.port}; using its HTTP API")
             val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
             val client = dev.mimir.client.HttpDaemonClient(baseUrl = probeUrl(config), token = config.token, scope = scope)
-            val adapter = DesktopDaemonServiceAdapter(client)
-            return DesktopBackend(adapter, DesktopBackend.Mode.RemoteDaemon) {
+            return DesktopBackend(client, DesktopBackend.Mode.RemoteDaemon) {
                 scope.cancel()
                 client.close()
             }

@@ -16,6 +16,7 @@ class FakeDaemonService : DaemonService {
     override val accountEmail: String? = null
 
     override val conflictsFlow = MutableStateFlow<List<ConflictFileEntry>>(emptyList())
+    override val connectionStatus = MutableStateFlow(dev.mimir.client.DaemonConnectionStatus.Connected)
     var rejectVault = false
     var fileCount = 0
     var inspection = VaultInspectionDto(0, 0, false)
@@ -30,13 +31,13 @@ class FakeDaemonService : DaemonService {
 
     override suspend fun conflicts(): List<ConflictFileEntry> = emptyList()
     override suspend fun resolveConflict(originalPath: String, conflictPath: String, keepConflict: Boolean) = Unit
-    override suspend fun startDeviceLogin(): GoogleDeviceCodeResponse = error("not used")
+    override suspend fun startDeviceLogin(): dev.mimir.client.DaemonDeviceCodeDto = error("not used")
     override suspend fun pollDeviceLogin(deviceCode: String): DevicePoll = error("not used")
     /** `null` — вход через браузер недоступен. */
     var browserUrl: String? = "https://accounts.example/auth"
-    var browserPoll: BrowserLoginPoll = BrowserLoginPoll.Pending
+    var browserPoll: dev.mimir.client.DaemonBrowserLoginPoll = dev.mimir.client.DaemonBrowserLoginPoll.Pending
     override suspend fun startBrowserLogin(): String = browserUrl ?: throw SyncNotConfiguredException("no desktop client")
-    override suspend fun pollBrowserLogin(): BrowserLoginPoll = browserPoll
+    override suspend fun pollBrowserLogin(): dev.mimir.client.DaemonBrowserLoginPoll = browserPoll
     var methods: Set<LoginMethod> = emptySet()
     override suspend fun loginMethods() = methods
 

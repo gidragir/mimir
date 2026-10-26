@@ -1,5 +1,9 @@
 package dev.mimir.daemon
 
+import dev.mimir.client.DaemonCompletedItemDto
+import dev.mimir.client.DaemonSyncItemDto
+import dev.mimir.client.DaemonSyncProblemDto
+import dev.mimir.client.DaemonSyncProgressDto
 import dev.mimir.core.CompletedItem
 import dev.mimir.core.SyncItem
 import dev.mimir.core.SyncItemAction
@@ -10,33 +14,10 @@ import dev.mimir.core.SyncProgress
 import kotlinx.serialization.Serializable
 import kotlin.time.Instant
 
-@Serializable
-data class SyncItemDto(val path: String, val action: String)
-
-@Serializable
-data class CompletedItemDto(val path: String, val action: String, val at: String)
-
-@Serializable
-data class SyncProblemDto(val path: String, val action: String, val kind: String, val detail: String)
-
-@Serializable
-data class SyncProgressDto(
-    val phase: String,
-    val startedAt: String,
-    val finishedAt: String? = null,
-    val applyingStartedAt: String? = null,
-    val scanned: Int = 0,
-    val foldersScanned: Int = 0,
-    val total: Int = 0,
-    val done: Int = 0,
-    val bytesTotal: Long = 0,
-    val bytesDone: Long = 0,
-    val etaSeconds: Long? = null,
-    val current: SyncItemDto? = null,
-    val upcoming: List<SyncItemDto> = emptyList(),
-    val completed: List<CompletedItemDto> = emptyList(),
-    val problems: List<SyncProblemDto> = emptyList(),
-)
+typealias SyncItemDto = DaemonSyncItemDto
+typealias CompletedItemDto = DaemonCompletedItemDto
+typealias SyncProblemDto = DaemonSyncProblemDto
+typealias SyncProgressDto = DaemonSyncProgressDto
 
 private fun Enum<*>.snake(): String =
     name.replace(Regex("([a-z0-9])([A-Z])"), "$1_$2").lowercase()

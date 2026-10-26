@@ -1,13 +1,22 @@
 package dev.mimir.desktop
 
+import dev.mimir.client.DaemonBrowserLoginPoll
+import dev.mimir.client.DaemonConnectionStatus
+import dev.mimir.client.DaemonDeviceCodeDto
+import dev.mimir.client.DaemonDevicePoll
+import dev.mimir.client.DaemonLoginMethod
+import dev.mimir.client.DaemonService
+import dev.mimir.client.DaemonVaultInspectionDto
+import dev.mimir.core.ConflictFileEntry
+import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncStatus
-import dev.mimir.daemon.ConflictFileEntry
-import dev.mimir.daemon.DaemonService
-import dev.mimir.daemon.DevicePoll
 import dev.mimir.daemon.InvalidPasswordException
-import dev.mimir.daemon.LoginMethod
-import dev.mimir.drive.api.GoogleDeviceCodeResponse
+import dev.mimir.ui.model.UiBrowserPoll
+import dev.mimir.ui.model.UiConflictEntry
+import dev.mimir.ui.model.UiDeviceCode
 import dev.mimir.ui.model.UiDevicePoll
+import dev.mimir.ui.model.UiLoginMethod
+import dev.mimir.ui.model.UiVaultInspection
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
@@ -20,16 +29,17 @@ import kotlin.time.Instant
 class DaemonServiceUiModelTest {
     private class FakeDaemonService : DaemonService {
         override val status = MutableStateFlow<SyncStatus>(SyncStatus.Idle)
-        override val progress = MutableStateFlow<dev.mimir.core.SyncProgress?>(null)
+        override val progress = MutableStateFlow<SyncProgress?>(null)
         override var vaultPath: String? = "/test/path"
         override var isLocked = true
         override var lastSyncTime: Instant? = null
         override var accountEmail: String? = "user@test.com"
         override val conflictsFlow = MutableStateFlow<List<ConflictFileEntry>>(emptyList())
+        override val connectionStatus = MutableStateFlow(DaemonConnectionStatus.Connected)
         var syncTriggered = false
         var unlockPassword: String? = null
         var resolved: Triple<String, String, Boolean>? = null
-        var poll: DevicePoll = DevicePoll.Pending
+        var poll: DaemonDevicePoll = DaemonDevicePoll.Pending
         var rejectPassword = false
 
         override suspend fun triggerSync(): Boolean { syncTriggered = true; return true }
@@ -42,17 +52,17 @@ class DaemonServiceUiModelTest {
         override suspend fun resolveConflict(originalPath: String, conflictPath: String, keepConflict: Boolean) {
             resolved = Triple(originalPath, conflictPath, keepConflict)
         }
-        override suspend fun startDeviceLogin() = GoogleDeviceCodeResponse("dcode", "ucode", "url", 1800, 5)
-        override suspend fun pollDeviceLogin(deviceCode: String) = poll
+        override suspend fun startDeviceLogin() = DaemonDeviceCodeDto("dcode", "ucode", "url", 1800, 5)
+        override suspend fun pollDeviceLogin(deviceCode: String): DaemonDevicePoll = poll
         var fileCount = 0
-        var inspection = dev.mimir.daemon.VaultInspectionDto(0, 0, false)
+        var inspection = DaemonVaultInspectionDto(0, 0, false)
         override suspend fun configureVault(vaultPath: String): Int { this.vaultPath = vaultPath; return fileCount }
-        override suspend fun inspectVault() = inspection
-        var browserPoll: dev.mimir.daemon.BrowserLoginPoll = dev.mimir.daemon.BrowserLoginPoll.Pending
-        var methods: Set<LoginMethod> = emptySet()
+        override suspend fun inspectVault(): DaemonVaultInspectionDto = inspection
+        var browserPoll: DaemonBrowserLoginPoll = DaemonBrowserLoginPoll.Pending
+        var methods: Set<DaemonLoginMethod> = emptySet()
         override suspend fun startBrowserLogin(): String = "https://auth.example/login"
-        override suspend fun pollBrowserLogin(): dev.mimir.daemon.BrowserLoginPoll = browserPoll
-        override suspend fun loginMethods(): Set<LoginMethod> = methods
+        override suspend fun pollBrowserLogin(): DaemonBrowserLoginPoll = browserPoll
+        override suspend fun loginMethods(): Set<DaemonLoginMethod> = methods
     }
 
     @Test
@@ -60,23 +70,23 @@ class DaemonServiceUiModelTest {
         val service = FakeDaemonService()
         val adapter = DaemonServiceUiModel(service, backgroundScope)
         service.fileCount = 7
-        service.inspection = dev.mimir.daemon.VaultInspectionDto(7, 9, true)
+        service.inspection = DaemonVaultInspectionDto(7, 9, true)
         assertEquals(7, adapter.configureVault("/vault"))
-        assertEquals(dev.mimir.ui.model.UiVaultInspection(7, 9, true), adapter.inspectVault())
+        assertEquals(UiVaultInspection(7, 9, true), adapter.inspectVault())
     }
 
     @Test
     fun `maps browser login methods and polls to ui types`() = runTest {
         val service = FakeDaemonService()
         val adapter = DaemonServiceUiModel(service, backgroundScope)
-        service.methods = setOf(LoginMethod.Browser, LoginMethod.DeviceCode)
-        assertEquals(setOf(dev.mimir.ui.model.UiLoginMethod.Browser, dev.mimir.ui.model.UiLoginMethod.DeviceCode), adapter.loginMethods())
+        service.methods = setOf(DaemonLoginMethod.Browser, DaemonLoginMethod.DeviceCode)
+        assertEquals(setOf(UiLoginMethod.Browser, UiLoginMethod.DeviceCode), adapter.loginMethods())
         assertEquals("https://auth.example/login", adapter.startBrowserLogin())
-        assertEquals(dev.mimir.ui.model.UiBrowserPoll.Pending, adapter.pollBrowserLogin())
-        service.browserPoll = dev.mimir.daemon.BrowserLoginPoll.Authorized("me@x")
-        assertEquals(dev.mimir.ui.model.UiBrowserPoll.Authorized("me@x"), adapter.pollBrowserLogin())
-        service.browserPoll = dev.mimir.daemon.BrowserLoginPoll.Failed("Вход отменён")
-        assertEquals(dev.mimir.ui.model.UiBrowserPoll.Failed("Вход отменён"), adapter.pollBrowserLogin())
+        assertEquals(UiBrowserPoll.Pending, adapter.pollBrowserLogin())
+        service.browserPoll = DaemonBrowserLoginPoll.Authorized("me@x")
+        assertEquals(UiBrowserPoll.Authorized("me@x"), adapter.pollBrowserLogin())
+        service.browserPoll = DaemonBrowserLoginPoll.Failed("Вход отменён")
+        assertEquals(UiBrowserPoll.Failed("Вход отменён"), adapter.pollBrowserLogin())
     }
 
     @Test
@@ -138,9 +148,9 @@ class DaemonServiceUiModelTest {
         assertEquals("ucode", code.userCode)
         assertEquals("dcode", code.deviceCode)
         assertEquals(UiDevicePoll.Pending, adapter.pollDeviceLogin("dcode"))
-        service.poll = DevicePoll.Authorized("me@x")
+        service.poll = DaemonDevicePoll.Authorized("me@x")
         assertEquals(UiDevicePoll.Authorized("me@x"), adapter.pollDeviceLogin("dcode"))
-        service.poll = DevicePoll.Expired("gone")
+        service.poll = DaemonDevicePoll.Expired("gone")
         assertEquals(UiDevicePoll.Expired("gone"), adapter.pollDeviceLogin("dcode"))
     }
 }

@@ -55,8 +55,7 @@ class DaemonServiceFactoryTest {
 
         val backend = runBlocking { DaemonServiceFactory.create(config(port)) }.also { closers += it::close }
         assertEquals(DesktopBackend.Mode.RemoteDaemon, backend.mode)
-        assertIs<DesktopDaemonServiceAdapter>(backend.service)
-        assertIs<dev.mimir.client.HttpDaemonClient>(backend.service.client)
+        assertIs<dev.mimir.client.HttpDaemonClient>(backend.service)
     }
 
     @Test

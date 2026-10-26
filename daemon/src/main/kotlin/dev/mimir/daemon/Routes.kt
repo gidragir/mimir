@@ -1,10 +1,12 @@
 package dev.mimir.daemon
 
+import dev.mimir.client.*
 import dev.mimir.core.BuildConfig
 import dev.mimir.core.SyncStatus
 import dev.mimir.core.label
 import dev.mimir.drive.client.DriveHttpException
 import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
@@ -12,6 +14,7 @@ import io.ktor.server.application.createRouteScopedPlugin
 import io.ktor.server.application.install
 import io.ktor.server.http.content.staticResources
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.server.plugins.cors.routing.CORS
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
 import io.ktor.server.routing.get
@@ -24,59 +27,21 @@ import java.security.MessageDigest
 @Serializable
 private data class Health(val status: String, val version: String)
 
-@Serializable
-private data class StatusResponse(
-    val status: String,
-    val label: String,
-    val vaultPath: String?,
-    val lastSyncAt: String?,
-    val isLocked: Boolean,
-    val activeConflicts: Int,
-    val accountEmail: String?,
-    val progress: SyncProgressDto? = null,
-)
-
-@Serializable
-private data class StatusOnly(val status: String)
-
-@Serializable
-private data class ErrorBody(val error: String)
-
-@Serializable
-private data class ConflictsResponse(val conflicts: List<ConflictItem>)
-
-@Serializable
-private data class ConflictItem(val originalPath: String, val conflictPath: String, val createdAt: String)
-
-@Serializable
-private data class ResolveRequest(val originalPath: String = "", val conflictPath: String = "", val resolution: String = "")
-
-@Serializable
-private data class ResolveResponse(val status: String, val path: String)
-
-@Serializable
-private data class AuthorizedResponse(val status: String, val email: String?)
-
-@Serializable
-private data class ExpiredResponse(val status: String, val error: String)
-
-@Serializable
-private data class MethodsResponse(val methods: List<String>)
-
-@Serializable
-private data class AuthUrlResponse(val authUrl: String)
-
-@Serializable
-private data class FailedResponse(val status: String, val error: String)
-
-@Serializable
-private data class VaultRequest(val vaultPath: String = "")
-
-@Serializable
-private data class VaultConfigResponse(val vaultPath: String, val fileCount: Int)
-
-@Serializable
-private data class UnlockRequest(val password: String = "")
+private typealias StatusResponse = DaemonStatusDto
+private typealias StatusOnly = DaemonStatusOnlyResponse
+private typealias ErrorBody = DaemonErrorBody
+private typealias ConflictsResponse = DaemonConflictsResponse
+private typealias ConflictItem = DaemonConflictItemDto
+private typealias ResolveRequest = DaemonResolveConflictRequest
+private typealias ResolveResponse = DaemonResolveConflictResponse
+private typealias AuthorizedResponse = DaemonAuthorizedResponse
+private typealias ExpiredResponse = DaemonExpiredResponse
+private typealias MethodsResponse = DaemonMethodsResponse
+private typealias AuthUrlResponse = DaemonAuthUrlResponse
+private typealias FailedResponse = DaemonFailedResponse
+private typealias VaultRequest = DaemonVaultRequest
+private typealias VaultConfigResponse = DaemonVaultConfigResponse
+private typealias UnlockRequest = DaemonUnlockRequest
 
 private fun SyncStatus.code(): String = when (this) {
     SyncStatus.NotConfigured -> "not_connected"
@@ -105,6 +70,16 @@ private val MimirTokenAuth = createRouteScopedPlugin("MimirTokenAuth", ::TokenAu
 }
 
 fun Application.mimirRoutes(service: DaemonService, config: DaemonConfig) {
+    install(CORS) {
+        anyHost()
+        allowMethod(HttpMethod.Options)
+        allowMethod(HttpMethod.Get)
+        allowMethod(HttpMethod.Post)
+        allowHeader(HttpHeaders.Authorization)
+        allowHeader(HttpHeaders.ContentType)
+        allowHeader("X-Mimir-Token")
+        allowCredentials = true
+    }
     install(ContentNegotiation) { json() }
     routing {
         get("/health") { call.respond(Health("ok", BuildConfig.VERSION)) }
@@ -188,9 +163,9 @@ fun Application.mimirRoutes(service: DaemonService, config: DaemonConfig) {
                     ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorBody("device_code is required"))
                 try {
                     when (val result = service.pollDeviceLogin(deviceCode)) {
-                        DevicePoll.Pending -> call.respond(StatusOnly("pending"))
-                        is DevicePoll.Authorized -> call.respond(AuthorizedResponse("authorized", result.email))
-                        is DevicePoll.Expired -> call.respond(HttpStatusCode.BadRequest, ExpiredResponse("expired", "Code has expired"))
+                        DaemonDevicePoll.Pending -> call.respond(StatusOnly("pending"))
+                        is DaemonDevicePoll.Authorized -> call.respond(AuthorizedResponse("authorized", result.email))
+                        is DaemonDevicePoll.Expired -> call.respond(HttpStatusCode.BadRequest, ExpiredResponse("expired", "Code has expired"))
                     }
                 } catch (e: SyncNotConfiguredException) {
                     call.respond(HttpStatusCode.PreconditionFailed, ErrorBody(e.message ?: "Not configured"))
@@ -219,9 +194,9 @@ fun Application.mimirRoutes(service: DaemonService, config: DaemonConfig) {
 
             get("/auth/browser/poll") {
                 when (val result = service.pollBrowserLogin()) {
-                    BrowserLoginPoll.Pending -> call.respond(StatusOnly("pending"))
-                    is BrowserLoginPoll.Authorized -> call.respond(AuthorizedResponse("authorized", result.email))
-                    is BrowserLoginPoll.Failed -> call.respond(FailedResponse("failed", result.reason))
+                    DaemonBrowserLoginPoll.Pending -> call.respond(StatusOnly("pending"))
+                    is DaemonBrowserLoginPoll.Authorized -> call.respond(AuthorizedResponse("authorized", result.email))
+                    is DaemonBrowserLoginPoll.Failed -> call.respond(FailedResponse("failed", result.reason))
                 }
             }
 

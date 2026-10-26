@@ -5,7 +5,7 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toInstant
 import kotlin.time.Instant
 
-data class ConflictFileEntry(val originalPath: String, val conflictPath: String, val createdAt: Instant)
+typealias ConflictFileEntry = dev.mimir.core.ConflictFileEntry
 
 /** Конфликтные копии, которые создаёт движок: `Имя (conflicted copy YYYY-MM-DD-HHMMSS).ext`. */
 internal object ConflictFiles {

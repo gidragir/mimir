@@ -137,10 +137,15 @@ data class DaemonVaultInspectionDto(
 
 @Serializable
 data class DaemonDeviceCodeDto(
+    @kotlinx.serialization.SerialName("device_code")
     val deviceCode: String,
+    @kotlinx.serialization.SerialName("user_code")
     val userCode: String,
+    @kotlinx.serialization.SerialName("verification_url")
     val verificationUrl: String,
+    @kotlinx.serialization.SerialName("expires_in")
     val expiresInSeconds: Long,
+    @kotlinx.serialization.SerialName("interval")
     val intervalSeconds: Long,
 )
 
@@ -163,6 +168,18 @@ data class DaemonStatusOnlyResponse(
 data class DaemonAuthorizedResponse(
     val status: String,
     val email: String?,
+)
+
+@Serializable
+data class DaemonExpiredResponse(
+    val status: String,
+    val error: String,
+)
+
+@Serializable
+data class DaemonFailedResponse(
+    val status: String,
+    val error: String,
 )
 
 @Serializable

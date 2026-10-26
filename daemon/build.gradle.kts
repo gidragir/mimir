@@ -32,6 +32,7 @@ tasks.withType<JavaExec>().configureEach {
 dependencies {
     implementation(project(":core"))
     implementation(project(":drive"))
+    api(project(":client"))
     implementation(libs.serialization.json)
     implementation(libs.kotlinx.datetime)
     implementation(libs.ktor.client.core)
@@ -39,6 +40,7 @@ dependencies {
     implementation(libs.ktor.client.content.negotiation)
     implementation(libs.ktor.server.core)
     implementation(libs.ktor.server.cio)
+    implementation(libs.ktor.server.cors)
     implementation(libs.ktor.server.content.negotiation)
     implementation(libs.ktor.serialization.json)
     runtimeOnly(libs.slf4j.simple)

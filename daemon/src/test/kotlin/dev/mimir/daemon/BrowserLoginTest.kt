@@ -1,5 +1,6 @@
 package dev.mimir.daemon
 
+import dev.mimir.client.DaemonBrowserLoginPoll as BrowserLoginPoll
 import dev.mimir.drive.auth.GoogleClientKind
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO

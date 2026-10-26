@@ -1,5 +1,7 @@
 package dev.mimir.daemon
 
+import dev.mimir.client.DaemonBrowserLoginPoll
+import dev.mimir.client.DaemonDevicePoll
 import dev.mimir.core.ChangeFeedStorage
 import dev.mimir.core.Cipher
 import dev.mimir.core.RcloneCipher
@@ -119,6 +121,8 @@ class DaemonRuntime(
     override val status: StateFlow<SyncStatus> = _status.asStateFlow()
     override val progress: StateFlow<SyncProgress?> = _progress.asStateFlow()
     override val conflictsFlow: StateFlow<List<ConflictFileEntry>> = _conflicts.asStateFlow()
+    override val connectionStatus: StateFlow<dev.mimir.client.DaemonConnectionStatus> =
+        MutableStateFlow(dev.mimir.client.DaemonConnectionStatus.Connected)
     override val vaultPath: String? get() = config.vaultPath
     override val isLocked: Boolean get() = cipher == null
     val isReady: Boolean get() = scheduler != null
@@ -225,8 +229,16 @@ class DaemonRuntime(
         refreshConflicts()
     }
 
-    override suspend fun startDeviceLogin(): GoogleDeviceCodeResponse =
-        (authClients.device ?: throw SyncNotConfiguredException("Google device client is not configured")).requestDeviceCode()
+    override suspend fun startDeviceLogin(): dev.mimir.client.DaemonDeviceCodeDto {
+        val res = (authClients.device ?: throw SyncNotConfiguredException("Google device client is not configured")).requestDeviceCode()
+        return dev.mimir.client.DaemonDeviceCodeDto(
+            deviceCode = res.device_code,
+            userCode = res.user_code,
+            verificationUrl = res.verification_url,
+            expiresInSeconds = res.expires_in,
+            intervalSeconds = res.interval,
+        )
+    }
 
     override suspend fun loginMethods(): Set<LoginMethod> = loginMethodsFor(config.googleCredentials())
 
@@ -236,12 +248,12 @@ class DaemonRuntime(
             client.pollDeviceToken(deviceCode)
         } catch (e: DriveAuthException) {
             val message = e.message.orEmpty()
-            return if ("authorization_pending" in message || "slow_down" in message) DevicePoll.Pending else DevicePoll.Expired(message)
+            return if ("authorization_pending" in message || "slow_down" in message) DaemonDevicePoll.Pending else DaemonDevicePoll.Expired(message)
         }
-        return DevicePoll.Authorized(completeLogin(tokens, client))
+        return DaemonDevicePoll.Authorized(completeLogin(tokens, client))
     }
 
-    private class BrowserAttempt(val receiver: BrowserLoginReceiver, val job: Job, val state: MutableStateFlow<BrowserLoginPoll>)
+    private class BrowserAttempt(val receiver: BrowserLoginReceiver, val job: Job, val state: MutableStateFlow<DaemonBrowserLoginPoll>)
 
     private val browserMutex = Mutex()
     private var browserAttempt: BrowserAttempt? = null
@@ -264,12 +276,12 @@ class DaemonRuntime(
             receiver.close()
             throw e
         }
-        val state = MutableStateFlow<BrowserLoginPoll>(BrowserLoginPoll.Pending)
+        val state = MutableStateFlow<DaemonBrowserLoginPoll>(DaemonBrowserLoginPoll.Pending)
         val job = scope.launch {
             state.value = when (val callback = receiver.awaitCallback()) {
-                null -> BrowserLoginPoll.Failed("Время ожидания истекло")
-                LoginCallback.Denied -> BrowserLoginPoll.Failed("Вход отменён")
-                is LoginCallback.Invalid -> BrowserLoginPoll.Failed("Вход не удался")
+                null -> DaemonBrowserLoginPoll.Failed("Время ожидания истекло")
+                LoginCallback.Denied -> DaemonBrowserLoginPoll.Failed("Вход отменён")
+                is LoginCallback.Invalid -> DaemonBrowserLoginPoll.Failed("Вход не удался")
                 is LoginCallback.Code -> {
                     val tokens = try {
                         client.exchangeAuthorizationCode(callback.code, request.verifier, request.redirectUri)
@@ -277,19 +289,19 @@ class DaemonRuntime(
                         throw e
                     } catch (e: DriveHttpException) {
                         logger.warning("Google rejected the authorization code: ${e.javaClass.simpleName}, HTTP ${e.statusCode}")
-                        null.also { state.value = BrowserLoginPoll.Failed("Google не принял вход") }
+                        null.also { state.value = DaemonBrowserLoginPoll.Failed("Google не принял вход") }
                     } catch (e: Exception) {
                         logger.warning("Token exchange failed: ${e.javaClass.name}")
-                        null.also { state.value = BrowserLoginPoll.Failed("Не удалось связаться с Google") }
+                        null.also { state.value = DaemonBrowserLoginPoll.Failed("Не удалось связаться с Google") }
                     }
                     if (tokens == null) return@launch
                     try {
-                        BrowserLoginPoll.Authorized(completeLogin(tokens, client))
+                        DaemonBrowserLoginPoll.Authorized(completeLogin(tokens, client))
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
                         logger.warning("Saving sign-in failed: ${e.javaClass.name}")
-                        BrowserLoginPoll.Failed("Не удалось сохранить вход")
+                        DaemonBrowserLoginPoll.Failed("Не удалось сохранить вход")
                     }
                 }
             }
@@ -298,8 +310,8 @@ class DaemonRuntime(
         request.authUrl
     }
 
-    override suspend fun pollBrowserLogin(): BrowserLoginPoll =
-        browserMutex.withLock { browserAttempt?.state?.value } ?: BrowserLoginPoll.Failed("Вход не начат")
+    override suspend fun pollBrowserLogin(): DaemonBrowserLoginPoll =
+        browserMutex.withLock { browserAttempt?.state?.value } ?: DaemonBrowserLoginPoll.Failed("Вход не начат")
 
     /** Сохраняет токены, запоминает аккаунт и перезапускает синхронизацию. */
     private suspend fun completeLogin(tokens: OAuthTokens, client: GoogleAuthClient): String? {

@@ -3,6 +3,7 @@ package dev.mimir.daemon
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeout
 import kotlin.time.Duration.Companion.milliseconds
+import dev.mimir.client.DaemonBrowserLoginPoll as BrowserLoginPoll
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
