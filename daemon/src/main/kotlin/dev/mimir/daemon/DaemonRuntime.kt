@@ -134,7 +134,7 @@ class DaemonRuntime(
 
     suspend fun initialize() {
         accountEmail = readAccountEmail()
-        config.resolvePassword()?.takeIf { it.isNotEmpty() }?.let { cipher = RcloneCipher(it) }
+        config.resolvePassword()?.takeIf { it.isNotEmpty() }?.let { cipher = RcloneCipher.create(it) }
         refreshConflicts()
         startConflictScan()
         rebuildLenient()
@@ -165,7 +165,7 @@ class DaemonRuntime(
     /** [InvalidPasswordException], если пароль не подходит к хранилищу в облаке; демон остаётся заблокированным. */
     override suspend fun unlock(password: String) {
         val previous = cipher
-        cipher = RcloneCipher(password)
+        cipher = RcloneCipher.create(password)
         try {
             rebuild()
         } catch (e: Exception) {

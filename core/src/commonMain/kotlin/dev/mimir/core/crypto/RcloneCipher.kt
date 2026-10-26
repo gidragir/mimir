@@ -1,5 +1,8 @@
 package dev.mimir.core
 
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.io.Buffer
 import kotlinx.io.RawSource
 import kotlinx.io.Source
@@ -10,23 +13,25 @@ import kotlinx.io.buffered
  * `directory_name_encryption = true`, `filename_encoding = base32`).
  * [password] и [password2] — в открытом виде (не в obscured-формате rclone-конфига).
  */
-class RcloneCipher(
-    password: String,
-    password2: String? = null,
+class RcloneCipher internal constructor(
+    private val dataKey: ByteArray,
+    private val nameEme: Eme,
+    private val nameTweak: ByteArray,
     private val nonceSource: () -> ByteArray = ::randomNonce,
 ) : Cipher {
-    private val dataKey: ByteArray
-    private val nameEme: Eme
-    private val nameTweak: ByteArray
 
-    init {
-        require(password.isNotEmpty()) { "password must not be empty" }
-        val salt = if (password2.isNullOrEmpty()) DEFAULT_SALT else password2.encodeToByteArray()
-        val keys = Scrypt.derive(password.encodeToByteArray(), salt, 16384, 8, 1, 80)
-        dataKey = keys.copyOfRange(0, 32)
-        nameEme = Eme(keys.copyOfRange(32, 64))
-        nameTweak = keys.copyOfRange(64, 80)
-    }
+    private constructor(keys: ByteArray, nonceSource: () -> ByteArray) : this(
+        dataKey = keys.copyOfRange(0, 32),
+        nameEme = Eme(keys.copyOfRange(32, 64)),
+        nameTweak = keys.copyOfRange(64, 80),
+        nonceSource = nonceSource,
+    )
+
+    constructor(
+        password: String,
+        password2: String? = null,
+        nonceSource: () -> ByteArray = ::randomNonce,
+    ) : this(deriveKeys(password, password2), nonceSource)
 
     override fun encryptName(segment: String): String {
         if (segment.isEmpty()) return ""
@@ -87,12 +92,33 @@ class RcloneCipher(
 
     override fun toString(): String = "RcloneCipher"
 
-    private companion object {
+    companion object {
         const val NONCE_SIZE = 24
         val DEFAULT_SALT = byteArrayOf(
             0xA8.toByte(), 0x0D, 0xF4.toByte(), 0x3A, 0x8F.toByte(), 0xBD.toByte(), 0x03, 0x08,
             0xA7.toByte(), 0xCA.toByte(), 0xB8.toByte(), 0x3E, 0x58, 0x1F, 0x86.toByte(), 0xB1.toByte(),
         )
+
+        private fun deriveKeys(password: String, password2: String?): ByteArray {
+            require(password.isNotEmpty()) { "password must not be empty" }
+            val salt = if (password2.isNullOrEmpty()) DEFAULT_SALT else password2.encodeToByteArray()
+            return Scrypt.derive(password.encodeToByteArray(), salt, 16384, 8, 1, 80)
+        }
+
+        suspend fun create(
+            password: String,
+            password2: String? = null,
+            dispatcher: CoroutineDispatcher = Dispatchers.Default,
+            nonceSource: () -> ByteArray = ::randomNonce,
+        ): RcloneCipher = withContext(dispatcher) {
+            val keys = deriveKeys(password, password2)
+            RcloneCipher(
+                dataKey = keys.copyOfRange(0, 32),
+                nameEme = Eme(keys.copyOfRange(32, 64)),
+                nameTweak = keys.copyOfRange(64, 80),
+                nonceSource = nonceSource,
+            )
+        }
     }
 }
 
