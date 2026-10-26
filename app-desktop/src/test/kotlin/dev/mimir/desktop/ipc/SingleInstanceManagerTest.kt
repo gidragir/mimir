@@ -56,4 +56,48 @@ class SingleInstanceManagerTest {
         assertTrue(manager.acquirePrimary(emptyArray()))
         manager.close()
     }
+
+    @Test
+    fun testQueuesActivationRequestsBeforeHandlerIsSet() = runTest {
+        val tempSocket = Files.createTempFile("mimir-test-queue-", ".sock").apply { Files.delete(this) }
+        val primary = SingleInstanceManager(socketPath = tempSocket)
+        assertTrue(primary.acquirePrimary(emptyArray()))
+
+        val secondary = SingleInstanceManager(socketPath = tempSocket)
+        assertFalse(secondary.acquirePrimary(arrayOf("mimir://authorized")))
+
+        // onActivationRequest устанавливается позже (после холодного старта UI)
+        val actionDeferred = CompletableDeferred<IpcAction>()
+        primary.onActivationRequest = { actionDeferred.complete(it) }
+
+        val action = withTimeout(5.seconds) { actionDeferred.await() }
+        assertEquals(IpcAction.OpenUri("mimir://authorized"), action)
+
+        primary.close()
+    }
+
+    @Test
+    fun testDoesNotDeleteSocketWhenConnectionSucceedsButIOFails() {
+        val tempSocket = Files.createTempFile("mimir-test-abort-", ".sock").apply { Files.delete(this) }
+        val address = java.net.UnixDomainSocketAddress.of(tempSocket)
+        val mockServer = java.nio.channels.ServerSocketChannel.open(java.net.StandardProtocolFamily.UNIX)
+        mockServer.bind(address)
+
+        val serverThread = Thread {
+            try {
+                val client = mockServer.accept()
+                // Закрываем клиентский сокет сразу, провоцируя IOException у secondary
+                client.close()
+            } catch (_: Exception) {}
+        }.apply { start() }
+
+        val secondary = SingleInstanceManager(socketPath = tempSocket)
+        val acquired = secondary.acquirePrimary(arrayOf("mimir://authorized"))
+        assertFalse(acquired, "Secondary process must not acquire primary if server accepted connection")
+        assertTrue(Files.exists(tempSocket), "Socket file must not be deleted if server accepted connection")
+
+        mockServer.close()
+        serverThread.join()
+        Files.deleteIfExists(tempSocket)
+    }
 }

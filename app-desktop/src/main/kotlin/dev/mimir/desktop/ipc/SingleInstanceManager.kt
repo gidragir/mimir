@@ -1,5 +1,6 @@
 package dev.mimir.desktop.ipc
 
+import dev.mimir.desktop.PlatformFocus
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.net.StandardProtocolFamily
@@ -12,8 +13,8 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicBoolean
-import dev.mimir.desktop.PlatformFocus
 
 sealed interface IpcAction {
     data class OpenUri(val uri: String, val activationToken: String? = null) : IpcAction
@@ -22,9 +23,12 @@ sealed interface IpcAction {
 
 class SingleInstanceManager(socketPath: Path? = null) : AutoCloseable {
     private val socketPath: Path = socketPath ?: defaultSocketPath()
+    @Volatile
     private var serverChannel: ServerSocketChannel? = null
+    @Volatile
     private var listenerThread: Thread? = null
     private val running = AtomicBoolean(false)
+    private val pendingActions = ConcurrentLinkedQueue<IpcAction>()
     private val shutdownHook = Thread {
         try {
             Files.deleteIfExists(this.socketPath)
@@ -32,14 +36,26 @@ class SingleInstanceManager(socketPath: Path? = null) : AutoCloseable {
         }
     }
 
+    @Volatile
     var onActivationRequest: ((IpcAction) -> Unit)? = null
+        set(value) {
+            field = value
+            if (value != null) {
+                while (true) {
+                    val action = pendingActions.poll() ?: break
+                    value.invoke(action)
+                }
+            }
+        }
 
     fun acquirePrimary(args: Array<String>): Boolean {
         val address = UnixDomainSocketAddress.of(socketPath)
 
-        val connected = try {
+        var isConnected = false
+        try {
             SocketChannel.open(StandardProtocolFamily.UNIX).use { channel ->
                 channel.connect(address)
+                isConnected = true
 
                 val uri = args.firstOrNull { it.startsWith("mimir://") }
                 val message = if (uri != null) {
@@ -52,13 +68,11 @@ class SingleInstanceManager(socketPath: Path? = null) : AutoCloseable {
 
                 val responseBuffer = ByteBuffer.allocate(32)
                 channel.read(responseBuffer)
-                true
             }
         } catch (_: IOException) {
-            false
         }
 
-        if (connected) {
+        if (isConnected) {
             PlatformFocus.allowForegroundTransfer()
             return false
         }
@@ -90,7 +104,9 @@ class SingleInstanceManager(socketPath: Path? = null) : AutoCloseable {
             while (running.get() && server.isOpen) {
                 try {
                     val client = server.accept() ?: continue
-                    handleClient(client)
+                    Thread.ofVirtual().name("mimir-ipc-client").start {
+                        handleClient(client)
+                    }
                 } catch (_: ClosedChannelException) {
                     break
                 } catch (_: IOException) {
@@ -116,6 +132,9 @@ class SingleInstanceManager(socketPath: Path? = null) : AutoCloseable {
                     buf.get(bytes)
                     baos.write(bytes)
                     buf.clear()
+                    if (baos.size() > 8192) {
+                        break
+                    }
                     val text = baos.toString(StandardCharsets.UTF_8.name())
                     if (text.contains("END")) {
                         foundEnd = true
@@ -126,12 +145,21 @@ class SingleInstanceManager(socketPath: Path? = null) : AutoCloseable {
                     val text = baos.toString(StandardCharsets.UTF_8.name())
                     val action = parseIpcAction(text)
                     if (action != null) {
-                        onActivationRequest?.invoke(action)
+                        dispatchAction(action)
                     }
                     ch.write(ByteBuffer.wrap("OK\n".toByteArray(StandardCharsets.UTF_8)))
                 }
             }
         } catch (_: IOException) {
+        }
+    }
+
+    private fun dispatchAction(action: IpcAction) {
+        val callback = onActivationRequest
+        if (callback != null) {
+            callback.invoke(action)
+        } else {
+            pendingActions.offer(action)
         }
     }
 
@@ -157,7 +185,7 @@ class SingleInstanceManager(socketPath: Path? = null) : AutoCloseable {
                 if (desktop.isSupported(java.awt.Desktop.Action.APP_OPEN_URI)) {
                     desktop.setOpenURIHandler { event ->
                         event.uri?.toString()?.let { uriStr ->
-                            onActivationRequest?.invoke(IpcAction.OpenUri(uriStr))
+                            dispatchAction(IpcAction.OpenUri(uriStr))
                         }
                     }
                 }
