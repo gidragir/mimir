@@ -13,6 +13,7 @@ version = providers.gradleProperty("mimir.version").get()
 dependencies {
     implementation(project(":core"))
     implementation(project(":drive"))
+    implementation(project(":client"))
     implementation(project(":daemon"))
     implementation(project(":ui"))
     implementation(libs.dbus.java.core)

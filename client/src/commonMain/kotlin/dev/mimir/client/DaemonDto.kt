@@ -1,16 +1,49 @@
 package dev.mimir.client
 
+import dev.mimir.core.CompletedItem
+import dev.mimir.core.SyncItem
+import dev.mimir.core.SyncItemAction
+import dev.mimir.core.SyncPhase
+import dev.mimir.core.SyncProblem
+import dev.mimir.core.SyncProblemKind
+import dev.mimir.core.SyncProgress
 import kotlinx.serialization.Serializable
+import kotlin.time.Instant
+
+private fun Enum<*>.snake(): String =
+    name.replace(Regex("([a-z0-9])([A-Z])"), "$1_$2").lowercase()
+
+private inline fun <reified E : Enum<E>> parseSnake(value: String): E =
+    enumValues<E>().firstOrNull { it.snake() == value } ?: enumValues<E>().first()
+
+fun DaemonSyncProgressDto.toModel(): SyncProgress = SyncProgress(
+    phase = parseSnake<SyncPhase>(phase),
+    startedAt = Instant.parse(startedAt),
+    finishedAt = finishedAt?.let(Instant::parse),
+    applyingStartedAt = applyingStartedAt?.let(Instant::parse),
+    scanned = scanned,
+    foldersScanned = foldersScanned,
+    total = total,
+    done = done,
+    bytesTotal = bytesTotal,
+    bytesDone = bytesDone,
+    current = current?.let { SyncItem(it.path, parseSnake<SyncItemAction>(it.action)) },
+    upcoming = upcoming.map { SyncItem(it.path, parseSnake<SyncItemAction>(it.action)) },
+    completed = completed.map { CompletedItem(it.path, parseSnake<SyncItemAction>(it.action), Instant.parse(it.at)) },
+    problems = problems.map {
+        SyncProblem(it.path, parseSnake<SyncItemAction>(it.action), parseSnake<SyncProblemKind>(it.kind), it.detail)
+    },
+)
 
 @Serializable
 data class DaemonStatusDto(
     val status: String,
     val label: String,
-    val vaultPath: String?,
-    val lastSyncAt: String?,
+    val vaultPath: String? = null,
+    val lastSyncAt: String? = null,
     val isLocked: Boolean,
     val activeConflicts: Int,
-    val accountEmail: String?,
+    val accountEmail: String? = null,
     val progress: DaemonSyncProgressDto? = null,
 )
 
@@ -138,10 +171,14 @@ data class DaemonErrorBody(
 )
 
 enum class DaemonConnectionStatus {
+    Connecting,
     Connected,
     Reconnecting,
     Disconnected,
 }
+
+class InvalidPasswordException(message: String) : IllegalArgumentException(message)
+class SyncNotConfiguredException(message: String) : IllegalStateException(message)
 
 enum class DaemonLoginMethod {
     Browser,
