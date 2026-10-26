@@ -6,6 +6,7 @@
     [
       "@mimir/core",
       "@mimir/drive",
+      "@mimir/client",
       "@mimir/ui",
       "@mimir/app-desktop",
       "@mimir/app-android",

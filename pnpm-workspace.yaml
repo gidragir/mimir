@@ -1,6 +1,7 @@
 packages:
   - core
   - drive
+  - client
   - ui
   - app-desktop
   - app-android

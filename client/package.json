@@ -1,0 +1,6 @@
+{
+  "name": "@mimir/client",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Носитель версии модуля client для changesets; код собирается Gradle"
+}
