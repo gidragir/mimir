@@ -13,6 +13,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.concurrent.atomic.AtomicBoolean
+import dev.mimir.desktop.PlatformFocus
 
 sealed interface IpcAction {
     data class OpenUri(val uri: String, val activationToken: String? = null) : IpcAction
@@ -58,6 +59,7 @@ class SingleInstanceManager(socketPath: Path? = null) : AutoCloseable {
         }
 
         if (connected) {
+            PlatformFocus.allowForegroundTransfer()
             return false
         }
 

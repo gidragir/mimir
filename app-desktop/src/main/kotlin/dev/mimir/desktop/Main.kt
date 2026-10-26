@@ -19,6 +19,7 @@ import dev.mimir.daemon.DaemonConfig
 import dev.mimir.desktop.tray.createTray
 import dev.mimir.desktop.tray.trayLabel
 import dev.mimir.desktop.picker.defaultFolderPicker
+import dev.mimir.desktop.ipc.SingleInstanceManager
 import dev.mimir.ui.MimirApp
 import dev.mimir.ui.picker.LocalFolderPicker
 import dev.mimir.ui.model.MimirUiModel
@@ -33,19 +34,23 @@ import java.nio.file.Paths
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.system.exitProcess
 
-fun main() {
+fun main(args: Array<String>) {
+    val ipc = SingleInstanceManager()
+    if (!ipc.acquirePrimary(args)) {
+        exitProcess(0)
+    }
     val config = try {
         DaemonConfig.load()
     } catch (e: IllegalArgumentException) {
         System.err.println(e.message)
         exitProcess(1)
     }
-    runDesktop(config)
+    runDesktop(config, ipc)
     // Демон и D-Bus держат потоки; backend уже закрыт в onDispose.
     exitProcess(0)
 }
 
-private fun runDesktop(config: DaemonConfig) = application {
+private fun runDesktop(config: DaemonConfig, ipc: SingleInstanceManager) = application {
     val scope = rememberCoroutineScope()
     val tray = remember { createTray() }
     val backendRef = remember { AtomicReference<DesktopBackend?>() }
@@ -92,6 +97,7 @@ private fun runDesktop(config: DaemonConfig) = application {
         onDispose {
             tray.close()
             backendRef.get()?.close()
+            ipc.close()
         }
     }
 
@@ -105,7 +111,15 @@ private fun runDesktop(config: DaemonConfig) = application {
         title = BuildConfig.APP_NAME,
         state = rememberWindowState(size = DpSize(960.dp, 680.dp)),
     ) {
-        LaunchedEffect(Unit) { window.minimumSize = java.awt.Dimension(720, 520) }
+        LaunchedEffect(window) {
+            window.minimumSize = java.awt.Dimension(720, 520)
+            ipc.onActivationRequest = {
+                scope.launch(Dispatchers.Main) {
+                    visible = true
+                    PlatformFocus.activate(window)
+                }
+            }
+        }
         val current = model
         if (current != null) {
             CompositionLocalProvider(
