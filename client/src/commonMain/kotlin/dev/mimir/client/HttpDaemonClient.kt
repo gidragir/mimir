@@ -60,6 +60,7 @@ class HttpDaemonClient(
     private val _conflicts = MutableStateFlow<List<ConflictFileEntry>>(emptyList())
     override val conflictsFlow: StateFlow<List<ConflictFileEntry>> = _conflicts
 
+    @kotlin.concurrent.Volatile
     private var snapshot = DaemonStatusDto(
         status = "not_configured",
         label = "",
@@ -260,6 +261,7 @@ class HttpDaemonClient(
     }
 
     fun close() {
+        _connectionStatus.value = DaemonConnectionStatus.Disconnected
         httpClient.close()
     }
 }
