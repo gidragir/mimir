@@ -22,8 +22,11 @@ object ObsidianStyle {
     private val InputLight = Color(0xFFF0F0F0)
 
     val buttonPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+    val minTouchTarget = 48.dp
+    val compactButtonHeight = 32.dp
 
-    fun Modifier.compactButton(): Modifier = heightIn(min = 32.dp)
+    fun Modifier.minTouchTarget(): Modifier = heightIn(min = minTouchTarget)
+    fun Modifier.compactButton(): Modifier = heightIn(min = compactButtonHeight)
 
     @Composable
     fun panelBorder(): BorderStroke = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)

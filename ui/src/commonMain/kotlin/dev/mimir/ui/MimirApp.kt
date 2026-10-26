@@ -3,6 +3,7 @@ package dev.mimir.ui
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -28,7 +29,7 @@ private enum class Screen { Status, Setup, Conflicts }
 @Composable
 fun MimirApp(model: MimirUiModel) {
     MimirTheme {
-        Surface(Modifier.fillMaxSize()) {
+        Surface(Modifier.fillMaxSize().safeDrawingPadding()) {
             var screen by remember { mutableStateOf(Screen.Status) }
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
                 Box(Modifier.widthIn(max = 880.dp).fillMaxWidth()) {
