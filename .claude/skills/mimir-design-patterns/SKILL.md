@@ -20,7 +20,7 @@ Mimir — многоплатформенный продукт с одним дв
 | Новое поведение синхронизации | План → исполнение: чистое решение отдельно от эффектов | `SyncPlanBuilder` → `SyncAction` → `DefaultSyncEngine.apply` |
 | Состояния и результаты | `sealed` + исчерпывающий `when` | `SyncStatus`, `SyncPhase`, `SyncAction`, `UiBrowserPoll` |
 | Наблюдаемое состояние | `StateFlow`, однонаправленный поток данных: экран читает состояние, события — `suspend`-методы модели | `SyncEngine.progress`, `MimirUiModel` |
-| Один бэкенд — много клиентов | Фасад + удалённый заместитель + адаптер к UI | `DaemonService` ← `DaemonRuntime` / `HttpDaemonClient`; `DaemonServiceUiModel` → `MimirUiModel` |
+| Один бэкенд — много клиентов | Фасад + удалённый заместитель + адаптер к UI в общем KMP-модуле `:client` | `DaemonService` ← `DaemonRuntime` / `HttpDaemonClient`; DTO и HTTP-клиент не изолируются в десктопном модуле; `DaemonServiceUiModel` → `MimirUiModel` |
 | Платформенный сервис в Compose | CompositionLocal + фабрика | `LocalFolderPicker` + `defaultFolderPicker()` |
 | Сборка графа объектов | Composition root, внедрение через конструктор | `DaemonRuntime`, `app-desktop/Main.kt`, `DaemonServiceFactory` |
 | Тестируемые побочные эффекты | Параметры-функции со значениями по умолчанию | `SystemBrowserOpener(osName, launch, browse)` |
@@ -41,4 +41,5 @@ Mimir — многоплатформенный продукт с одним дв
 - `object`-синглтон с состоянием, сервис-локатор, `GlobalScope`.
 - Логика синхронизации в `daemon`, `ui` или точке входа (спека: единый бэкенд).
 - Скопированный кусок из соседнего класса вместо общего типа.
+- Размещение клиентских DTO и `HttpDaemonClient` в платформенных запускалках (`app-desktop`) вместо `:client`.
 - Новый интерфейс без фейка и без теста контракта.

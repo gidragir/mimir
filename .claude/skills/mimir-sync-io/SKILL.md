@@ -20,9 +20,9 @@ Drive — медленное квотируемое сетевое хранил�
 | Листинг | один постраничный `listAll` (`pageSize=1000`, узкий `fields=`), не рекурсивный `list` по папкам | `GoogleDriveStorage.listAll` |
 | Изменения | при `capabilities.changeFeed` — `getChanges(token)`, не полный листинг | сейчас лента только будит `SyncScheduler` |
 | Сравнение | по индексу: `SyncIndex` (hash, revision), размер, `modifiedTime`, `md5Checksum` шифротекста (nonce случайный: сравнивается только с `revision` в индексе, не с локальным файлом); содержимое — крайний случай | дешёвая проверка размер+mtime до хэширования |
-| Данные | потоки `kotlinx.io.Source`/`Sink`; `readByteArray()` — только для заведомо малых данных | большие файлы — resumable (`DriveUploader`, порог 5 МБ) |
+| Данные | потоки `kotlinx.io.Source`/`Sink`; `readByteArray()` — только для заведомо малых данных; в Ktor-клиентах скачивание строго через `bodyAsChannel().toSource()`, запрещен `body<ByteArray>()` | большие файлы — resumable (`DriveUploader`, порог 5 МБ) |
 | Параллелизм | независимые действия — с ограничением (`Semaphore`, `flatMapMerge(concurrency)`, 4–8, настраиваемо); порядок «папка до содержимого» и проверка перед удалением сохраняются; индекс обновляется под `Mutex` | без предела — нельзя: квоты Drive |
-| Диспетчеры | блокирующая ФС и CPU (scrypt, sha, шифр) — не в UI-потоке: `withContext(Dispatchers.IO/Default)` на границе адаптера/демона; в `core/commonMain` диспетчер внедряется параметром (в JS нет IO) | `DaemonRuntime` оборачивает `list()` в `Dispatchers.IO` |
+| Диспетчеры | блокирующая ФС и CPU (scrypt, sha, шифр) — не в UI-потоке: `withContext(Dispatchers.IO/Default)` на границе адаптера/демона; в `core/commonMain` диспетчер внедряется параметром (в JS нет IO); тяжелая KDF (`Scrypt.derive`) выносится в `suspend fun create(...)` на `Dispatchers.Default` и запрещена в синхронных конструкторах | `DaemonRuntime` оборачивает `list()` в `Dispatchers.IO` |
 | Отмена | кооперативная: `ensureActive()` в длинных циклах, `CancellationException` пробрасывается | `DefaultSyncEngine` |
 | Ошибки и квоты | 429, 403 `rateLimitExceeded`/`userRateLimitExceeded`, 5xx → экспоненциальная пауза с джиттером, учитывать `Retry-After`; нет сети → `RemoteUnavailableException`, без циклов ожидания | `DriveHttpClient.executeWithRetry` |
 | События ФС | слияние и задержка (debounce) событий; запись Mimir не будит синхронизацию повторно | `EchoFilter`, `SyncScheduler` |
@@ -44,5 +44,8 @@ Drive — медленное квотируемое сетевое хранил�
 
 - `for (f in files) remote.stat/read(...)`; `remoteStorage.read` на этапе сравнения.
 - `readByteArray()` на файле vault; `runBlocking`, `Thread.sleep`, `GlobalScope`.
+- `response.body<ByteArray>()` при скачивании из `RemoteStorage`.
+- `Scrypt.derive` или тяжелая криптография в синхронном конструкторе класса.
+- Регулярный холостой вызов `vault.list()` по таймеру (мониторинг ФС строго реактивный).
 - `launch` на каждый файл без предела; запрос без `fields=`.
 - «Работает на моём vault из 50 заметок».

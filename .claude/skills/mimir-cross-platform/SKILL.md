@@ -15,9 +15,9 @@ Arch + niri — машина разработчика, а не продукт. �
 |---|---|---|
 | Linux desktop | Arch, системная Java ≥ 27; niri/Sway, KDE, GNOME; Wayland и X11 | AWT-трей не работает без SNI (`DbusStatusNotifierTray`); портал XDG есть не везде; `xdg-open` может отсутствовать |
 | Windows desktop | MSI per-user, вшитая JRE, без админа | AWT-трей и `Desktop.browse`; `%APPDATA%`; пути `C:\…`; ФС без учёта регистра (`Note.md` = `note.md`); `<>:"\|?*`, `CON`/`NUL`, MAX_PATH; файл, открытый Obsidian, может быть заблокирован |
-| Android | APK, `MANAGE_EXTERNAL_STORAGE` | нет AWT/Swing и внешних команд; Activity пересоздаётся; фон ограничен; касание, а не мышь; экран ~360dp; правила Wi-Fi |
+| Android (Android 16 / API 36) | APK, `MANAGE_EXTERNAL_STORAGE`, `WorkManager` | нет AWT/Swing и внешних команд; Activity пересоздаётся; Java NIO `WatchService` не поддерживается (только `android.os.FileObserver`); `FOREGROUND_SERVICE_DATA_SYNC` ограничен 6 часами (синхронизация через `WorkManager`); обязательный edge-to-edge (`safeDrawingPadding()`); сенсорные мишени ≥ 48dp; межпроцессный loopback HTTP (`127.0.0.1`) к Obsidian заблокирован политиками WebView/Doze |
 | Docker-демон | Linux glibc, без дисплея | нет окна, браузера, трея; настройка только env-переменными; вход — Device Code; UI — web-ui по HTTP API |
-| JS-клиенты | плагин Obsidian (в т.ч. мобильный), Chromium MV3, web-ui (wasm) | нет `java.*` и прямой ФС; только HTTP API демона |
+| JS-клиенты | плагин Obsidian (desktop RPC), Chromium MV3, web-ui (wasm) | нет `java.*` и прямой ФС; плагин ходит в локальный HTTP API демона (на сервере обязателен CORS); расширение Chromium работает напрямую с Drive через `chrome.identity` и KMP-криптографию |
 
 ## Рецепт
 
@@ -42,3 +42,5 @@ Arch + niri — машина разработчика, а не продукт. �
 - Захардкоженные `/home`, `~/.config`, `\n` в путях, `File.separator` в относительных путях vault.
 - Функция, которой нет на платформе, но кнопка для неё видна.
 - «На Windows пока no-op», когда есть AWT/JDK API.
+- Java NIO `WatchService` в Android-коде.
+- Сенсорные мишени < 48 dp на мобильных экранах; отсутствие `safeDrawingPadding()`.
