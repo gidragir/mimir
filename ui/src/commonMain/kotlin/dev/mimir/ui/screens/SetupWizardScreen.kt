@@ -34,7 +34,6 @@ import dev.mimir.ui.MimirTheme
 import dev.mimir.ui.ObsidianStyle
 import dev.mimir.ui.ObsidianStyle.compactButton
 import dev.mimir.ui.picker.LocalFolderPicker
-import dev.mimir.ui.platform.LocalBringToFront
 import dev.mimir.ui.model.UiVaultInspection
 import dev.mimir.ui.model.FakeMimirUiModel
 import dev.mimir.ui.model.MimirUiModel
@@ -198,7 +197,6 @@ private fun BrowserLoginStep(model: MimirUiModel, pollIntervalMillis: Long, onNe
     @Suppress("DEPRECATION")
     val clipboard = LocalClipboardManager.current
     val uriHandler = LocalUriHandler.current
-    val bringToFront = LocalBringToFront.current
 
     if (started) {
         LaunchedEffect(attempt) {
@@ -217,7 +215,7 @@ private fun BrowserLoginStep(model: MimirUiModel, pollIntervalMillis: Long, onNe
                     delay(pollIntervalMillis)
                     when (val poll = model.pollBrowserLogin()) {
                         UiBrowserPoll.Pending -> Unit
-                        is UiBrowserPoll.Authorized -> return@LaunchedEffect run { bringToFront?.invoke(); onNext() }
+                        is UiBrowserPoll.Authorized -> return@LaunchedEffect onNext()
                         is UiBrowserPoll.Failed -> return@LaunchedEffect run { error = poll.reason }
                     }
                 }
@@ -260,7 +258,6 @@ private fun DeviceCodeStep(model: MimirUiModel, pollIntervalMillis: Long, onNext
     @Suppress("DEPRECATION")
     val clipboard = LocalClipboardManager.current
     val uriHandler = LocalUriHandler.current
-    val bringToFront = LocalBringToFront.current
 
     LaunchedEffect(attempt) {
         error = null
@@ -272,7 +269,7 @@ private fun DeviceCodeStep(model: MimirUiModel, pollIntervalMillis: Long, onNext
                 delay(pollIntervalMillis)
                 when (val poll = model.pollDeviceLogin(issued.deviceCode)) {
                     UiDevicePoll.Pending -> Unit
-                    is UiDevicePoll.Authorized -> return@LaunchedEffect run { bringToFront?.invoke(); onNext() }
+                    is UiDevicePoll.Authorized -> return@LaunchedEffect onNext()
                     is UiDevicePoll.Expired -> return@LaunchedEffect run { error = "Код истёк: ${poll.reason}" }
                 }
             }
