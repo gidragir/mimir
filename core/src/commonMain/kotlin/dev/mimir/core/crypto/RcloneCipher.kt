@@ -29,7 +29,7 @@ class RcloneCipher internal constructor(
         nonceSource = nonceSource,
     )
 
-    constructor(
+    internal constructor(
         password: String,
         password2: String? = null,
         nonceSource: () -> ByteArray = ::randomNonce,

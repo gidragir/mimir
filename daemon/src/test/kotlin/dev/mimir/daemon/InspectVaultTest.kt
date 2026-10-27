@@ -94,7 +94,7 @@ class InspectVaultTest {
 
         assertEquals(2, runtime.configureVault(vaultDir.toString()))
         // облако получает файл от другого устройства уже после проверки пароля (канарейка записана)
-        EncryptedRemoteStorage(remote, RcloneCipher("secret")).write(RemotePath("r.md"), Buffer().also { it.write("r".encodeToByteArray()) })
+        EncryptedRemoteStorage(remote, RcloneCipher.create("secret")).write(RemotePath("r.md"), Buffer().also { it.write("r".encodeToByteArray()) })
         assertEquals(VaultInspectionDto(2, 1, true), runtime.inspectVault())
     }
 

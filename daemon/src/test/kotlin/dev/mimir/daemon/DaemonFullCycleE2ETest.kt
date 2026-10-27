@@ -32,7 +32,7 @@ class DaemonFullCycleE2ETest {
     private val configDir = Files.createTempDirectory("mimir-e2e-cfg")
     private val vaultDir = Files.createTempDirectory("mimir-e2e-vault")
     private val remote = InMemoryRemoteStorage()
-    private val cleartextRemote = EncryptedRemoteStorage(remote, RcloneCipher("secret"))
+    private val cleartextRemote = EncryptedRemoteStorage(remote, kotlinx.coroutines.runBlocking { RcloneCipher.create("secret") })
     private var runtime: DaemonRuntime? = null
 
     @AfterTest

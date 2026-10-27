@@ -2,6 +2,8 @@ package dev.mimir.ui.model
 
 import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncStatus
+import dev.mimir.client.DaemonConnectionStatus
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlin.time.Instant
 
@@ -36,6 +38,9 @@ interface MimirUiModel {
     val accountEmail: StateFlow<String?>
     val conflicts: StateFlow<List<UiConflictEntry>>
 
+    /** Связь с демоном; для моделей без сетевого демона всегда [DaemonConnectionStatus.Connected]. */
+    val connectionStatus: StateFlow<DaemonConnectionStatus> get() = AlwaysConnected
+
     /** `false`, если синхронизация уже идёт. */
     suspend fun triggerSync(): Boolean
 
@@ -58,3 +63,5 @@ interface MimirUiModel {
     suspend fun startBrowserLogin(): String
     suspend fun pollBrowserLogin(): UiBrowserPoll
 }
+
+private val AlwaysConnected: StateFlow<DaemonConnectionStatus> = MutableStateFlow(DaemonConnectionStatus.Connected)

@@ -13,6 +13,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.TextFieldColors
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
@@ -25,8 +26,10 @@ object ObsidianStyle {
     val minTouchTarget = 48.dp
     val compactButtonHeight = 32.dp
 
-    fun Modifier.minTouchTarget(): Modifier = heightIn(min = minTouchTarget)
-    fun Modifier.compactButton(): Modifier = heightIn(min = compactButtonHeight)
+    /** Высота интерактивного элемента: 48 dp на сенсорных экранах, компактные 32 dp на десктопе. */
+    fun Modifier.compactButton(): Modifier = composed {
+        heightIn(min = if (LocalTouchInput.current) minTouchTarget else compactButtonHeight)
+    }
 
     @Composable
     fun panelBorder(): BorderStroke = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)

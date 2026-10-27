@@ -26,7 +26,9 @@ class FakeMimirUiModel(
     private val loginMethods: Set<UiLoginMethod> = setOf(UiLoginMethod.DeviceCode),
     private val browserAuthUrl: String = "https://accounts.google.com/o/oauth2/v2/auth",
     private val browserPoll: () -> UiBrowserPoll = { UiBrowserPoll.Pending },
+    connectionStatus: dev.mimir.client.DaemonConnectionStatus = dev.mimir.client.DaemonConnectionStatus.Connected,
 ) : MimirUiModel {
+    override val connectionStatus: StateFlow<dev.mimir.client.DaemonConnectionStatus> = MutableStateFlow(connectionStatus)
     override val status: StateFlow<SyncStatus> = MutableStateFlow(status)
     override val vaultPath: MutableStateFlow<String?> = MutableStateFlow(vaultPath)
     override val isLocked: MutableStateFlow<Boolean> = MutableStateFlow(isLocked)

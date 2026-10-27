@@ -42,6 +42,8 @@ class DaemonServiceUiModel(
     override val isLocked: StateFlow<Boolean> = _isLocked
     override val lastSyncTime: StateFlow<Instant?> = _lastSyncTime
     override val accountEmail: StateFlow<String?> = _accountEmail
+    override val connectionStatus: StateFlow<dev.mimir.client.DaemonConnectionStatus> get() = service.connectionStatus
+
     override val conflicts: StateFlow<List<UiConflictEntry>> =
         service.conflictsFlow.map { list -> list.map { it.toUi() } }
             .stateIn(scope, SharingStarted.Eagerly, service.conflictsFlow.value.map { it.toUi() })

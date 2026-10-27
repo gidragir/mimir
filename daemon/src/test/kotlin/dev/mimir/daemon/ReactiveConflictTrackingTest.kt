@@ -50,4 +50,17 @@ class ReactiveConflictTrackingTest {
         assertFalse(Files.exists(conflictFile))
         assertEquals(0, rt.conflictsFlow.value.size)
     }
+
+    @Test
+    fun conflictAppearsInFlowFromFileEventWithoutAnyExplicitRefresh() = kotlinx.coroutines.runBlocking {
+        val rt = DaemonRuntime(DaemonConfig(vaultPath = vaultDir.toString(), configDir = configDir.toString())).also { runtime = it }
+        rt.initialize()
+        kotlinx.coroutines.delay(500) // регистрация watcher'а
+        assertTrue(rt.conflictsFlow.value.isEmpty())
+
+        vaultDir.resolve("Doc (conflicted copy 2026-10-24-120000).md").writeText("x")
+
+        val found = kotlinx.coroutines.withTimeout(10_000) { rt.conflictsFlow.first { it.isNotEmpty() } }
+        assertEquals("Doc.md", found.single().originalPath)
+    }
 }

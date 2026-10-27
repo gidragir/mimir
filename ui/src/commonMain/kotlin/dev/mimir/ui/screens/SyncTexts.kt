@@ -15,6 +15,7 @@ object SyncTexts {
     const val SCANNING = "Ищу изменения…"
     const val SYNCING = "Синхронизация…"
     const val DONE = "✓ Всё синхронизировано"
+    const val RECONNECTING = "Нет связи с Mimir. Подключаюсь заново…"
     const val OFFLINE = "Нет подключения к интернету"
     const val SIGN_IN_AGAIN = "Нужно снова войти в Google"
     const val FAILED = "Не удалось синхронизировать"

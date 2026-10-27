@@ -1,5 +1,14 @@
 package dev.mimir.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
+import dev.mimir.client.DaemonConnectionStatus
+import dev.mimir.ui.screens.SyncTexts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -27,11 +36,15 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 private enum class Screen { Status, Setup, Conflicts }
 
 @Composable
-fun MimirApp(model: MimirUiModel) {
+fun MimirApp(model: MimirUiModel, touchInput: Boolean = false) {
     MimirTheme {
-        Surface(Modifier.fillMaxSize().safeDrawingPadding()) {
+      CompositionLocalProvider(LocalTouchInput provides touchInput) {
+        Surface(Modifier.fillMaxSize()) {
+          Column(Modifier.fillMaxSize().safeDrawingPadding()) {
+            val connection by model.connectionStatus.collectAsState()
+            if (connection != DaemonConnectionStatus.Connected) ReconnectingBanner()
             var screen by remember { mutableStateOf(Screen.Status) }
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+            Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.TopCenter) {
                 Box(Modifier.widthIn(max = 880.dp).fillMaxWidth()) {
                     when (screen) {
                         Screen.Status -> StatusScreen(model, onOpenConflicts = { screen = Screen.Conflicts }, onOpenSetup = { screen = Screen.Setup })
@@ -40,13 +53,25 @@ fun MimirApp(model: MimirUiModel) {
                     }
                 }
             }
+          }
         }
+      }
     }
+}
+
+@Composable
+private fun ReconnectingBanner() {
+    Text(
+        SyncTexts.RECONNECTING,
+        color = MaterialTheme.colorScheme.onErrorContainer,
+        style = MaterialTheme.typography.bodyMedium,
+        modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.errorContainer).padding(horizontal = 16.dp, vertical = 8.dp),
+    )
 }
 
 /** Для точек входа без демона (Android, web): статус движка и больше ничего. */
 @Composable
-fun MimirApp(engine: SyncEngine) = MimirApp(remember(engine) { EngineMimirUiModel(engine) })
+fun MimirApp(engine: SyncEngine, touchInput: Boolean = false) = MimirApp(remember(engine) { EngineMimirUiModel(engine) }, touchInput)
 
 @Preview
 @Composable

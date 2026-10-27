@@ -18,23 +18,23 @@ class CanaryCheckTest {
     @Test
     fun `initializes canary when remote is empty`() = runTest {
         val remote = InMemoryRemoteStorage()
-        verifyOrInitCanary(remote, RcloneCipher("correct-pass"), dir)
+        verifyOrInitCanary(remote, RcloneCipher.create("correct-pass"), dir)
         assertNotNull(remote.stat(RemotePath(CANARY_FILENAME)))
     }
 
     @Test
     fun `accepts the same password on an existing canary`() = runTest {
         val remote = InMemoryRemoteStorage()
-        verifyOrInitCanary(remote, RcloneCipher("password-A"), dir)
-        verifyOrInitCanary(remote, RcloneCipher("password-A"), dir)
+        verifyOrInitCanary(remote, RcloneCipher.create("password-A"), dir)
+        verifyOrInitCanary(remote, RcloneCipher.create("password-A"), dir)
     }
 
     @Test
     fun `fails unlock when wrong password is used on existing canary`() = runTest {
         val remote = InMemoryRemoteStorage()
-        verifyOrInitCanary(remote, RcloneCipher("password-A"), dir)
+        verifyOrInitCanary(remote, RcloneCipher.create("password-A"), dir)
         assertFailsWith<InvalidPasswordException> {
-            verifyOrInitCanary(remote, RcloneCipher("password-B-wrong"), dir)
+            verifyOrInitCanary(remote, RcloneCipher.create("password-B-wrong"), dir)
         }
     }
 
@@ -43,19 +43,19 @@ class CanaryCheckTest {
         val remote = InMemoryRemoteStorage()
         remote.write(RemotePath("some_existing_file"), Buffer().also { it.write(byteArrayOf(1, 2, 3)) })
         assertFailsWith<InvalidPasswordException> {
-            verifyOrInitCanary(remote, RcloneCipher("any-pass"), dir)
+            verifyOrInitCanary(remote, RcloneCipher.create("any-pass"), dir)
         }
     }
 
     @Test
     fun `offline unlock is accepted only with the previously verified password`() = runTest {
         val remote = InMemoryRemoteStorage()
-        verifyOrInitCanary(remote, RcloneCipher("password-A"), dir)
+        verifyOrInitCanary(remote, RcloneCipher.create("password-A"), dir)
         val offline = object : dev.mimir.core.RemoteStorage by remote {
             override suspend fun stat(path: RemotePath) = throw IOException("offline")
         }
-        verifyOrInitCanary(offline, RcloneCipher("password-A"), dir)
-        assertFailsWith<InvalidPasswordException> { verifyOrInitCanary(offline, RcloneCipher("password-B"), dir) }
+        verifyOrInitCanary(offline, RcloneCipher.create("password-A"), dir)
+        assertFailsWith<InvalidPasswordException> { verifyOrInitCanary(offline, RcloneCipher.create("password-B"), dir) }
     }
 
     @Test
@@ -63,7 +63,7 @@ class CanaryCheckTest {
         val offline = object : dev.mimir.core.RemoteStorage by InMemoryRemoteStorage() {
             override suspend fun stat(path: RemotePath) = throw IOException("offline")
         }
-        assertFailsWith<SyncNotConfiguredException> { verifyOrInitCanary(offline, RcloneCipher("p"), dir) }
+        assertFailsWith<SyncNotConfiguredException> { verifyOrInitCanary(offline, RcloneCipher.create("p"), dir) }
         assertTrue(Files.notExists(dir.resolve(".canary_hash")))
     }
 
