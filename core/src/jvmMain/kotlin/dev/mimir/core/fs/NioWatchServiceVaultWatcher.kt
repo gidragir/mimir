@@ -40,13 +40,20 @@ class NioWatchServiceVaultWatcher(
 
     private class Pending(val firstKind: java.nio.file.WatchEvent.Kind<*>, var lastEventAt: Instant)
 
-    override fun start(): Flow<VaultChange> = channelFlow {
+    override fun start(): Flow<VaultChange> = start(onWatching = {})
+
+    /**
+     * [onWatching] вызывается, когда всё дерево зарегистрировано: изменения после него придут событиями.
+     * Подходит для разового скана, закрывающего окно между прошлым сканом и началом наблюдения.
+     */
+    fun start(onWatching: suspend () -> Unit): Flow<VaultChange> = channelFlow {
         val service = root.fileSystem.newWatchService()
         services += service
         val dirs = HashMap<WatchKey, Path>()
         val pending = LinkedHashMap<String, Pending>()
         try {
             registerTree(service, root, dirs, pending)
+            onWatching()
             val tick = (debounce / 4).coerceIn(10.milliseconds, 250.milliseconds)
             while (isActive) {
                 val key = service.poll(tick.inWholeMilliseconds, TimeUnit.MILLISECONDS)

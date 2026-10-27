@@ -8,6 +8,7 @@ import dev.mimir.core.RcloneCipher
 import dev.mimir.core.EncryptedRemoteStorage
 import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncStatus
+import dev.mimir.core.LocalVault
 import dev.mimir.core.fs.FileSystemLocalVault
 import dev.mimir.core.fs.NioWatchServiceVaultWatcher
 import dev.mimir.core.sync.DefaultSyncEngine
@@ -38,8 +39,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -89,6 +88,8 @@ class DaemonRuntime(
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
     private val conflictScanInterval: Duration = 5.seconds,
     private val browserLoginTimeout: Duration = 5.minutes,
+    /** Vault для разовых операций (конфликты, осмотр, подсчёт файлов); тесты подменяют его, чтобы считать обращения к диску. */
+    private val localVaultFactory: (Path) -> LocalVault = { FileSystemLocalVault(it, ioDispatcher = Dispatchers.IO) },
 ) : DaemonService {
     @Volatile
     var config: DaemonConfig = initialConfig
@@ -155,13 +156,13 @@ class DaemonRuntime(
         refreshConflicts()
         startConflictWatcher()
         rebuildLenient()
-        return FileSystemLocalVault(Path(normalized), ioDispatcher = Dispatchers.IO).list().size
+        return localVaultFactory(Path(normalized)).list().size
     }
 
     override suspend fun inspectVault(): VaultInspectionDto {
         check(!isLocked) { "Vault is locked" }
         val remote = encryptedRemote ?: throw SyncNotConfiguredException("Vault path, encryption password or cloud storage not configured")
-        val local = FileSystemLocalVault(Path(config.vaultPath ?: throw SyncNotConfiguredException("Vault path not configured")), ioDispatcher = Dispatchers.IO)
+        val local = localVaultFactory(Path(config.vaultPath ?: throw SyncNotConfiguredException("Vault path not configured")))
         val localCount = local.list().size
         val remoteCount = remote.listAll().size
         return VaultInspectionDto(localCount, remoteCount, localCount > 0 && remoteCount > 0)
@@ -209,21 +210,15 @@ class DaemonRuntime(
             debounce = conflictScanInterval.coerceAtMost(1.seconds),
         )
         vaultWatcher = watcher
+        // Только по событиям ФС: в простое vault не обходится. Разовый скан после регистрации ловит копии,
+        // появившиеся до начала наблюдения. Сбой watcher'а (удалён корень, лимит inotify) не должен ронять демон;
+        // конфликты обновит запрос.
         conflictJob = scope.launch {
-            launch {
-                // сбой watcher'а (удалён корень, лимит inotify) не должен ронять демон; конфликты обновит запрос
-                watcher.start()
-                    .catch { }
-                    .filter { ConflictFiles.parse(it.id.value) != null }
-                    .conflate()
-                    .collect { runCatching { refreshConflicts() } }
-            }
-            if (conflictScanInterval < 1.seconds) {
-                while (isActive) {
-                    delay(conflictScanInterval)
-                    runCatching { refreshConflicts() }
-                }
-            }
+            watcher.start(onWatching = { runCatching { refreshConflicts() } })
+                .catch { }
+                .filter { ConflictFiles.parse(it.id.value) != null }
+                .conflate()
+                .collect { runCatching { refreshConflicts() } }
         }
     }
 
@@ -377,8 +372,7 @@ class DaemonRuntime(
 
     // Отдельный экземпляр без watcher'а: правки разрешения конфликта подхватит обычный watcher демона.
     // Блокирующий файловый IO (обход, чтение, запись, удаление) — на Dispatchers.IO, как у основного vault.
-    private fun conflictVault(): FileSystemLocalVault? =
-        config.vaultPath?.let { FileSystemLocalVault(Path(it), ioDispatcher = Dispatchers.IO) }
+    private fun conflictVault(): LocalVault? = config.vaultPath?.let { localVaultFactory(Path(it)) }
 
     // Неверный пароль не должен ронять вход в облако или старт: демон просто остаётся заблокированным.
     private suspend fun rebuildLenient() {

@@ -49,6 +49,19 @@ class VaultWatcherTest {
     }
 
     @Test
+    fun `onWatching runs once the tree is registered, so nothing created after it is missed`() = runBlocking {
+        val w = watcher()
+        scope.launch {
+            w.start(onWatching = { root.resolve("Notes").createDirectories().resolve("a.md").writeText("x") })
+                .collect { events.send(it) }
+        }
+
+        val created = assertIs<VaultChange.Created>(next())
+        assertEquals("Notes/a.md", created.entry.relativePath)
+        w.stop()
+    }
+
+    @Test
     fun `reports created, modified and deleted files`() = runBlocking {
         val w = watcher().also { it.collectInBackground() }
 
