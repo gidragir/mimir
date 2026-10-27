@@ -29,6 +29,9 @@ import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -208,9 +211,12 @@ class DaemonRuntime(
         vaultWatcher = watcher
         conflictJob = scope.launch {
             launch {
-                watcher.start().collect {
-                    runCatching { refreshConflicts() }
-                }
+                // сбой watcher'а (удалён корень, лимит inotify) не должен ронять демон; конфликты обновит запрос
+                watcher.start()
+                    .catch { }
+                    .filter { ConflictFiles.parse(it.id.value) != null }
+                    .conflate()
+                    .collect { runCatching { refreshConflicts() } }
             }
             if (conflictScanInterval < 1.seconds) {
                 while (isActive) {

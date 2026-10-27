@@ -3,6 +3,8 @@ package dev.mimir.core
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.coroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.io.Buffer
 import kotlinx.io.RawSource
 import kotlinx.io.Source
@@ -99,10 +101,10 @@ class RcloneCipher internal constructor(
             0xA7.toByte(), 0xCA.toByte(), 0xB8.toByte(), 0x3E, 0x58, 0x1F, 0x86.toByte(), 0xB1.toByte(),
         )
 
-        private fun deriveKeys(password: String, password2: String?): ByteArray {
+        private fun deriveKeys(password: String, password2: String?, checkCancelled: () -> Unit = {}): ByteArray {
             require(password.isNotEmpty()) { "password must not be empty" }
             val salt = if (password2.isNullOrEmpty()) DEFAULT_SALT else password2.encodeToByteArray()
-            return Scrypt.derive(password.encodeToByteArray(), salt, 16384, 8, 1, 80)
+            return Scrypt.derive(password.encodeToByteArray(), salt, 16384, 8, 1, 80, checkCancelled)
         }
 
         suspend fun create(
@@ -111,7 +113,8 @@ class RcloneCipher internal constructor(
             dispatcher: CoroutineDispatcher = Dispatchers.Default,
             nonceSource: () -> ByteArray = ::randomNonce,
         ): RcloneCipher = withContext(dispatcher) {
-            val keys = deriveKeys(password, password2)
+            val context = coroutineContext
+            val keys = deriveKeys(password, password2) { context.ensureActive() }
             RcloneCipher(
                 dataKey = keys.copyOfRange(0, 32),
                 nameEme = Eme(keys.copyOfRange(32, 64)),

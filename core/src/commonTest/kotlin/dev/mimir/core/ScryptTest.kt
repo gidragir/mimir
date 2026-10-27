@@ -72,4 +72,15 @@ class ScryptTest {
     fun `rejects n not power of two`() {
         assertFailsWith<IllegalArgumentException> { Scrypt.derive(ByteArray(1), ByteArray(1), 1000, 8, 1, 32) }
     }
+
+    @Test
+    fun `derivation polls the cancellation hook and aborts when it throws`() {
+        var polls = 0
+        assertFailsWith<kotlinx.coroutines.CancellationException> {
+            Scrypt.derive(ByteArray(1), ByteArray(1), 16384, 8, 1, 32) {
+                if (++polls >= 3) throw kotlinx.coroutines.CancellationException("cancelled")
+            }
+        }
+        assertEquals(3, polls)
+    }
 }

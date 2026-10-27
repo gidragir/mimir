@@ -8,6 +8,7 @@ import dev.mimir.drive.auth.TokenStorage
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.HttpStatement
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.delay
@@ -115,6 +116,61 @@ class DriveHttpClient(
             delay(retryAfter?.let { minOf(it, retryPolicy.maxDelay) } ?: retryPolicy.backoff(attempt, random))
         }
     }
+
+    /**
+     * Те же правила повторов, но тело ответа не буферизуется: [consume] читает его прямо из соединения
+     * и держит соединение, пока не вернётся. Для скачивания больших файлов.
+     * Ответ, подлежащий повтору (401 до refresh, 429, 5xx), в [consume] не попадает.
+     */
+    suspend fun <T> executeStreaming(
+        request: suspend (token: String) -> HttpStatement,
+        consume: suspend (HttpResponse) -> T,
+    ): T {
+        var token = getValidToken()
+        var attempt = 0
+        var refreshedOn401 = false
+
+        while (true) {
+            var failure: String? = null
+            var retryAfterHeader: String? = null
+            var unauthorized = false
+            val result = try {
+                request(token).execute { response ->
+                    when {
+                        response.status == HttpStatusCode.Unauthorized && !refreshedOn401 -> {
+                            unauthorized = true
+                            null
+                        }
+                        else -> {
+                            failure = retryableFailure(response)
+                            if (failure != null) {
+                                retryAfterHeader = response.headers[HttpHeaders.RetryAfter]
+                                null
+                            } else {
+                                Holder(consume(response))
+                            }
+                        }
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                throw e.asRemoteUnavailableOrSelf()
+            }
+            if (result != null) return result.value
+            if (unauthorized) {
+                refreshedOn401 = true
+                token = forceRefreshToken()
+                continue
+            }
+            attempt++
+            if (attempt >= retryPolicy.maxAttempts) throw RemoteUnavailableException(failure!!)
+            val retryAfter = parseRetryAfter(retryAfterHeader, clock.now())
+            delay(retryAfter?.let { minOf(it, retryPolicy.maxDelay) } ?: retryPolicy.backoff(attempt, random))
+        }
+    }
+
+    private class Holder<T>(val value: T)
 
     /** Описание повторяемого сбоя (для сообщения об исчерпании) или `null`, если ответ возвращается вызывающему. */
     private suspend fun retryableFailure(response: HttpResponse): String? {

@@ -71,14 +71,14 @@ private val MimirTokenAuth = createRouteScopedPlugin("MimirTokenAuth", ::TokenAu
 
 fun Application.mimirRoutes(service: DaemonService, config: DaemonConfig) {
     install(CORS) {
-        anyHost()
+        // Только клиенты Mimir: расширение браузера и Obsidian. Произвольные сайты не должны управлять локальным API.
+        allowOrigins { it.startsWith("chrome-extension://") || it == "app://obsidian.md" }
         allowMethod(HttpMethod.Options)
         allowMethod(HttpMethod.Get)
         allowMethod(HttpMethod.Post)
         allowHeader(HttpHeaders.Authorization)
         allowHeader(HttpHeaders.ContentType)
         allowHeader("X-Mimir-Token")
-        allowCredentials = true
     }
     install(ContentNegotiation) { json() }
     routing {

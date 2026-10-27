@@ -16,6 +16,7 @@ import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
+import io.ktor.client.request.prepareGet
 import io.ktor.client.request.patch
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsChannel
@@ -23,6 +24,15 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
+import io.ktor.utils.io.ByteChannel
+import io.ktor.utils.io.cancel
+import io.ktor.utils.io.copyTo
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.io.Buffer
 import kotlinx.io.Source
 import kotlinx.serialization.Serializable
@@ -245,23 +255,48 @@ class GoogleDriveStorage(
         return toRemoteEntry(file, path)
     }
 
+    private val streamScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
     override suspend fun read(path: RemotePath): Source {
         val (client, pathResolver) = ensureConfigured()
         val file = pathResolver.resolvePath(path)
             ?: throw NoSuchElementException("No such file in Drive: ${path.value}")
 
-        val response = client.executeWithRetry { token ->
-            client.httpClient.get("https://www.googleapis.com/drive/v3/files/${file.id}") {
-                header(HttpHeaders.Authorization, "Bearer $token")
-                parameter("alt", "media")
+        // Тело качается в фоне через ограниченный буфер канала: память не зависит от размера файла.
+        val channel = ByteChannel()
+        val started = CompletableDeferred<Unit>()
+        val pump = streamScope.launch {
+            try {
+                client.executeStreaming(
+                    request = { token ->
+                        client.httpClient.prepareGet("https://www.googleapis.com/drive/v3/files/${file.id}") {
+                            header(HttpHeaders.Authorization, "Bearer $token")
+                            parameter("alt", "media")
+                        }
+                    },
+                ) { response ->
+                    if (!response.status.isSuccess()) {
+                        throw DriveHttpException(response.status, "Failed to read file ${file.id}")
+                    }
+                    started.complete(Unit)
+                    response.bodyAsChannel().copyTo(channel)
+                }
+                channel.flushAndClose()
+            } catch (e: CancellationException) {
+                channel.cancel(e)
+                throw e
+            } catch (e: Exception) {
+                started.completeExceptionally(e)
+                channel.cancel(e)
             }
         }
-
-        if (!response.status.isSuccess()) {
-            throw DriveHttpException(response.status, "Failed to read file ${file.id}")
+        try {
+            started.await()
+        } catch (e: CancellationException) {
+            pump.cancel()
+            throw e
         }
-
-        return response.bodyAsChannel().toSource()
+        return channel.toSource()
     }
 
     override suspend fun write(path: RemotePath, data: Source): RemoteEntry {

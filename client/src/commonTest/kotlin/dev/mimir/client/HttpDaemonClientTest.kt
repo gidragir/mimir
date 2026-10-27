@@ -6,6 +6,7 @@ import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.client.engine.mock.respondError
 import io.ktor.client.engine.mock.toByteArray
+import io.ktor.client.plugins.pluginOrNull
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
@@ -65,6 +66,14 @@ class HttpDaemonClientTest {
             }
         }
         assertEquals(DaemonConnectionStatus.Reconnecting, client.connectionStatus.value)
+        assertEquals(SyncStatus.Offline, client.status.value, "UI must not keep showing the last Idle/Syncing")
+    }
+
+    @Test
+    fun daemonClientConfigInstallsTimeouts() {
+        val http = HttpClient(MockEngine { respond("{}") }) { installDaemonTimeouts() }
+        assertTrue(http.pluginOrNull(io.ktor.client.plugins.HttpTimeout) != null)
+        http.close()
     }
 
     @Test

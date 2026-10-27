@@ -4,6 +4,8 @@ import dev.mimir.core.ConflictFileEntry
 import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncStatus
 import io.ktor.client.HttpClient
+import io.ktor.client.HttpClientConfig
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
@@ -38,12 +40,22 @@ private data class PollResponseDto(
     val error: String? = null,
 )
 
+/** Клиент с таймаутами: зависший демон не должен вешать опрос и кнопки интерфейса. */
+internal fun HttpClientConfig<*>.installDaemonTimeouts() {
+    install(HttpTimeout) {
+        connectTimeoutMillis = 1_000
+        requestTimeoutMillis = 5_000
+    }
+}
+
+private fun defaultDaemonHttpClient(): HttpClient = HttpClient { installDaemonTimeouts() }
+
 /** [DaemonService] поверх HTTP API демона с отслеживанием жизненного цикла соединения. */
 class HttpDaemonClient(
     private val baseUrl: String,
     private val token: String? = null,
     scope: CoroutineScope,
-    private val httpClient: HttpClient = HttpClient(),
+    private val httpClient: HttpClient = defaultDaemonHttpClient(),
     pollInterval: Duration = 1.seconds,
 ) : DaemonService {
     private val json = Json { ignoreUnknownKeys = true }
@@ -89,7 +101,7 @@ class HttpDaemonClient(
         try {
             val response = get("/api/v1/status")
             if (response.status != HttpStatusCode.OK) {
-                _connectionStatus.value = DaemonConnectionStatus.Reconnecting
+                markUnreachable()
                 return
             }
             val dto = json.decodeFromString<DaemonStatusDto>(response.bodyAsText())
@@ -111,8 +123,15 @@ class HttpDaemonClient(
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
-            _connectionStatus.value = DaemonConnectionStatus.Reconnecting
+            markUnreachable()
         }
+    }
+
+    /** Без связи с демоном последний Idle/Syncing устарел: интерфейс показывает «нет связи». */
+    private fun markUnreachable() {
+        _connectionStatus.value = DaemonConnectionStatus.Reconnecting
+        _status.value = SyncStatus.Offline
+        _progress.value = null
     }
 
     private suspend fun fetchConflicts(): List<ConflictFileEntry> {
