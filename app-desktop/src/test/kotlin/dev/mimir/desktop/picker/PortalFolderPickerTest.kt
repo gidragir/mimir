@@ -1,5 +1,6 @@
 package dev.mimir.desktop.picker
 
+import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -15,8 +16,9 @@ class PortalFolderPickerTest {
 
     @Test
     fun `approved response yields the decoded folder path`() {
+        // Портал есть только на Linux, но тест идёт на всей CI-матрице: путь ОС сравниваем в её собственной форме.
         assertEquals(
-            "/home/me/My Notes",
+            File("/home/me/My Notes").absolutePath,
             PortalFolderPicker.pathFromResponse(0, listOf("file:///home/me/My%20Notes")),
         )
     }

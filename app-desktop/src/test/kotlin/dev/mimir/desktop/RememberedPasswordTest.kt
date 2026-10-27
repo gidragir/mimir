@@ -17,7 +17,10 @@ class RememberedPasswordTest {
 
         val file = dir.resolve("password")
         assertEquals("s3cret", Files.readString(file))
-        assertEquals("rw-------", PosixFilePermissions.toString(Files.getPosixFilePermissions(file)))
+        // На Windows (NTFS) POSIX-прав нет: файл закрыт ACL профиля пользователя (%APPDATA%).
+        if (file.fileSystem.supportedFileAttributeViews().contains("posix")) {
+            assertEquals("rw-------", PosixFilePermissions.toString(Files.getPosixFilePermissions(file)))
+        }
         val config = DaemonConfig.load(dir.toString(), emptyMap())
         assertEquals(file.toString(), config.passwordFile)
         assertEquals("/vault", config.vaultPath)

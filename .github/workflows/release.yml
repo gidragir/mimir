@@ -58,6 +58,9 @@ jobs:
       - uses: jdx/mise-action@v2
       - uses: android-actions/setup-android@v3
         if: matrix.android
+        # По умолчанию ставится устаревший `tools`, которого нет в новых cmdline-tools; платформу и build-tools скачает AGP.
+        with:
+          packages: platform-tools
       - uses: gradle/actions/setup-gradle@v4
       - name: Decode Android keystore
         if: matrix.android

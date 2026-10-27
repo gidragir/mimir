@@ -12,6 +12,7 @@ import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
 import kotlinx.coroutines.runBlocking
+import java.net.InetAddress
 import java.net.ServerSocket
 import java.nio.file.Files
 import kotlin.test.AfterTest
@@ -60,7 +61,8 @@ class DaemonServiceFactoryTest {
 
     @Test
     fun `a foreign process on the port does not crash the app and the daemon still runs in process`() = runBlocking<Unit> {
-        val foreign = ServerSocket(0)
+        // Чужой процесс держит именно 127.0.0.1: сокет на 0.0.0.0 macOS (BSD) позволяет перекрыть более конкретным адресом.
+        val foreign = ServerSocket(0, 50, InetAddress.getByName("127.0.0.1"))
         closers += { foreign.close() }
 
         val backend = DaemonServiceFactory.create(config(foreign.localPort)).also { closers += it::close }
