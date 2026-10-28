@@ -1,4 +1,4 @@
-package dev.mimir.daemon
+package dev.mimir.runtime
 
 import dev.mimir.core.LocalEntry
 import dev.mimir.core.SyncEngine

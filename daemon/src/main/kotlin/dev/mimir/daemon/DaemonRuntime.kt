@@ -1,5 +1,18 @@
 package dev.mimir.daemon
 
+import dev.mimir.runtime.SyncNotConfiguredException
+
+import dev.mimir.runtime.ConflictFileEntry
+
+import dev.mimir.runtime.writeFileAtomically
+import dev.mimir.runtime.ConflictFiles
+import dev.mimir.runtime.SyncScheduler
+import dev.mimir.runtime.JsonSyncStateStore
+import dev.mimir.runtime.FileTokenStorage
+import dev.mimir.runtime.verifyOrInitCanary
+import dev.mimir.runtime.InvalidPasswordException
+import dev.mimir.runtime.CANARY_FILENAME
+
 import dev.mimir.client.DaemonBrowserLoginPoll
 import dev.mimir.client.DaemonDevicePoll
 import dev.mimir.core.ChangeFeedStorage
@@ -61,8 +74,6 @@ import kotlin.time.Instant
 
 private val logger = java.util.logging.Logger.getLogger(DaemonRuntime::class.java.name)
 
-/** Синхронизация невозможна: нет vault, входа в облако или пароля шифрования. */
-class SyncNotConfiguredException(message: String) : IllegalStateException(message)
 
 fun interface RemoteStorageFactory {
     /** `null` — облако не настроено (например, нет client id). */

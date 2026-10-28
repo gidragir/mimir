@@ -32,6 +32,7 @@ tasks.withType<JavaExec>().configureEach {
 dependencies {
     implementation(project(":core"))
     implementation(project(":drive"))
+    implementation(project(":runtime"))
     api(project(":client"))
     implementation(libs.serialization.json)
     implementation(libs.kotlinx.datetime)

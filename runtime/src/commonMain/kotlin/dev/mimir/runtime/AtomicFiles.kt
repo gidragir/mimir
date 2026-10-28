@@ -1,4 +1,4 @@
-package dev.mimir.daemon
+package dev.mimir.runtime
 
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
@@ -7,7 +7,7 @@ import java.nio.file.StandardCopyOption
 import java.nio.file.attribute.PosixFilePermissions
 
 /** Пишет файл через временный файл в том же каталоге; [ownerOnly] — права 0600 на POSIX. */
-internal fun writeFileAtomically(target: Path, content: String, ownerOnly: Boolean = false) {
+fun writeFileAtomically(target: Path, content: String, ownerOnly: Boolean = false) {
     val dir = target.toAbsolutePath().parent
     Files.createDirectories(dir)
     val posix = ownerOnly && dir.fileSystem.supportedFileAttributeViews().contains("posix")

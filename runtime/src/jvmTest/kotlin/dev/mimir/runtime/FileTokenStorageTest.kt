@@ -1,4 +1,4 @@
-package dev.mimir.daemon
+package dev.mimir.runtime
 
 import dev.mimir.drive.auth.OAuthTokens
 import kotlinx.coroutines.test.runTest

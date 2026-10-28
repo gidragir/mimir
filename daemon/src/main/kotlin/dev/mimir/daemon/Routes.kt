@@ -1,5 +1,9 @@
 package dev.mimir.daemon
 
+import dev.mimir.runtime.SyncNotConfiguredException
+
+import dev.mimir.runtime.InvalidPasswordException
+
 import dev.mimir.client.*
 import dev.mimir.core.BuildConfig
 import dev.mimir.core.SyncStatus

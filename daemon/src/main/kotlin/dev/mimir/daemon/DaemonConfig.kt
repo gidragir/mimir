@@ -1,5 +1,7 @@
 package dev.mimir.daemon
 
+import dev.mimir.runtime.writeFileAtomically
+
 import dev.mimir.core.BuildConfig
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerializationException

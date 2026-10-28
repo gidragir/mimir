@@ -1,4 +1,4 @@
-package dev.mimir.daemon
+package dev.mimir.runtime
 
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
@@ -8,7 +8,7 @@ import kotlin.time.Instant
 typealias ConflictFileEntry = dev.mimir.core.ConflictFileEntry
 
 /** Конфликтные копии, которые создаёт движок: `Имя (conflicted copy YYYY-MM-DD-HHMMSS).ext`. */
-internal object ConflictFiles {
+object ConflictFiles {
     private val pattern = Regex("""^(.*) \(conflicted copy (\d{4})-(\d{2})-(\d{2})-(\d{2})(\d{2})(\d{2})\)(\.[^./]*)?$""")
 
     fun parse(conflictPath: String): ConflictFileEntry? {

@@ -1,5 +1,9 @@
 package dev.mimir.daemon
 
+import dev.mimir.runtime.SyncNotConfiguredException
+
+import dev.mimir.runtime.ConflictFileEntry
+
 import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncStatus
 import dev.mimir.drive.api.GoogleDeviceCodeResponse

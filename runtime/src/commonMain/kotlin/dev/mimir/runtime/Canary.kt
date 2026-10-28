@@ -1,4 +1,5 @@
-package dev.mimir.daemon
+package dev.mimir.runtime
+
 
 import dev.mimir.core.CryptException
 import dev.mimir.core.Cipher
@@ -57,3 +58,6 @@ suspend fun verifyOrInitCanary(remote: RemoteStorage, cipher: Cipher, configDir:
 private fun canaryHash(cipher: Cipher): String =
     MessageDigest.getInstance("SHA-256").digest(cipher.encryptName(CANARY_HASH_PROBE).encodeToByteArray())
         .joinToString("") { (it.toInt() and 0xFF).toString(16).padStart(2, '0') }
+
+/** Синхронизация не может стартовать: не хватает настройки или сети для первой проверки. */
+class SyncNotConfiguredException(message: String) : IllegalStateException(message)

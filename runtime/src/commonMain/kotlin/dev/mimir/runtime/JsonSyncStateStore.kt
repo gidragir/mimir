@@ -1,4 +1,4 @@
-package dev.mimir.daemon
+package dev.mimir.runtime
 
 import dev.mimir.core.RemotePath
 import dev.mimir.core.VaultFileId

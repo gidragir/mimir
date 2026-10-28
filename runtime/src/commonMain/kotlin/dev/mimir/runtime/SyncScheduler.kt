@@ -1,4 +1,4 @@
-package dev.mimir.daemon
+package dev.mimir.runtime
 
 import dev.mimir.core.ChangeFeedStorage
 import dev.mimir.core.SyncEngine
