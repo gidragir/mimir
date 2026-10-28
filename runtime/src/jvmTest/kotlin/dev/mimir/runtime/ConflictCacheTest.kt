@@ -1,4 +1,4 @@
-package dev.mimir.daemon
+package dev.mimir.runtime
 
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
@@ -12,8 +12,9 @@ class ConflictCacheTest {
     @Test
     fun `cached conflicts follow files appearing and disappearing in the vault`() = runBlocking {
         val vault = Files.createTempDirectory("mimir-cache-vault")
-        val runtime = DaemonRuntime(
-            DaemonConfig(vaultPath = vault.toString(), configDir = Files.createTempDirectory("mimir-cache-cfg").toString()),
+        val runtime = testRuntime(
+            Files.createTempDirectory("mimir-cache-cfg"),
+            vaultPath = vault.toString(),
             conflictScanInterval = 50.milliseconds,
         )
         try {

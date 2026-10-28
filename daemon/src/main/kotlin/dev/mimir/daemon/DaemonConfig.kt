@@ -1,8 +1,9 @@
 package dev.mimir.daemon
 
-import dev.mimir.runtime.writeFileAtomically
-
 import dev.mimir.core.BuildConfig
+import dev.mimir.runtime.RuntimeConfig
+import dev.mimir.runtime.RuntimeSettingsStore
+import dev.mimir.runtime.writeFileAtomically
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.JsonNames
@@ -144,3 +145,29 @@ private fun deprecatedEnv(env: Map<String, String>, old: String, new: String): S
 
 /** Пустая строка в переменной окружения (например, из mise.local.toml.example) равна отсутствию значения. */
 private fun Map<String, String>.nonEmpty(name: String): String? = this[name]?.takeIf { it.isNotEmpty() }
+
+/**
+ * Настройки runtime поверх `config.json` и окружения демона. Выбранный vault пишется только в файл
+ * (без секретов из окружения) и сразу виден в памяти, даже если `MIMIR_VAULT` задан.
+ */
+class DaemonSettingsStore(initial: DaemonConfig) : RuntimeSettingsStore {
+    private val configDir: String = initial.configDir ?: DaemonConfig.load(env = System.getenv()).configDir!!
+
+    @Volatile
+    var config: DaemonConfig = initial
+        private set
+
+    override fun load() = RuntimeConfig(
+        dataDir = Paths.get(configDir),
+        vaultPath = config.vaultPath,
+        syncIntervalSeconds = config.syncIntervalSeconds,
+        syncParallelism = config.syncParallelism,
+        rootFolder = config.rootFolder,
+    )
+
+    @Synchronized
+    override fun saveVaultPath(path: String) {
+        DaemonConfig.readFile(configDir).copy(vaultPath = path).save(configDir)
+        config = config.copy(vaultPath = path)
+    }
+}

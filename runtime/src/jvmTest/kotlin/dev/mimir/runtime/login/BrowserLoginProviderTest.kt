@@ -86,7 +86,7 @@ class BrowserLoginProviderTest {
         timeout: Duration = 5.minutes,
         storage: TokenStorage = InMemoryTokenStorage(),
         client: GoogleAuthClient = defaultGoogle(),
-    ) = BrowserLoginProvider(client, storage, scope, timeout).also { provider = it }
+    ) = BrowserLoginProvider(client, storage, scope, Dispatchers.IO, timeout).also { provider = it }
 
     private suspend fun BrowserLoginProvider.startUrl(): String =
         assertIs<DaemonLoginStart.OpenUrl>(start()).url
@@ -307,7 +307,7 @@ class BrowserLoginProviderTest {
 
     @Test
     fun receiverStopsOnceFromConcurrentCloseAndAwait() = run {
-        val receiver = BrowserLoginReceiver(timeout = 100.milliseconds)
+        val receiver = BrowserLoginReceiver(Dispatchers.IO, timeout = 100.milliseconds)
         receiver.start()
         val port = receiver.port
         val closers = List(8) { Thread { receiver.close() } }
@@ -320,7 +320,7 @@ class BrowserLoginProviderTest {
 
     @Test
     fun testSuccessPageContainsRedirectScriptAndManualButton() = run {
-        val receiver = BrowserLoginReceiver(redirectScheme = "mimir")
+        val receiver = BrowserLoginReceiver(Dispatchers.IO, redirectScheme = "mimir")
         receiver.start()
         receiver.expectedState = "state123"
         val body = browser.get("http://127.0.0.1:${receiver.port}/callback?code=test_code&state=state123").bodyAsText()
@@ -332,7 +332,7 @@ class BrowserLoginProviderTest {
 
     @Test
     fun testSuccessPageWithoutSchemeDoesNotContainRedirect() = run {
-        val receiver = BrowserLoginReceiver(redirectScheme = null)
+        val receiver = BrowserLoginReceiver(Dispatchers.IO, redirectScheme = null)
         receiver.start()
         receiver.expectedState = "state456"
         val body = browser.get("http://127.0.0.1:${receiver.port}/callback?code=test_code&state=state456").bodyAsText()

@@ -1,7 +1,7 @@
 package dev.mimir.desktop
 
 import dev.mimir.daemon.DaemonConfig
-import dev.mimir.daemon.DaemonRuntime
+import dev.mimir.daemon.createRuntime
 import dev.mimir.daemon.DaemonService
 import dev.mimir.daemon.mimirRoutes
 import io.ktor.client.HttpClient
@@ -56,7 +56,7 @@ object DaemonServiceFactory {
 
         val serveApi = isPortFree(config)
         if (!serveApi) logger.warning("Port ${config.port} on ${config.bind} is used by another program; the local HTTP API is disabled")
-        val runtime = DaemonRuntime(config)
+        val runtime = createRuntime(config)
         withContext(Dispatchers.IO) { runtime.initialize() }
         val server = if (serveApi) {
             embeddedServer(ServerCIO, port = config.port, host = config.bind) { mimirRoutes(runtime, config) }.start(wait = false)

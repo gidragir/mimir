@@ -13,7 +13,7 @@ import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -26,6 +26,8 @@ import kotlin.time.Duration.Companion.minutes
  * `/callback` только с ожидаемым [expectedState]. Запросы с чужим state отвергаются, приёмник ждёт дальше.
  */
 class BrowserLoginReceiver(
+    /** Где останавливается сервер (блокирующий вызов); JVM/Android передают `Dispatchers.IO`. */
+    private val ioDispatcher: CoroutineDispatcher,
     private val timeout: Duration = 5.minutes,
     private val redirectScheme: String? = "mimir",
 ) : AutoCloseable {
@@ -70,7 +72,7 @@ class BrowserLoginReceiver(
     suspend fun awaitCallback(): LoginCallback? = try {
         withTimeoutOrNull(timeout) { result.await() }
     } finally {
-        withContext(NonCancellable + Dispatchers.IO) { stopServer(graceMillis = 200) }
+        withContext(NonCancellable + ioDispatcher) { stopServer(graceMillis = 200) }
     }
 
     override fun close() {

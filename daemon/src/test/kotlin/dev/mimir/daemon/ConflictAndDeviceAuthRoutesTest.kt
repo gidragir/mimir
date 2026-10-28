@@ -47,7 +47,7 @@ class ConflictAndDeviceAuthRoutesTest {
     private val configDir = Files.createTempDirectory("mimir-routes-cfg")
     private val vaultDir = Files.createTempDirectory("mimir-routes-vault")
     private val conflictName = "Notes/Doc (conflicted copy 2026-10-24-120000).md"
-    private var runtime: DaemonRuntime? = null
+    private var runtime: dev.mimir.runtime.MimirRuntime? = null
     private var googleReply: Pair<HttpStatusCode, String> = HttpStatusCode.OK to "{}"
 
     @AfterTest
@@ -76,7 +76,7 @@ class ConflictAndDeviceAuthRoutesTest {
             googleDeviceClientId = clientId,
             configDir = configDir.toString(),
         )
-        val runtime = DaemonRuntime(config, httpClient = mockGoogle(), conflictScanInterval = 50.milliseconds).also { runtime = it }
+        val runtime = createRuntime(config, httpClient = mockGoogle(), conflictScanInterval = 50.milliseconds).also { runtime = it }
         runBlocking { runtime.initialize() }
         application { mimirRoutes(runtime, config) }
     }

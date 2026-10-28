@@ -46,7 +46,7 @@ class NioWatchServiceVaultWatcher(
      * [onWatching] вызывается, когда всё дерево зарегистрировано: изменения после него придут событиями.
      * Подходит для разового скана, закрывающего окно между прошлым сканом и началом наблюдения.
      */
-    fun start(onWatching: suspend () -> Unit): Flow<VaultChange> = channelFlow {
+    override fun start(onWatching: suspend () -> Unit): Flow<VaultChange> = channelFlow {
         val service = root.fileSystem.newWatchService()
         services += service
         val dirs = HashMap<WatchKey, Path>()

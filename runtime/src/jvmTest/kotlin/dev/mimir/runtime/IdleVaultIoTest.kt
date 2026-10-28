@@ -1,4 +1,4 @@
-package dev.mimir.daemon
+package dev.mimir.runtime
 
 import dev.mimir.core.LocalEntry
 import dev.mimir.core.LocalVault
@@ -24,7 +24,7 @@ class IdleVaultIoTest {
     private val configDir = Files.createTempDirectory("mimir-idle-cfg")
     private val vaultDir = Files.createTempDirectory("mimir-idle-vault")
     private val listCalls = AtomicInteger()
-    private var runtime: DaemonRuntime? = null
+    private var runtime: MimirRuntime? = null
 
     private class CountingLocalVault(private val inner: LocalVault, private val calls: AtomicInteger) : LocalVault by inner {
         override suspend fun list(): List<LocalEntry> {
@@ -40,9 +40,10 @@ class IdleVaultIoTest {
         vaultDir.toFile().deleteRecursively()
     }
 
-    private suspend fun start(conflictScanInterval: Duration): DaemonRuntime {
-        val rt = DaemonRuntime(
-            DaemonConfig(vaultPath = vaultDir.toString(), configDir = configDir.toString()),
+    private suspend fun start(conflictScanInterval: Duration): MimirRuntime {
+        val rt = testRuntime(
+            configDir,
+            vaultPath = vaultDir.toString(),
             conflictScanInterval = conflictScanInterval,
             localVaultFactory = { CountingLocalVault(FileSystemLocalVault(it, ioDispatcher = Dispatchers.IO), listCalls) },
         ).also { runtime = it }

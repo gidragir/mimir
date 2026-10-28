@@ -35,7 +35,7 @@ class DaemonFullCycleE2ETest {
     private val vaultDir = Files.createTempDirectory("mimir-e2e-vault")
     private val remote = InMemoryRemoteStorage()
     private val cleartextRemote = EncryptedRemoteStorage(remote, kotlinx.coroutines.runBlocking { RcloneCipher.create("secret") })
-    private var runtime: DaemonRuntime? = null
+    private var runtime: dev.mimir.runtime.MimirRuntime? = null
 
     @AfterTest
     fun cleanup() {
@@ -65,7 +65,7 @@ class DaemonFullCycleE2ETest {
             syncIntervalSeconds = 1,
             configDir = configDir.toString(),
         )
-        val runtime = DaemonRuntime(config, remoteStorageFactory = { _, _, _ -> remote }).also { runtime = it }
+        val runtime = createRuntime(config, cloudFactory = { _, _, _ -> remote }).also { runtime = it }
         runtime.initialize()
         application { mimirRoutes(runtime, config) }
         eventually("initial sync") { runtime.lastSyncTime != null }

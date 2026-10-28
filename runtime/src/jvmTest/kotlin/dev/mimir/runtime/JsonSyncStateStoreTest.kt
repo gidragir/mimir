@@ -4,6 +4,7 @@ import dev.mimir.core.RemotePath
 import dev.mimir.core.VaultFileId
 import dev.mimir.core.sync.FileSyncRecord
 import dev.mimir.core.sync.SyncIndex
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
 import java.nio.file.Files
 import kotlin.io.path.createTempDirectory
@@ -32,25 +33,25 @@ class JsonSyncStateStoreTest {
 
     @Test
     fun `load returns an empty index when the file is missing`() = runTest {
-        assertEquals(SyncIndex(), JsonSyncStateStore(file).load())
+        assertEquals(SyncIndex(), JsonSyncStateStore(file, Dispatchers.IO).load())
     }
 
     @Test
     fun `saved index is restored by a new store instance`() = runTest {
         val index = SyncIndex().withRecord(record).withRecord(record.copy(relativePath = "b.md", remoteRevision = null))
 
-        JsonSyncStateStore(file).save(index)
+        JsonSyncStateStore(file, Dispatchers.IO).save(index)
 
-        assertEquals(index, JsonSyncStateStore(file).load())
+        assertEquals(index, JsonSyncStateStore(file, Dispatchers.IO).load())
     }
 
     @Test
     fun `save replaces the file atomically without leftovers`() = runTest {
-        val store = JsonSyncStateStore(file)
+        val store = JsonSyncStateStore(file, Dispatchers.IO)
         store.save(SyncIndex().withRecord(record))
         store.save(SyncIndex())
 
-        assertEquals(SyncIndex(), JsonSyncStateStore(file).load())
+        assertEquals(SyncIndex(), JsonSyncStateStore(file, Dispatchers.IO).load())
         assertEquals(listOf("index.json"), file.parent.listDirectoryEntries().map { it.fileName.toString() })
     }
 
@@ -59,7 +60,7 @@ class JsonSyncStateStoreTest {
         Files.createDirectories(file.parent)
         file.toFile().writeText("{ garbage")
 
-        val failure = runCatching { JsonSyncStateStore(file).load() }
+        val failure = runCatching { JsonSyncStateStore(file, Dispatchers.IO).load() }
 
         assertEquals(true, failure.isFailure)
         assertEquals("{ garbage", file.readText())

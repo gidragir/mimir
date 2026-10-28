@@ -6,7 +6,6 @@ import dev.mimir.core.sync.FileSyncRecord
 import dev.mimir.core.sync.SyncIndex
 import dev.mimir.core.sync.SyncStateStore
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -18,8 +17,8 @@ import kotlin.time.Instant
 
 class JsonSyncStateStore(
     val indexFile: Path,
-    /** Где исполняется блокирующая запись и чтение индекса. */
-    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    /** Где исполняется блокирующая запись и чтение индекса; JVM/Android передают `Dispatchers.IO`. */
+    private val ioDispatcher: CoroutineDispatcher,
 ) : SyncStateStore {
     private val mutex = Mutex()
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = true }

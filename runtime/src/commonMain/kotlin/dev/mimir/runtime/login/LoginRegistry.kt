@@ -16,3 +16,10 @@ class LoginRegistry(providers: List<LoginProvider>) {
 
     fun close() = byMethod.values.forEach { it.close() }
 }
+
+/** Почему способ входа недоступен: на этой платформе не зарегистрирован его провайдер. */
+fun DaemonLoginMethod.notConfiguredMessage(): String = when (this) {
+    DaemonLoginMethod.Browser -> "Google desktop client is not configured"
+    DaemonLoginMethod.DeviceCode -> "Google device client is not configured"
+    DaemonLoginMethod.SystemAccount -> "System account sign-in is not available"
+}

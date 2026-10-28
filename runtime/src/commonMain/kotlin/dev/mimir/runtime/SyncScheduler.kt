@@ -9,10 +9,15 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Instant
@@ -20,7 +25,7 @@ import kotlin.time.Instant
 /**
  * Запускает синхронизации: сразу при старте, по таймеру (с опросом Change Feed, если он есть) и по локальным
  * изменениям. Одновременно идёт не больше одного прогона; запросы, пришедшие во время прогона, схлопываются
- * в один повторный.
+ * в один повторный. [runNow] (Worker на Android) сериализуется с ними тем же мьютексом.
  */
 class SyncScheduler(
     val syncEngine: SyncEngine,
@@ -38,6 +43,14 @@ class SyncScheduler(
     @Volatile
     private var runner: Job? = null
     private var changeToken: String? = null
+
+    /** Номер последнего локального события; прогон, начатый после него, снимает [pendingLocalChanges]. */
+    private val localEventSeq = AtomicLong(0)
+    private val pendingLock = Any()
+    private val _pendingLocalChanges = MutableStateFlow(false)
+
+    /** `true` по локальному событию, `false` после успешного прогона, начатого после него. */
+    val pendingLocalChanges: StateFlow<Boolean> = _pendingLocalChanges.asStateFlow()
 
     @Volatile
     var lastSyncTime: Instant? = null
@@ -65,7 +78,13 @@ class SyncScheduler(
                 // сломанный watcher не должен останавливать синхронизацию по таймеру
                 localChanges
                     .catch { watcherError = it.message ?: it::class.simpleName }
-                    .collect { requestSync() }
+                    .collect {
+                        synchronized(pendingLock) {
+                            localEventSeq.incrementAndGet()
+                            _pendingLocalChanges.value = true
+                        }
+                        requestSync()
+                    }
             },
         )
     }
@@ -82,6 +101,15 @@ class SyncScheduler(
         if (!syncMutex.tryLock()) return false
         launchRunner()
         return true
+    }
+
+    /**
+     * Один прогон до конца в вызывающей корутине: если идёт другой, ждёт его, а не запускается параллельно.
+     * Работает и при остановленном планировщике. Ошибка прогона пробрасывается (после записи в [lastError]).
+     */
+    suspend fun runNow(): Boolean = syncMutex.withLock {
+        runOnce(rethrow = true)
+        true
     }
 
     private fun requestSync() {
@@ -104,17 +132,22 @@ class SyncScheduler(
         }
     }
 
-    private suspend fun runOnce() {
+    private suspend fun runOnce(rethrow: Boolean = false) {
+        val startedAfter = localEventSeq.get()
         try {
             syncEngine.syncNow()
             lastSyncTime = clock.now()
             lastError = null
             retryOnNextTick.set(false)
+            synchronized(pendingLock) {
+                if (localEventSeq.get() == startedAfter) _pendingLocalChanges.value = false
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             lastError = e.message ?: e::class.simpleName
             retryOnNextTick.set(true)
+            if (rethrow) throw e
         }
     }
 

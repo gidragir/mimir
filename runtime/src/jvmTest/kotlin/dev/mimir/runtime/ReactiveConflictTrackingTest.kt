@@ -1,4 +1,4 @@
-package dev.mimir.daemon
+package dev.mimir.runtime
 
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -14,7 +14,7 @@ import kotlin.test.assertTrue
 class ReactiveConflictTrackingTest {
     private val configDir = Files.createTempDirectory("mimir-conflict-cfg")
     private val vaultDir = Files.createTempDirectory("mimir-conflict-vault")
-    private var runtime: DaemonRuntime? = null
+    private var runtime: MimirRuntime? = null
 
     @AfterTest
     fun cleanup() {
@@ -25,11 +25,7 @@ class ReactiveConflictTrackingTest {
 
     @Test
     fun testConflictListResolvesViaStreamAndUpdatesConflicts() = runTest {
-        val config = DaemonConfig(
-            vaultPath = vaultDir.toString(),
-            configDir = configDir.toString(),
-        )
-        val rt = DaemonRuntime(config).also { runtime = it }
+        val rt = testRuntime(configDir, vaultPath = vaultDir.toString()).also { runtime = it }
         rt.initialize()
 
         val origFile = vaultDir.resolve("Notes/Doc.md")
@@ -53,7 +49,7 @@ class ReactiveConflictTrackingTest {
 
     @Test
     fun conflictAppearsInFlowFromFileEventWithoutAnyExplicitRefresh() = kotlinx.coroutines.runBlocking {
-        val rt = DaemonRuntime(DaemonConfig(vaultPath = vaultDir.toString(), configDir = configDir.toString())).also { runtime = it }
+        val rt = testRuntime(configDir, vaultPath = vaultDir.toString()).also { runtime = it }
         rt.initialize()
         kotlinx.coroutines.delay(500) // регистрация watcher'а
         assertTrue(rt.conflictsFlow.value.isEmpty())

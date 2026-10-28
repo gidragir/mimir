@@ -12,6 +12,7 @@ import dev.mimir.drive.auth.TokenStorage
 import dev.mimir.drive.auth.newBrowserLogin
 import dev.mimir.drive.client.DriveHttpException
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
@@ -33,6 +34,8 @@ class BrowserLoginProvider(
     private val client: GoogleAuthClient,
     private val tokenStorage: TokenStorage,
     private val scope: CoroutineScope,
+    /** Блокирующие операции приёмника редиректа; JVM/Android передают `Dispatchers.IO`. */
+    private val ioDispatcher: CoroutineDispatcher,
     private val timeout: Duration = 5.minutes,
     override val tokenSource: AccessTokenSource = RefreshingTokenSource(tokenStorage, GoogleAuthClients(desktop = client, device = null)),
 ) : LoginProvider {
@@ -45,7 +48,7 @@ class BrowserLoginProvider(
 
     override suspend fun start(): DaemonLoginStart = mutex.withLock {
         cancelAttempt()
-        val receiver = BrowserLoginReceiver(timeout)
+        val receiver = BrowserLoginReceiver(ioDispatcher, timeout)
         val request = try {
             receiver.start()
             client.newBrowserLogin(receiver.port).also { receiver.expectedState = it.state }

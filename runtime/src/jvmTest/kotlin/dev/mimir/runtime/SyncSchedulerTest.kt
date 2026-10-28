@@ -8,6 +8,7 @@ import dev.mimir.core.VaultChange
 import dev.mimir.core.VaultFileId
 import dev.mimir.core.InMemoryRemoteStorage
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -232,6 +233,97 @@ class SyncSchedulerTest {
         advanceTimeBy(interval)
         runCurrent()
         assertEquals(2, engine.calls)
+        scheduler.stop()
+    }
+
+    @Test
+    fun `runNow waits for an in-flight run instead of starting a second`() = runTest {
+        var active = 0
+        var maxActive = 0
+        var runs = 0
+        val engine = object : SyncEngine {
+            override val status: StateFlow<SyncStatus> = MutableStateFlow(SyncStatus.Idle)
+            override val progress: StateFlow<SyncProgress?> = MutableStateFlow(null)
+            override suspend fun start() = Unit
+            override suspend fun stop() = Unit
+            override suspend fun syncNow() {
+                active++
+                maxActive = maxOf(maxActive, active)
+                kotlinx.coroutines.delay(1_000)
+                runs++
+                active--
+            }
+        }
+        val scheduler = SyncScheduler(engine, interval, backgroundScope)
+
+        val first = async { scheduler.runNow() }
+        val second = async { scheduler.runNow() }
+        assertTrue(first.await())
+        assertTrue(second.await())
+
+        assertEquals(2, runs)
+        assertEquals(1, maxActive, "runs must never overlap")
+    }
+
+    @Test
+    fun `runNow waits for a scheduler run started by trigger`() = runTest {
+        val engine = FakeEngine().apply { gate = CompletableDeferred() }
+        val scheduler = scheduler(engine)
+        assertTrue(scheduler.triggerSync())
+        runCurrent()
+
+        val waiting = async { scheduler.runNow() }
+        runCurrent()
+        assertEquals(1, engine.calls, "second run must wait for the first")
+
+        engine.gate!!.complete(Unit)
+        assertTrue(waiting.await())
+        assertEquals(2, engine.calls)
+    }
+
+    @Test
+    fun `runNow rethrows the sync failure`() = runTest {
+        val engine = FakeEngine().apply { failNext = true }
+        val scheduler = scheduler(engine)
+
+        val failure = runCatching { scheduler.runNow() }.exceptionOrNull()
+
+        assertEquals("network down", failure?.message)
+        assertEquals("network down", scheduler.lastError)
+        assertTrue(scheduler.triggerSync(), "lock must be released after a failed run")
+    }
+
+    @Test
+    fun `pendingLocalChanges clears after successful run`() = runTest {
+        val engine = FakeEngine().apply { failNext = true }
+        val local = MutableSharedFlow<VaultChange>()
+        val scheduler = scheduler(engine, local = local).also { it.start() }
+        runCurrent() // стартовый прогон падает
+        assertFalse(scheduler.pendingLocalChanges.value)
+
+        engine.gate = CompletableDeferred()
+        local.emit(VaultChange.Modified(entry.id, entry))
+        runCurrent()
+        assertTrue(scheduler.pendingLocalChanges.value, "local change must be pending while its run is in flight")
+
+        engine.gate!!.complete(Unit)
+        runCurrent()
+        assertFalse(scheduler.pendingLocalChanges.value)
+        scheduler.stop()
+    }
+
+    @Test
+    fun `pendingLocalChanges stays after a failed run`() = runTest {
+        val engine = FakeEngine()
+        val local = MutableSharedFlow<VaultChange>()
+        val scheduler = scheduler(engine, local = local).also { it.start() }
+        runCurrent()
+
+        engine.failNext = true
+        local.emit(VaultChange.Modified(entry.id, entry))
+        runCurrent()
+
+        assertTrue(scheduler.pendingLocalChanges.value)
         scheduler.stop()
     }
 }

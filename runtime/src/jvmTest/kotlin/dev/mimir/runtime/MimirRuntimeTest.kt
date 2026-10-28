@@ -1,10 +1,4 @@
-package dev.mimir.daemon
-
-import dev.mimir.runtime.SyncNotConfiguredException
-
-import dev.mimir.runtime.FileTokenStorage
-import dev.mimir.runtime.InvalidPasswordException
-import dev.mimir.runtime.CANARY_FILENAME
+package dev.mimir.runtime
 
 import dev.mimir.client.DaemonLoginMethod
 import dev.mimir.client.DaemonLoginPoll
@@ -13,14 +7,11 @@ import dev.mimir.core.RemotePath
 import dev.mimir.core.SyncStatus
 import dev.mimir.core.label
 import dev.mimir.core.InMemoryRemoteStorage
-import dev.mimir.drive.auth.OAuthTokens
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
-import io.ktor.client.engine.mock.respond
-import io.ktor.serialization.kotlinx.json.json
 import java.nio.file.Files
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
@@ -36,11 +27,11 @@ import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
-class DaemonRuntimeTest {
+class MimirRuntimeTest {
     private val configDir = Files.createTempDirectory("mimir-runtime-cfg")
     private val vaultDir = Files.createTempDirectory("mimir-runtime-vault")
     private val remote = InMemoryRemoteStorage()
-    private var runtime: DaemonRuntime? = null
+    private var runtime: MimirRuntime? = null
 
     private fun run(block: suspend CoroutineScope.() -> Unit): Unit = runBlocking { block() }
 
@@ -51,21 +42,22 @@ class DaemonRuntimeTest {
         vaultDir.toFile().deleteRecursively()
     }
 
-    private fun config(vault: Boolean = true, password: String? = null) = DaemonConfig(
-        port = 0,
+    private fun runtime(
+        vault: Boolean = true,
+        password: String? = null,
+        cloud: CloudStorageFactory = CloudStorageFactory { _, _, _ -> remote },
+        httpClient: io.ktor.client.HttpClient = jsonHttpClient(),
+        desktopClient: Boolean = false,
+    ) = testRuntime(
+        configDir,
         vaultPath = vaultDir.toString().takeIf { vault },
         password = password,
-        googleDeviceClientId = "client-id",
-        syncIntervalSeconds = 3600,
-        configDir = configDir.toString(),
-    )
+        cloud = cloud,
+        httpClient = httpClient,
+        desktopClient = desktopClient,
+    ).also { runtime = it }
 
-    private fun runtime(config: DaemonConfig) =
-        DaemonRuntime(config, remoteStorageFactory = { _, _, _ -> remote }).also { runtime = it }
-
-    private suspend fun signIn() {
-        FileTokenStorage(configDir.resolve("tokens.json")).save(OAuthTokens("a", "r", 4_000_000_000L))
-    }
+    private suspend fun signIn() = dev.mimir.runtime.signIn(configDir)
 
     private suspend fun eventually(block: () -> Boolean) = withTimeout(15_000) {
         while (!block()) delay(50)
@@ -73,7 +65,7 @@ class DaemonRuntimeTest {
 
     @Test
     fun `without vault or tokens the status is not connected`() = run {
-        val runtime = runtime(config(vault = false))
+        val runtime = runtime(vault = false)
         runtime.initialize()
 
         assertEquals(SyncStatus.NotConfigured, runtime.status.value)
@@ -85,7 +77,7 @@ class DaemonRuntimeTest {
     @Test
     fun `signed in but locked stays not connected until unlock`() = run {
         signIn()
-        val runtime = runtime(config())
+        val runtime = runtime()
         runtime.initialize()
         assertEquals(SyncStatus.NotConfigured, runtime.status.value)
         assertTrue(runtime.isLocked)
@@ -101,7 +93,7 @@ class DaemonRuntimeTest {
         signIn()
         vaultDir.resolve("Notes").createDirectories()
         vaultDir.resolve("Notes/Idea.md").writeText("hello")
-        val runtime = runtime(config(password = "secret"))
+        val runtime = runtime(password = "secret")
         runtime.initialize()
         assertTrue(runtime.isReady)
 
@@ -119,7 +111,7 @@ class DaemonRuntimeTest {
         val offline = object : dev.mimir.core.ChangeFeedStorage by remote {
             override suspend fun stat(path: RemotePath) = throw java.io.IOException("offline")
         }
-        val runtime = DaemonRuntime(config(password = "secret"), remoteStorageFactory = { _, _, _ -> offline }).also { this@DaemonRuntimeTest.runtime = it }
+        val runtime = runtime(password = "secret", cloud = { _, _, _ -> offline })
         runtime.initialize()
         assertFalse(runtime.isReady)
     }
@@ -130,7 +122,7 @@ class DaemonRuntimeTest {
         val offline = object : dev.mimir.core.ChangeFeedStorage by remote {
             override suspend fun stat(path: RemotePath) = throw java.io.IOException("offline")
         }
-        val runtime = DaemonRuntime(config(), remoteStorageFactory = { _, _, _ -> offline }).also { this@DaemonRuntimeTest.runtime = it }
+        val runtime = runtime(cloud = { _, _, _ -> offline })
         runtime.initialize()
         assertFailsWith<SyncNotConfiguredException> { runtime.unlock("secret") }
     }
@@ -138,7 +130,7 @@ class DaemonRuntimeTest {
     @Test
     fun `a wrong password on re-unlock keeps the running sync`() = run {
         signIn()
-        val runtime = runtime(config(password = "secret"))
+        val runtime = runtime(password = "secret")
         runtime.initialize()
         assertTrue(runtime.isReady)
 
@@ -152,7 +144,7 @@ class DaemonRuntimeTest {
     fun `runtime exposes engine progress`() = run {
         signIn()
         vaultDir.resolve("a.md").writeText("hello")
-        val runtime = runtime(config(password = "secret"))
+        val runtime = runtime(password = "secret")
         runtime.initialize()
         eventually { runtime.progress.value?.phase == dev.mimir.core.SyncPhase.Finished }
         assertEquals(dev.mimir.core.SyncPhase.Finished, runtime.progress.value?.phase)
@@ -162,7 +154,7 @@ class DaemonRuntimeTest {
     fun `last sync summary survives engine rebuild`() = run {
         signIn()
         vaultDir.resolve("a.md").writeText("hello")
-        val runtime = runtime(config(password = "secret"))
+        val runtime = runtime(password = "secret")
         runtime.initialize()
         eventually { runtime.progress.value?.phase == dev.mimir.core.SyncPhase.Finished }
 
@@ -176,36 +168,10 @@ class DaemonRuntimeTest {
         assertNotNull(runtime.progress.value)
     }
 
-    private fun mockGoogle() = io.ktor.client.HttpClient(
-        io.ktor.client.engine.mock.MockEngine { request ->
-            val body = when {
-                request.url.encodedPath.endsWith("/device/code") ->
-                    """{"device_code":"dc","user_code":"UC","verification_url":"https://www.google.com/device","expires_in":1800,"interval":5}"""
-                request.url.encodedPath.endsWith("/token") ->
-                    """{"access_token":"at","refresh_token":"rt","expires_in":3600,"token_type":"Bearer"}"""
-                request.url.encodedPath.endsWith("/userinfo") -> """{"email":"user@gmail.com","name":"User"}"""
-                else -> "{}"
-            }
-            respond(
-                body,
-                io.ktor.http.HttpStatusCode.OK,
-                io.ktor.http.headersOf(io.ktor.http.HttpHeaders.ContentType, "application/json"),
-            )
-        },
-    ) {
-        install(io.ktor.client.plugins.contentnegotiation.ContentNegotiation) {
-            json(kotlinx.serialization.json.Json { ignoreUnknownKeys = true })
-        }
-    }
-
     @Test
     fun `authorized poll writes account json with method and rebuilds once`() = run {
         var builds = 0
-        val runtime = DaemonRuntime(
-            config(),
-            httpClient = mockGoogle(),
-            remoteStorageFactory = { _, _, _ -> builds++; remote },
-        ).also { runtime = it }
+        val runtime = runtime(httpClient = mockGoogle(), cloud = { _, _, _ -> builds++; remote })
         runtime.unlock("secret") // без токенов сборка до облака не доходит
         assertEquals(0, builds)
 
@@ -224,30 +190,30 @@ class DaemonRuntimeTest {
 
     @Test
     fun `login methods follow configured google clients`() = run {
-        val both = DaemonRuntime(config().copy(googleDesktopClientId = "desktop-id"))
+        val both = testRuntime(configDir, desktopClient = true)
         try {
             assertEquals(setOf(DaemonLoginMethod.Browser, DaemonLoginMethod.DeviceCode), both.loginMethods())
         } finally {
             both.close()
         }
-        assertEquals(setOf(DaemonLoginMethod.DeviceCode), runtime(config()).loginMethods())
+        assertEquals(setOf(DaemonLoginMethod.DeviceCode), runtime().loginMethods())
     }
 
     @Test
     fun `unregistered login method is not configured`() = run {
-        val runtime = runtime(config())
+        val runtime = runtime()
         assertFailsWith<SyncNotConfiguredException> { runtime.startLogin(DaemonLoginMethod.Browser) }
         assertFailsWith<SyncNotConfiguredException> { runtime.startLogin(DaemonLoginMethod.SystemAccount) }
     }
 
     @Test
     fun `poll before start fails`() = run {
-        assertIs<DaemonLoginPoll.Failed>(runtime(config()).pollLogin())
+        assertIs<DaemonLoginPoll.Failed>(runtime().pollLogin())
     }
 
     @Test
     fun `switching login method cancels the previous attempt`() = run {
-        val runtime = DaemonRuntime(config().copy(googleDesktopClientId = "desktop-id"), httpClient = mockGoogle()).also { runtime = it }
+        val runtime = runtime(httpClient = mockGoogle(), desktopClient = true)
         val url = assertIs<DaemonLoginStart.OpenUrl>(runtime.startLogin(DaemonLoginMethod.Browser)).url
         val port = Regex("redirect_uri=http://127\\.0\\.0\\.1:(\\d+)/callback").find(url)!!.groupValues[1].toInt()
 
@@ -259,5 +225,44 @@ class DaemonRuntimeTest {
         }
         assertEquals(DaemonLoginPoll.Authorized("user@gmail.com"), runtime.pollLogin())
         assertEquals("device_code", Json.parseToJsonElement(Files.readString(configDir.resolve("account.json"))).jsonObject.getValue("method").jsonPrimitive.content)
+    }
+
+    private fun tokenSourceSeenByCloud(account: String?, clientKind: dev.mimir.drive.auth.GoogleClientKind): dev.mimir.drive.auth.AccessTokenSource? = runBlocking {
+        val browser = FakeLoginProvider(DaemonLoginMethod.Browser)
+        val device = FakeLoginProvider(DaemonLoginMethod.DeviceCode)
+        account?.let { Files.writeString(configDir.resolve("account.json"), it) }
+        FileTokenStorage(configDir.resolve("tokens.json")).save(dev.mimir.drive.auth.OAuthTokens("a", "r", 4_000_000_000L, clientKind = clientKind))
+        var seen: dev.mimir.drive.auth.AccessTokenSource? = null
+        val rt = testRuntime(
+            configDir,
+            vaultPath = vaultDir.toString(),
+            password = "secret",
+            cloud = { _, tokens, _ -> seen = tokens; remote },
+            providers = listOf(browser, device),
+        ).also { runtime = it }
+        rt.setInteractive(false)
+        rt.initialize()
+        assertTrue(rt.isReady)
+        lastProviders = browser to device
+        seen
+    }
+
+    private var lastProviders: Pair<FakeLoginProvider, FakeLoginProvider>? = null
+
+    @Test
+    fun `drive uses the token source of the signed-in method`() {
+        val seen = tokenSourceSeenByCloud("""{"email":"u@x","method":"browser"}""", dev.mimir.drive.auth.GoogleClientKind.Device)
+        kotlin.test.assertSame(lastProviders!!.first.tokenSource, seen)
+    }
+
+    @Test
+    fun `legacy account without method follows the token client kind`() {
+        val desktop = tokenSourceSeenByCloud("""{"email":"u@x"}""", dev.mimir.drive.auth.GoogleClientKind.Desktop)
+        kotlin.test.assertSame(lastProviders!!.first.tokenSource, desktop)
+        runtime?.close()
+        runtime = null
+
+        val device = tokenSourceSeenByCloud(null, dev.mimir.drive.auth.GoogleClientKind.Device)
+        kotlin.test.assertSame(lastProviders!!.second.tokenSource, device)
     }
 }
