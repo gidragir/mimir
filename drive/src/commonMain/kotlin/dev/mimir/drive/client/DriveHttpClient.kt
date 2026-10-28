@@ -2,8 +2,9 @@ package dev.mimir.drive.client
 
 import dev.mimir.core.RemoteAuthException
 import dev.mimir.core.RemoteUnavailableException
+import dev.mimir.drive.auth.AccessTokenSource
 import dev.mimir.drive.auth.GoogleAuthClients
-import dev.mimir.drive.auth.OAuthTokens
+import dev.mimir.drive.auth.RefreshingTokenSource
 import dev.mimir.drive.auth.TokenStorage
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.HttpRequestTimeoutException
@@ -12,8 +13,6 @@ import io.ktor.client.statement.HttpStatement
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.io.IOException
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.random.Random
@@ -21,22 +20,19 @@ import kotlin.time.Clock
 
 class DriveHttpClient(
     val httpClient: HttpClient,
-    val tokenStorage: TokenStorage,
-    val authClients: GoogleAuthClients,
+    private val tokenSource: AccessTokenSource,
     val clock: Clock = Clock.System,
     private val retryPolicy: RetryPolicy = RetryPolicy(),
     private val random: Random = Random.Default,
 ) {
-    private val refreshMutex = Mutex()
-
-    private suspend fun refreshWith(tokens: OAuthTokens, refresh: String): OAuthTokens {
-        val client = authClients.forKind(tokens.clientKind)
-            ?: throw DriveAuthException(
-                HttpStatusCode.Unauthorized,
-                "Sign in again: no Google client for ${tokens.clientKind}",
-            )
-        return client.refreshTokens(refresh)
-    }
+    constructor(
+        httpClient: HttpClient,
+        tokenStorage: TokenStorage,
+        authClients: GoogleAuthClients,
+        clock: Clock = Clock.System,
+        retryPolicy: RetryPolicy = RetryPolicy(),
+        random: Random = Random.Default,
+    ) : this(httpClient, RefreshingTokenSource(tokenStorage, authClients, clock), clock, retryPolicy, random)
 
     private inline fun <T> mapTokenErrors(block: () -> T): T = try {
         block()
@@ -52,33 +48,9 @@ class DriveHttpClient(
         throw e.asRemoteUnavailableOrSelf()
     }
 
-    suspend fun getValidToken(): String = mapTokenErrors {
-        refreshMutex.withLock {
-            val tokens = tokenStorage.load()
-                ?: throw DriveAuthException(HttpStatusCode.Unauthorized, "No OAuth tokens stored")
-            if (tokens.isExpired(clock)) {
-                val refresh = tokens.refreshToken
-                    ?: throw DriveAuthException(HttpStatusCode.Unauthorized, "Access token expired and no refresh token available")
-                val refreshed = refreshWith(tokens, refresh)
-                tokenStorage.save(refreshed)
-                refreshed.accessToken
-            } else {
-                tokens.accessToken
-            }
-        }
-    }
+    suspend fun getValidToken(): String = mapTokenErrors { tokenSource.token() }
 
-    suspend fun forceRefreshToken(): String = mapTokenErrors {
-        refreshMutex.withLock {
-            val tokens = tokenStorage.load()
-                ?: throw DriveAuthException(HttpStatusCode.Unauthorized, "No OAuth tokens stored")
-            val refresh = tokens.refreshToken
-                ?: throw DriveAuthException(HttpStatusCode.Unauthorized, "No refresh token available")
-            val refreshed = refreshWith(tokens, refresh)
-            tokenStorage.save(refreshed)
-            refreshed.accessToken
-        }
-    }
+    suspend fun forceRefreshToken(): String = mapTokenErrors { tokenSource.refresh() }
 
     /**
      * Выполняет запрос с повторами: 401 — один принудительный refresh токена (не расходует попытки);
