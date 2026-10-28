@@ -288,6 +288,19 @@ class BrowserLoginProviderTest {
     }
 
     @Test
+    fun cancelStopsAttemptWithoutSaving() = run {
+        val storage = InMemoryTokenStorage()
+        val provider = provider(storage = storage)
+        val url = provider.startUrl()
+
+        provider.cancel()
+
+        waitClosed(port(url))
+        assertIs<DaemonLoginPoll.Failed>(provider.poll())
+        assertNull(storage.load())
+    }
+
+    @Test
     fun pollBeforeStartFails() = run {
         assertIs<DaemonLoginPoll.Failed>(provider().poll())
     }

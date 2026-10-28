@@ -280,6 +280,9 @@ class DaemonRuntime(
                 LoginMethod.SystemAccount -> "System account sign-in is not available"
             },
         )
+        // Попытка другим способом (например, вкладка браузера после «Отмена») не должна перезаписать новый вход.
+        activeLogin?.takeIf { it !== provider }?.cancel()
+        activeLogin = null
         val start = provider.start()
         activeLogin = provider
         loginCompleted = false

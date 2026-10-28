@@ -22,6 +22,7 @@ import kotlinx.coroutines.withTimeout
 import io.ktor.client.engine.mock.respond
 import io.ktor.serialization.kotlinx.json.json
 import java.nio.file.Files
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.io.path.createDirectories
@@ -242,5 +243,21 @@ class DaemonRuntimeTest {
     @Test
     fun `poll before start fails`() = run {
         assertIs<DaemonLoginPoll.Failed>(runtime(config()).pollLogin())
+    }
+
+    @Test
+    fun `switching login method cancels the previous attempt`() = run {
+        val runtime = DaemonRuntime(config().copy(googleDesktopClientId = "desktop-id"), httpClient = mockGoogle()).also { runtime = it }
+        val url = assertIs<DaemonLoginStart.OpenUrl>(runtime.startLogin(DaemonLoginMethod.Browser)).url
+        val port = Regex("redirect_uri=http://127\\.0\\.0\\.1:(\\d+)/callback").find(url)!!.groupValues[1].toInt()
+
+        runtime.startLogin(DaemonLoginMethod.DeviceCode)
+
+        // Приёмник прежней попытки закрыт: поздний ответ из открытой вкладки браузера не перезапишет вход по коду.
+        withTimeout(15_000) {
+            while (runCatching { java.net.Socket().use { it.connect(java.net.InetSocketAddress("127.0.0.1", port), 500) } }.isSuccess) delay(50)
+        }
+        assertEquals(DaemonLoginPoll.Authorized("user@gmail.com"), runtime.pollLogin())
+        assertEquals("device_code", Json.parseToJsonElement(Files.readString(configDir.resolve("account.json"))).jsonObject.getValue("method").jsonPrimitive.content)
     }
 }

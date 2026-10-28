@@ -19,6 +19,9 @@ interface LoginProvider {
 
     suspend fun signOut()
 
+    /** Прекращает начатую попытку: после возврата она ничего не сохранит. */
+    suspend fun cancel() {}
+
     fun close() {}
 }
 

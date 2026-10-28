@@ -62,6 +62,8 @@ class DeviceCodeLoginProvider(
         DaemonLoginPoll.Authorized(email).also { current.result = it }
     }
 
+    override suspend fun cancel() = mutex.withLock { attempt = null }
+
     override suspend fun signOut() {
         tokenStorage.clear()
     }

@@ -44,13 +44,7 @@ class BrowserLoginProvider(
     private var attempt: Attempt? = null
 
     override suspend fun start(): DaemonLoginStart = mutex.withLock {
-        attempt?.let {
-            // Задача попытки mutex не берёт, поэтому join под ним не взаимоблокируется.
-            it.job.cancel()
-            it.receiver.close()
-            it.job.join()
-        }
-        attempt = null
+        cancelAttempt()
         val receiver = BrowserLoginReceiver(timeout)
         val request = try {
             receiver.start()
@@ -96,6 +90,18 @@ class BrowserLoginProvider(
             logger.warning("Saving sign-in failed: ${e.javaClass.name}")
             DaemonLoginPoll.Failed("Не удалось сохранить вход")
         }
+    }
+
+    override suspend fun cancel() = mutex.withLock { cancelAttempt() }
+
+    /** Под [mutex]. Задача попытки mutex не берёт, поэтому join под ним не взаимоблокируется. */
+    private suspend fun cancelAttempt() {
+        attempt?.let {
+            it.job.cancel()
+            it.receiver.close()
+            it.job.join()
+        }
+        attempt = null
     }
 
     override suspend fun poll(): DaemonLoginPoll =
