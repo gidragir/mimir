@@ -1,7 +1,7 @@
 package dev.mimir.ui.model
 
-import dev.mimir.client.DaemonBrowserLoginPoll
-import dev.mimir.client.DaemonDevicePoll
+import dev.mimir.client.DaemonLoginPoll
+import dev.mimir.client.DaemonLoginStart
 import dev.mimir.client.DaemonLoginMethod
 import dev.mimir.client.DaemonService
 import dev.mimir.core.ConflictFileEntry
@@ -87,33 +87,35 @@ class DaemonServiceUiModel(
         service.conflicts()
     }
 
-    override suspend fun startDeviceLogin(): UiDeviceCode {
-        val response = service.startDeviceLogin()
-        return UiDeviceCode(response.userCode, response.verificationUrl, response.expiresInSeconds.toInt(), response.deviceCode)
+    override suspend fun loginMethods(): Set<UiLoginMethod> = service.loginMethods().mapTo(mutableSetOf()) { it.toUi() }
+
+    override suspend fun startLogin(method: UiLoginMethod): UiLoginStart =
+        when (val start = service.startLogin(method.toDaemon())) {
+            is DaemonLoginStart.OpenUrl -> UiLoginStart.OpenUrl(start.url)
+            is DaemonLoginStart.ShowDeviceCode -> start.code.let {
+                UiLoginStart.ShowDeviceCode(UiDeviceCode(it.userCode, it.verificationUrl, it.expiresInSeconds.toInt(), it.deviceCode))
+            }
+            DaemonLoginStart.Started -> UiLoginStart.Started
+        }
+
+    override suspend fun pollLogin(): UiLoginPoll =
+        when (val poll = service.pollLogin()) {
+            DaemonLoginPoll.Pending -> UiLoginPoll.Pending
+            is DaemonLoginPoll.Authorized -> UiLoginPoll.Authorized(poll.email).also { refresh() }
+            is DaemonLoginPoll.Failed -> UiLoginPoll.Failed(poll.reason)
+        }
+
+    private fun DaemonLoginMethod.toUi(): UiLoginMethod = when (this) {
+        DaemonLoginMethod.SystemAccount -> UiLoginMethod.SystemAccount
+        DaemonLoginMethod.Browser -> UiLoginMethod.Browser
+        DaemonLoginMethod.DeviceCode -> UiLoginMethod.DeviceCode
     }
 
-    override suspend fun pollDeviceLogin(deviceCode: String): UiDevicePoll =
-        when (val poll = service.pollDeviceLogin(deviceCode)) {
-            DaemonDevicePoll.Pending -> UiDevicePoll.Pending
-            is DaemonDevicePoll.Authorized -> UiDevicePoll.Authorized(poll.email).also { refresh() }
-            is DaemonDevicePoll.Expired -> UiDevicePoll.Expired(poll.reason)
-        }
-
-    override suspend fun loginMethods(): Set<UiLoginMethod> = service.loginMethods().map {
-        when (it) {
-            DaemonLoginMethod.Browser -> UiLoginMethod.Browser
-            DaemonLoginMethod.DeviceCode -> UiLoginMethod.DeviceCode
-        }
-    }.toSet()
-
-    override suspend fun startBrowserLogin(): String = service.startBrowserLogin()
-
-    override suspend fun pollBrowserLogin(): UiBrowserPoll =
-        when (val poll = service.pollBrowserLogin()) {
-            DaemonBrowserLoginPoll.Pending -> UiBrowserPoll.Pending
-            is DaemonBrowserLoginPoll.Authorized -> UiBrowserPoll.Authorized(poll.email).also { refresh() }
-            is DaemonBrowserLoginPoll.Failed -> UiBrowserPoll.Failed(poll.reason)
-        }
+    private fun UiLoginMethod.toDaemon(): DaemonLoginMethod = when (this) {
+        UiLoginMethod.SystemAccount -> DaemonLoginMethod.SystemAccount
+        UiLoginMethod.Browser -> DaemonLoginMethod.Browser
+        UiLoginMethod.DeviceCode -> DaemonLoginMethod.DeviceCode
+    }
 
     private fun ConflictFileEntry.toUi() = UiConflictEntry(originalPath, conflictPath, createdAt)
 }

@@ -1,4 +1,4 @@
-package dev.mimir.daemon
+package dev.mimir.runtime.login
 
 import dev.mimir.drive.auth.LoginCallback
 import dev.mimir.drive.auth.parseLoginCallback

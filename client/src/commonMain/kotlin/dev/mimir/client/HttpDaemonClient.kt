@@ -186,34 +186,54 @@ class HttpDaemonClient(
         val response = get("/api/v1/auth/methods")
         if (response.status != HttpStatusCode.OK) throw response.toException()
         val body = json.decodeFromString<DaemonMethodsResponse>(response.bodyAsText())
-        return body.methods.mapNotNull {
-            when (it) {
-                "browser" -> DaemonLoginMethod.Browser
-                "device_code" -> DaemonLoginMethod.DeviceCode
-                else -> null
-            }
-        }.toSet()
+        // Системный аккаунт через HTTP API не начать: он не предлагается удалённому клиенту.
+        return body.methods.mapNotNull(::daemonLoginMethodOf).filterTo(mutableSetOf()) { it != DaemonLoginMethod.SystemAccount }
     }
 
-    override suspend fun startBrowserLogin(): String {
-        val response = post("/api/v1/auth/browser/start")
-        if (response.status != HttpStatusCode.OK) throw response.toException()
-        return json.decodeFromString<DaemonAuthUrlResponse>(response.bodyAsText()).authUrl
+    /** Последний начатый способ входа и код устройства для опроса (маршруты демона принимают его в запросе). */
+    private class ActiveLogin(val method: DaemonLoginMethod, val deviceCode: String? = null)
+
+    @kotlin.concurrent.Volatile
+    private var activeLogin: ActiveLogin? = null
+
+    override suspend fun startLogin(method: DaemonLoginMethod): DaemonLoginStart = when (method) {
+        DaemonLoginMethod.SystemAccount ->
+            throw UnsupportedOperationException("System account sign-in is not available through the daemon API")
+        DaemonLoginMethod.Browser -> {
+            val response = post("/api/v1/auth/browser/start")
+            if (response.status != HttpStatusCode.OK) throw response.toException()
+            val url = json.decodeFromString<DaemonAuthUrlResponse>(response.bodyAsText()).authUrl
+            activeLogin = ActiveLogin(method)
+            DaemonLoginStart.OpenUrl(url)
+        }
+        DaemonLoginMethod.DeviceCode -> {
+            val code = startDeviceLogin()
+            activeLogin = ActiveLogin(method, code.deviceCode)
+            DaemonLoginStart.ShowDeviceCode(code)
+        }
     }
 
-    override suspend fun pollBrowserLogin(): DaemonBrowserLoginPoll {
+    override suspend fun pollLogin(): DaemonLoginPoll {
+        val active = activeLogin ?: return DaemonLoginPoll.Failed("Вход не начат")
+        return when (active.method) {
+            DaemonLoginMethod.DeviceCode -> pollDeviceLogin(active.deviceCode.orEmpty())
+            else -> pollBrowserLogin()
+        }
+    }
+
+    private suspend fun pollBrowserLogin(): DaemonLoginPoll {
         val response = get("/api/v1/auth/browser/poll")
         if (response.status != HttpStatusCode.OK) throw response.toException()
         val body = json.decodeFromString<PollResponseDto>(response.bodyAsText())
         return when (body.status) {
-            "pending" -> DaemonBrowserLoginPoll.Pending
-            "authorized" -> DaemonBrowserLoginPoll.Authorized(body.email)
-            "failed" -> DaemonBrowserLoginPoll.Failed(body.error ?: "Вход не удался")
+            "pending" -> DaemonLoginPoll.Pending
+            "authorized" -> DaemonLoginPoll.Authorized(body.email)
+            "failed" -> DaemonLoginPoll.Failed(body.error ?: "Вход не удался")
             else -> throw IllegalStateException("Unexpected sign-in status: ${body.status}")
         }
     }
 
-    override suspend fun startDeviceLogin(): DaemonDeviceCodeDto {
+    private suspend fun startDeviceLogin(): DaemonDeviceCodeDto {
         val response = post("/api/v1/auth/device/start")
         if (response.status != HttpStatusCode.OK) throw response.toException()
         val text = response.bodyAsText()
@@ -232,7 +252,7 @@ class HttpDaemonClient(
         )
     }
 
-    override suspend fun pollDeviceLogin(deviceCode: String): DaemonDevicePoll {
+    private suspend fun pollDeviceLogin(deviceCode: String): DaemonLoginPoll {
         val response = httpClient.get("$baseUrl/api/v1/auth/device/poll") {
             authorize()
             parameter("device_code", deviceCode)
@@ -241,10 +261,10 @@ class HttpDaemonClient(
         val body = runCatching {
             json.decodeFromString<PollResponseDto>(text)
         }.getOrDefault(PollResponseDto())
-        return when {
-            body.status == "pending" -> DaemonDevicePoll.Pending
-            body.status == "authorized" -> DaemonDevicePoll.Authorized(body.email)
-            body.status == "expired" -> DaemonDevicePoll.Expired(body.error ?: "expired")
+        return when (body.status) {
+            "pending" -> DaemonLoginPoll.Pending
+            "authorized" -> DaemonLoginPoll.Authorized(body.email)
+            "expired" -> DaemonLoginPoll.Failed(body.error ?: "expired")
             else -> throw response.toException()
         }
     }

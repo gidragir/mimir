@@ -4,9 +4,10 @@ import dev.mimir.runtime.SyncNotConfiguredException
 
 import dev.mimir.runtime.ConflictFileEntry
 
+import dev.mimir.client.DaemonLoginPoll
+import dev.mimir.client.DaemonLoginStart
 import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncStatus
-import dev.mimir.drive.api.GoogleDeviceCodeResponse
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlin.time.Instant
@@ -35,13 +36,14 @@ class FakeDaemonService : DaemonService {
 
     override suspend fun conflicts(): List<ConflictFileEntry> = emptyList()
     override suspend fun resolveConflict(originalPath: String, conflictPath: String, keepConflict: Boolean) = Unit
-    override suspend fun startDeviceLogin(): dev.mimir.client.DaemonDeviceCodeDto = error("not used")
-    override suspend fun pollDeviceLogin(deviceCode: String): DevicePoll = error("not used")
     /** `null` — вход через браузер недоступен. */
     var browserUrl: String? = "https://accounts.example/auth"
-    var browserPoll: dev.mimir.client.DaemonBrowserLoginPoll = dev.mimir.client.DaemonBrowserLoginPoll.Pending
-    override suspend fun startBrowserLogin(): String = browserUrl ?: throw SyncNotConfiguredException("no desktop client")
-    override suspend fun pollBrowserLogin(): dev.mimir.client.DaemonBrowserLoginPoll = browserPoll
+    var loginPoll: DaemonLoginPoll = DaemonLoginPoll.Pending
+    override suspend fun startLogin(method: LoginMethod): DaemonLoginStart = when (method) {
+        LoginMethod.Browser -> DaemonLoginStart.OpenUrl(browserUrl ?: throw SyncNotConfiguredException("no desktop client"))
+        else -> error("not used")
+    }
+    override suspend fun pollLogin(): DaemonLoginPoll = loginPoll
     var methods: Set<LoginMethod> = emptySet()
     override suspend fun loginMethods() = methods
 

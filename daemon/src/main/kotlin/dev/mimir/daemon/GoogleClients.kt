@@ -42,11 +42,3 @@ internal fun DaemonConfig.authClients(httpClient: HttpClient): GoogleAuthClients
     val (desktop, device) = googleCredentials()
     return GoogleAuthClients(desktop?.let { GoogleAuthClient(httpClient, it) }, device?.let { GoogleAuthClient(httpClient, it) })
 }
-
-internal fun loginMethodsFor(credentials: Pair<GoogleClientCredentials?, GoogleClientCredentials?>): Set<LoginMethod> =
-    loginMethodsFor(credentials.first, credentials.second)
-
-internal fun loginMethodsFor(desktop: GoogleClientCredentials?, device: GoogleClientCredentials?): Set<LoginMethod> = buildSet {
-    if (desktop != null) add(LoginMethod.Browser)
-    if (device != null) add(LoginMethod.DeviceCode)
-}

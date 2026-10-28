@@ -24,6 +24,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
@@ -245,18 +246,53 @@ class HttpDaemonClientTest {
 
         replies["POST /api/v1/auth/device/start"] = HttpStatusCode.OK to
             """{"device_code":"d","user_code":"U-1","verification_url":"https://g/device","expires_in":1800,"interval":5}"""
-        val start = client.startDeviceLogin()
+        val start = assertIs<DaemonLoginStart.ShowDeviceCode>(client.startLogin(DaemonLoginMethod.DeviceCode)).code
         assertEquals("d", start.deviceCode)
         assertEquals("U-1", start.userCode)
 
         replies["GET /api/v1/auth/device/poll"] = HttpStatusCode.OK to """{"status":"pending"}"""
-        assertEquals(DaemonDevicePoll.Pending, client.pollDeviceLogin("d"))
+        assertEquals(DaemonLoginPoll.Pending, client.pollLogin())
 
         replies["GET /api/v1/auth/device/poll"] = HttpStatusCode.OK to """{"status":"authorized","email":"me@x"}"""
-        assertEquals(DaemonDevicePoll.Authorized("me@x"), client.pollDeviceLogin("d"))
+        assertEquals(DaemonLoginPoll.Authorized("me@x"), client.pollLogin())
 
         replies["GET /api/v1/auth/device/poll"] = HttpStatusCode.BadRequest to """{"status":"expired","error":"Code has expired"}"""
-        assertEquals(DaemonDevicePoll.Expired("Code has expired"), client.pollDeviceLogin("d"))
+        assertEquals(DaemonLoginPoll.Failed("Code has expired"), client.pollLogin())
+    }
+
+    @Test
+    fun devicePollSendsTheStartedDeviceCode() = runTest {
+        val polledCodes = mutableListOf<String?>()
+        val mockEngine = MockEngine { request ->
+            val body = when (request.url.encodedPath) {
+                "/api/v1/auth/device/start" ->
+                    """{"device_code":"dev-42","user_code":"U","verification_url":"https://g/device","expires_in":1800,"interval":5}"""
+                "/api/v1/auth/device/poll" -> {
+                    polledCodes += request.url.parameters["device_code"]
+                    """{"status":"pending"}"""
+                }
+                else -> "{}"
+            }
+            respond(body, HttpStatusCode.OK, jsonHeaders)
+        }
+        val client = HttpDaemonClient(baseUrl = "http://127.0.0.1:1", scope = backgroundScope, httpClient = HttpClient(mockEngine))
+
+        client.startLogin(DaemonLoginMethod.DeviceCode)
+        client.pollLogin()
+
+        assertEquals(listOf<String?>("dev-42"), polledCodes)
+    }
+
+    @Test
+    fun pollBeforeStartFailsAndSystemAccountIsUnsupported() = runTest {
+        val client = HttpDaemonClient(
+            baseUrl = "http://127.0.0.1:1",
+            scope = backgroundScope,
+            httpClient = HttpClient(MockEngine { respond("{}", HttpStatusCode.NotFound, jsonHeaders) }),
+        )
+
+        assertIs<DaemonLoginPoll.Failed>(client.pollLogin())
+        assertFailsWith<UnsupportedOperationException> { client.startLogin(DaemonLoginMethod.SystemAccount) }
     }
 
     @Test
@@ -277,15 +313,15 @@ class HttpDaemonClientTest {
         assertEquals(setOf(DaemonLoginMethod.Browser, DaemonLoginMethod.DeviceCode), client.loginMethods())
 
         replies["POST /api/v1/auth/browser/start"] = HttpStatusCode.OK to """{"authUrl":"https://accounts.google.com/auth"}"""
-        assertEquals("https://accounts.google.com/auth", client.startBrowserLogin())
+        assertEquals(DaemonLoginStart.OpenUrl("https://accounts.google.com/auth"), client.startLogin(DaemonLoginMethod.Browser))
 
         replies["GET /api/v1/auth/browser/poll"] = HttpStatusCode.OK to """{"status":"pending"}"""
-        assertEquals(DaemonBrowserLoginPoll.Pending, client.pollBrowserLogin())
+        assertEquals(DaemonLoginPoll.Pending, client.pollLogin())
 
         replies["GET /api/v1/auth/browser/poll"] = HttpStatusCode.OK to """{"status":"authorized","email":"me@x"}"""
-        assertEquals(DaemonBrowserLoginPoll.Authorized("me@x"), client.pollBrowserLogin())
+        assertEquals(DaemonLoginPoll.Authorized("me@x"), client.pollLogin())
 
         replies["GET /api/v1/auth/browser/poll"] = HttpStatusCode.OK to """{"status":"failed","error":"Вход отменён"}"""
-        assertEquals(DaemonBrowserLoginPoll.Failed("Вход отменён"), client.pollBrowserLogin())
+        assertEquals(DaemonLoginPoll.Failed("Вход отменён"), client.pollLogin())
     }
 }

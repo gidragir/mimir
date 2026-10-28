@@ -5,7 +5,7 @@ import dev.mimir.runtime.FileTokenStorage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeout
 import kotlin.time.Duration.Companion.milliseconds
-import dev.mimir.client.DaemonBrowserLoginPoll as BrowserLoginPoll
+import dev.mimir.client.DaemonLoginPoll
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -208,6 +208,7 @@ class ConflictAndDeviceAuthRoutesTest {
     @Test
     fun `device poll is pending until the user confirms`() = testApplication {
         serve()
+        client.post("/api/v1/auth/device/start")
         googleReply = HttpStatusCode.fromValue(428) to """{"error":"authorization_pending"}"""
 
         val response = client.get("/api/v1/auth/device/poll?device_code=dev_code_123")
@@ -219,6 +220,7 @@ class ConflictAndDeviceAuthRoutesTest {
     @Test
     fun `device poll stores tokens once authorized`() = testApplication {
         serve()
+        client.post("/api/v1/auth/device/start")
         googleReply = HttpStatusCode.OK to """{"access_token":"at","refresh_token":"rt","expires_in":3600,"token_type":"Bearer"}"""
 
         val response = client.get("/api/v1/auth/device/poll?device_code=dev_code_123")
@@ -228,11 +230,13 @@ class ConflictAndDeviceAuthRoutesTest {
         val saved = assertNotNull(FileTokenStorage(configDir.resolve("tokens.json")).let { runBlocking { it.load() } })
         assertEquals("rt", saved.refreshToken)
         assertEquals("user@gmail.com", client.get("/api/v1/status").json().getValue("accountEmail").jsonPrimitive.content)
+        assertEquals("device_code", Json.parseToJsonElement(configDir.resolve("account.json").readText()).jsonObject.getValue("method").jsonPrimitive.content)
     }
 
     @Test
     fun `device poll reports an expired code`() = testApplication {
         serve()
+        client.post("/api/v1/auth/device/start")
         googleReply = HttpStatusCode.BadRequest to """{"error":"expired_token"}"""
 
         val response = client.get("/api/v1/auth/device/poll?device_code=dev_code_123")
@@ -259,6 +263,8 @@ class ConflictAndDeviceAuthRoutesTest {
         serveFake(fake)
 
         assertEquals("""{"methods":["browser","device_code"]}""", client.get("/api/v1/auth/methods").bodyAsText())
+        fake.methods = setOf(LoginMethod.Browser, LoginMethod.SystemAccount)
+        assertEquals("""{"methods":["system_account","browser"]}""", client.get("/api/v1/auth/methods").bodyAsText())
         fake.methods = emptySet()
         assertEquals("""{"methods":[]}""", client.get("/api/v1/auth/methods").bodyAsText())
     }
@@ -289,9 +295,9 @@ class ConflictAndDeviceAuthRoutesTest {
         serveFake(fake)
 
         assertEquals("""{"status":"pending"}""", client.get("/api/v1/auth/browser/poll").bodyAsText())
-        fake.browserPoll = BrowserLoginPoll.Authorized("u@x")
+        fake.loginPoll = DaemonLoginPoll.Authorized("u@x")
         assertEquals("""{"status":"authorized","email":"u@x"}""", client.get("/api/v1/auth/browser/poll").bodyAsText())
-        fake.browserPoll = BrowserLoginPoll.Failed("Вход отменён")
+        fake.loginPoll = DaemonLoginPoll.Failed("Вход отменён")
         assertEquals("""{"status":"failed","error":"Вход отменён"}""", client.get("/api/v1/auth/browser/poll").bodyAsText())
     }
 }

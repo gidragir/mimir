@@ -197,19 +197,28 @@ enum class DaemonConnectionStatus {
 class InvalidPasswordException(message: String) : IllegalArgumentException(message)
 class SyncNotConfiguredException(message: String) : IllegalStateException(message)
 
+/** Способы входа в Google; порядок объявления — приоритет в интерфейсе. */
 enum class DaemonLoginMethod {
+    SystemAccount,
     Browser,
     DeviceCode,
 }
 
-sealed interface DaemonDevicePoll {
-    data object Pending : DaemonDevicePoll
-    data class Authorized(val email: String?) : DaemonDevicePoll
-    data class Expired(val reason: String) : DaemonDevicePoll
+/** Имя способа входа в HTTP API и `account.json`: `system_account`, `browser`, `device_code`. */
+val DaemonLoginMethod.wireName: String get() = snake()
+
+fun daemonLoginMethodOf(wireName: String): DaemonLoginMethod? = DaemonLoginMethod.entries.firstOrNull { it.wireName == wireName }
+
+/** Что показать пользователю после начала входа. */
+sealed interface DaemonLoginStart {
+    data class OpenUrl(val url: String) : DaemonLoginStart
+    data class ShowDeviceCode(val code: DaemonDeviceCodeDto) : DaemonLoginStart
+    /** Вход уже идёт без участия интерфейса (например, системное окно выбора аккаунта). */
+    data object Started : DaemonLoginStart
 }
 
-sealed interface DaemonBrowserLoginPoll {
-    data object Pending : DaemonBrowserLoginPoll
-    data class Authorized(val email: String?) : DaemonBrowserLoginPoll
-    data class Failed(val reason: String) : DaemonBrowserLoginPoll
+sealed interface DaemonLoginPoll {
+    data object Pending : DaemonLoginPoll
+    data class Authorized(val email: String?) : DaemonLoginPoll
+    data class Failed(val reason: String) : DaemonLoginPoll
 }

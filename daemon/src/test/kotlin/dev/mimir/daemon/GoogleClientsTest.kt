@@ -30,18 +30,4 @@ class GoogleClientsTest {
         assertNull(desktop)
         assertNull(device)
     }
-
-    @Test
-    fun `login methods reflect available clients`() {
-        val service = FakeDaemonService()
-        assertEquals(emptySet(), service.methods)
-        assertEquals(setOf(LoginMethod.DeviceCode), loginMethodsFor(null, GoogleClientCredentials(GoogleClientKind.Device, "d", null)))
-        assertEquals(
-            setOf(LoginMethod.Browser, LoginMethod.DeviceCode),
-            loginMethodsFor(
-                GoogleClientCredentials(GoogleClientKind.Desktop, "a", null),
-                GoogleClientCredentials(GoogleClientKind.Device, "d", null),
-            ),
-        )
-    }
 }

@@ -14,10 +14,10 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.AnnotatedString
 import dev.mimir.ui.model.MimirUiModel
-import dev.mimir.ui.model.UiBrowserPoll
 import dev.mimir.ui.model.UiDeviceCode
-import dev.mimir.ui.model.UiDevicePoll
 import dev.mimir.ui.model.UiLoginMethod
+import dev.mimir.ui.model.UiLoginPoll
+import dev.mimir.ui.model.UiLoginStart
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 
@@ -40,6 +40,8 @@ fun GoogleStep(model: MimirUiModel, pollIntervalMillis: Long, onNext: () -> Unit
     }
 
     val available = methods
+    // Главный способ — первый доступный в порядке SystemAccount → Browser → DeviceCode.
+    val primary = available?.let { set -> UiLoginMethod.entries.firstOrNull { it in set } }
     when {
         methodsError != null -> {
             Text("Вход через Google", style = MaterialTheme.typography.headlineSmall)
@@ -50,26 +52,34 @@ fun GoogleStep(model: MimirUiModel, pollIntervalMillis: Long, onNext: () -> Unit
             Text("Вход через Google", style = MaterialTheme.typography.headlineSmall)
             Text("Проверяем способы входа…")
         }
-        available.isEmpty() -> {
+        primary == null -> {
             Text("Вход через Google", style = MaterialTheme.typography.headlineSmall)
             Text("Вход в Google не настроен в этой сборке")
         }
-        UiLoginMethod.Browser in available && !showCode -> BrowserLoginStep(
-            model, pollIntervalMillis, onNext,
+        primary != UiLoginMethod.DeviceCode && !showCode -> InteractiveLoginStep(
+            model, primary, pollIntervalMillis, onNext,
             onUseCode = if (UiLoginMethod.DeviceCode in available) ({ showCode = true }) else null,
         )
         else -> DeviceCodeStep(
             model, pollIntervalMillis, onNext,
-            onBack = if (UiLoginMethod.Browser in available) ({ showCode = false }) else null,
+            onBack = if (primary != UiLoginMethod.DeviceCode) ({ showCode = false }) else null,
         )
     }
 }
 
+/** Вход по кнопке: ссылка в браузере ([UiLoginStart.OpenUrl]) или системное окно ([UiLoginStart.Started]), затем опрос. */
 @Composable
-private fun BrowserLoginStep(model: MimirUiModel, pollIntervalMillis: Long, onNext: () -> Unit, onUseCode: (() -> Unit)?) {
+private fun InteractiveLoginStep(
+    model: MimirUiModel,
+    method: UiLoginMethod,
+    pollIntervalMillis: Long,
+    onNext: () -> Unit,
+    onUseCode: (() -> Unit)?,
+) {
     var started by remember { mutableStateOf(false) }
     var attempt by remember { mutableStateOf(0) }
     var error by remember { mutableStateOf<String?>(null) }
+    var inBrowser by remember { mutableStateOf(false) }
     var openFailedUrl by remember { mutableStateOf<String?>(null) }
     @Suppress("DEPRECATION")
     val clipboard = LocalClipboardManager.current
@@ -79,21 +89,28 @@ private fun BrowserLoginStep(model: MimirUiModel, pollIntervalMillis: Long, onNe
         LaunchedEffect(attempt) {
             error = null
             openFailedUrl = null
+            inBrowser = false
             try {
-                val url = model.startBrowserLogin()
-                try {
-                    uriHandler.openUri(url)
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (_: Exception) {
-                    openFailedUrl = url
+                when (val start = model.startLogin(method)) {
+                    is UiLoginStart.OpenUrl -> {
+                        inBrowser = true
+                        try {
+                            uriHandler.openUri(start.url)
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (_: Exception) {
+                            openFailedUrl = start.url
+                        }
+                    }
+                    UiLoginStart.Started -> Unit
+                    is UiLoginStart.ShowDeviceCode -> error("Unexpected device code for $method")
                 }
                 while (true) {
                     delay(pollIntervalMillis)
-                    when (val poll = model.pollBrowserLogin()) {
-                        UiBrowserPoll.Pending -> Unit
-                        is UiBrowserPoll.Authorized -> return@LaunchedEffect onNext()
-                        is UiBrowserPoll.Failed -> return@LaunchedEffect run { error = poll.reason }
+                    when (val poll = model.pollLogin()) {
+                        UiLoginPoll.Pending -> Unit
+                        is UiLoginPoll.Authorized -> return@LaunchedEffect onNext()
+                        is UiLoginPoll.Failed -> return@LaunchedEffect run { error = poll.reason }
                     }
                 }
             } catch (e: CancellationException) {
@@ -112,9 +129,9 @@ private fun BrowserLoginStep(model: MimirUiModel, pollIntervalMillis: Long, onNe
         val failure = error
         if (failure != null) {
             Text(failure, color = MaterialTheme.colorScheme.error)
-            Button(onClick = { attempt++ }) { Text("Повторить") }
+            Button(onClick = { attempt++ }) { Text("Попробовать снова") }
         } else {
-            Text("Ждём подтверждения в браузере…")
+            Text(if (inBrowser) "Ждём подтверждения в браузере…" else "Ждём подтверждения входа…")
             openFailedUrl?.let { url ->
                 Text(url)
                 Button(onClick = {
@@ -140,14 +157,14 @@ private fun DeviceCodeStep(model: MimirUiModel, pollIntervalMillis: Long, onNext
         error = null
         code = null
         try {
-            val issued = model.startDeviceLogin()
-            code = issued
+            val start = model.startLogin(UiLoginMethod.DeviceCode)
+            code = (start as? UiLoginStart.ShowDeviceCode)?.code ?: error("Unexpected sign-in start: $start")
             while (true) {
                 delay(pollIntervalMillis)
-                when (val poll = model.pollDeviceLogin(issued.deviceCode)) {
-                    UiDevicePoll.Pending -> Unit
-                    is UiDevicePoll.Authorized -> return@LaunchedEffect onNext()
-                    is UiDevicePoll.Expired -> return@LaunchedEffect run { error = "Код истёк: ${poll.reason}" }
+                when (val poll = model.pollLogin()) {
+                    UiLoginPoll.Pending -> Unit
+                    is UiLoginPoll.Authorized -> return@LaunchedEffect onNext()
+                    is UiLoginPoll.Failed -> return@LaunchedEffect run { error = "Код истёк: ${poll.reason}" }
                 }
             }
         } catch (e: CancellationException) {
@@ -173,7 +190,7 @@ private fun DeviceCodeStep(model: MimirUiModel, pollIntervalMillis: Long, onNext
     }
     error?.let {
         Text(it, color = MaterialTheme.colorScheme.error)
-        Button(onClick = { attempt++ }) { Text("Повторить") }
+        Button(onClick = { attempt++ }) { Text("Попробовать снова") }
     }
     onBack?.let { TextButton(onClick = it) { Text("Назад") } }
 }

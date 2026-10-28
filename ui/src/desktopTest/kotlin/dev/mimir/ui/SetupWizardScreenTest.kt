@@ -10,8 +10,7 @@ import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.runComposeUiTest
 import dev.mimir.ui.model.FakeMimirUiModel
-import dev.mimir.ui.model.UiBrowserPoll
-import dev.mimir.ui.model.UiDevicePoll
+import dev.mimir.ui.model.UiLoginPoll
 import dev.mimir.ui.model.UiLoginMethod
 import dev.mimir.ui.model.UiVaultInspection
 import dev.mimir.ui.picker.LocalFolderPicker
@@ -76,7 +75,7 @@ class SetupWizardScreenTest {
 
     @Test
     fun `step 2 moves on to the password once authorized`() = runComposeUiTest {
-        val model = FakeMimirUiModel(devicePoll = { UiDevicePoll.Authorized("me@gmail.com") })
+        val model = FakeMimirUiModel(loginPoll = { UiLoginPoll.Authorized("me@gmail.com") })
         setContent { SetupWizardScreen(model, onComplete = {}, pollIntervalMillis = 10) }
 
         onNodeWithText("Введите путь к папке").performTextInput("/v")
@@ -88,7 +87,7 @@ class SetupWizardScreenTest {
     fun `step 3 reports a wrong password and completes with the right one`() = runComposeUiTest {
         var completed = false
         val model = FakeMimirUiModel(
-            devicePoll = { UiDevicePoll.Authorized(null) },
+            loginPoll = { UiLoginPoll.Authorized(null) },
             onUnlock = { password, _ -> if (password != "good") throw IllegalArgumentException("Invalid encryption password") },
         )
         setContent { SetupWizardScreen(model, onComplete = { completed = true }, pollIntervalMillis = 10) }
@@ -147,7 +146,7 @@ class SetupWizardScreenTest {
         val model = FakeMimirUiModel(
             loginMethods = both,
             browserAuthUrl = "https://auth.example/login",
-            browserPoll = { if (authorized) UiBrowserPoll.Authorized("me@x") else UiBrowserPoll.Pending },
+            loginPoll = { if (authorized) UiLoginPoll.Authorized("me@x") else UiLoginPoll.Pending },
         )
         toGoogleStep(model, handler)
         waitUntilExactlyOneExists(hasText("Войти через Google"))
@@ -160,12 +159,40 @@ class SetupWizardScreenTest {
 
     @Test
     fun browserLoginFailureShowsReasonAndRetry() = runComposeUiTest {
-        val model = FakeMimirUiModel(loginMethods = both, browserPoll = { UiBrowserPoll.Failed("Вход отменён") })
+        val model = FakeMimirUiModel(loginMethods = both, loginPoll = { UiLoginPoll.Failed("Вход отменён") })
         toGoogleStep(model)
         waitUntilExactlyOneExists(hasText("Войти через Google"))
         onNodeWithText("Войти через Google").performClick()
         waitUntilExactlyOneExists(hasText("Вход отменён"))
-        onNodeWithText("Повторить").assertExists()
+        onNodeWithText("Попробовать снова").assertExists()
+    }
+
+    @Test
+    fun systemAccountIsPreferredAndPolledUntilAuthorized() = runComposeUiTest {
+        val handler = RecordingUriHandler()
+        var authorized = false
+        val model = FakeMimirUiModel(
+            loginMethods = setOf(UiLoginMethod.DeviceCode, UiLoginMethod.Browser, UiLoginMethod.SystemAccount),
+            loginPoll = { if (authorized) UiLoginPoll.Authorized("me@x") else UiLoginPoll.Pending },
+        )
+        toGoogleStep(model, handler)
+        waitUntilExactlyOneExists(hasText("Войти через Google"))
+        onNodeWithText("Войти через Google").performClick()
+        waitUntilExactlyOneExists(hasText("Ждём подтверждения входа…"))
+        assertEquals(listOf(UiLoginMethod.SystemAccount), model.startedLogins)
+        assertTrue(handler.opened.isEmpty())
+        authorized = true
+        waitUntilExactlyOneExists(hasText("Мастер-пароль шифрования"))
+    }
+
+    @Test
+    fun deviceCodeFailureOffersRetry() = runComposeUiTest {
+        val model = FakeMimirUiModel(loginPoll = { UiLoginPoll.Failed("expired_token") })
+        toGoogleStep(model)
+        waitUntilExactlyOneExists(hasText("Код истёк: expired_token"))
+        onNodeWithText("Попробовать снова").performClick()
+        waitUntil { model.startedLogins.size >= 2 }
+        assertEquals(setOf(UiLoginMethod.DeviceCode), model.startedLogins.toSet())
     }
 
     @Test
@@ -237,7 +264,7 @@ class SetupWizardScreenTest {
         var completed = false
         var syncs = 0
         val model = FakeMimirUiModel(
-            devicePoll = { UiDevicePoll.Authorized(null) },
+            loginPoll = { UiLoginPoll.Authorized(null) },
             inspection = UiVaultInspection(localFileCount = 10, remoteFileCount = 15, requiresStrategyConfirmation = true),
             onTriggerSync = { syncs++; true },
         )
@@ -256,7 +283,7 @@ class SetupWizardScreenTest {
         var completed = false
         var syncs = 0
         val model = FakeMimirUiModel(
-            devicePoll = { UiDevicePoll.Authorized(null) },
+            loginPoll = { UiLoginPoll.Authorized(null) },
             inspection = UiVaultInspection(localFileCount = 0, remoteFileCount = 15, requiresStrategyConfirmation = false),
             onTriggerSync = { syncs++; true },
         )
@@ -272,7 +299,7 @@ class SetupWizardScreenTest {
         val model = FakeMimirUiModel(
             loginMethods = both,
             browserAuthUrl = "https://auth.example/login",
-            browserPoll = { UiBrowserPoll.Authorized("me@x") },
+            loginPoll = { UiLoginPoll.Authorized("me@x") },
         )
         toGoogleStep(model)
         waitUntilExactlyOneExists(hasText("Войти через Google"))

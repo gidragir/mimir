@@ -152,9 +152,13 @@ fun Application.mimirRoutes(service: DaemonService, config: DaemonConfig) {
                 }
             }
 
+            // JSON маршрутов входа неизменен: им пользуются плагин и web-ui.
             post("/auth/device/start") {
                 try {
-                    call.respond(service.startDeviceLogin())
+                    val start = service.startLogin(LoginMethod.DeviceCode)
+                    val code = (start as? DaemonLoginStart.ShowDeviceCode)?.code
+                        ?: return@post call.respond(HttpStatusCode.InternalServerError, ErrorBody("Unexpected sign-in start: $start"))
+                    call.respond(code)
                 } catch (e: SyncNotConfiguredException) {
                     call.respond(HttpStatusCode.PreconditionFailed, ErrorBody(e.message ?: "Not configured"))
                 } catch (e: DriveHttpException) {
@@ -163,13 +167,14 @@ fun Application.mimirRoutes(service: DaemonService, config: DaemonConfig) {
             }
 
             get("/auth/device/poll") {
-                val deviceCode = call.request.queryParameters["device_code"]
+                // Код устройства обязателен по контракту API; опрашивается попытка, начатая через /auth/device/start.
+                call.request.queryParameters["device_code"]
                     ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorBody("device_code is required"))
                 try {
-                    when (val result = service.pollDeviceLogin(deviceCode)) {
-                        DaemonDevicePoll.Pending -> call.respond(StatusOnly("pending"))
-                        is DaemonDevicePoll.Authorized -> call.respond(AuthorizedResponse("authorized", result.email))
-                        is DaemonDevicePoll.Expired -> call.respond(HttpStatusCode.BadRequest, ExpiredResponse("expired", "Code has expired"))
+                    when (val result = service.pollLogin()) {
+                        DaemonLoginPoll.Pending -> call.respond(StatusOnly("pending"))
+                        is DaemonLoginPoll.Authorized -> call.respond(AuthorizedResponse("authorized", result.email))
+                        is DaemonLoginPoll.Failed -> call.respond(HttpStatusCode.BadRequest, ExpiredResponse("expired", "Code has expired"))
                     }
                 } catch (e: SyncNotConfiguredException) {
                     call.respond(HttpStatusCode.PreconditionFailed, ErrorBody(e.message ?: "Not configured"))
@@ -179,28 +184,25 @@ fun Application.mimirRoutes(service: DaemonService, config: DaemonConfig) {
             }
 
             get("/auth/methods") {
-                val methods = service.loginMethods().sorted().map {
-                    when (it) {
-                        LoginMethod.Browser -> "browser"
-                        LoginMethod.DeviceCode -> "device_code"
-                    }
-                }
-                call.respond(MethodsResponse(methods))
+                call.respond(MethodsResponse(service.loginMethods().sorted().map { it.wireName }))
             }
 
             post("/auth/browser/start") {
                 try {
-                    call.respond(AuthUrlResponse(service.startBrowserLogin()))
+                    val start = service.startLogin(LoginMethod.Browser)
+                    val url = (start as? DaemonLoginStart.OpenUrl)?.url
+                        ?: return@post call.respond(HttpStatusCode.InternalServerError, ErrorBody("Unexpected sign-in start: $start"))
+                    call.respond(AuthUrlResponse(url))
                 } catch (_: SyncNotConfiguredException) {
                     call.respond(HttpStatusCode.Conflict, ErrorBody("Browser sign-in is not available"))
                 }
             }
 
             get("/auth/browser/poll") {
-                when (val result = service.pollBrowserLogin()) {
-                    DaemonBrowserLoginPoll.Pending -> call.respond(StatusOnly("pending"))
-                    is DaemonBrowserLoginPoll.Authorized -> call.respond(AuthorizedResponse("authorized", result.email))
-                    is DaemonBrowserLoginPoll.Failed -> call.respond(FailedResponse("failed", result.reason))
+                when (val result = service.pollLogin()) {
+                    DaemonLoginPoll.Pending -> call.respond(StatusOnly("pending"))
+                    is DaemonLoginPoll.Authorized -> call.respond(AuthorizedResponse("authorized", result.email))
+                    is DaemonLoginPoll.Failed -> call.respond(FailedResponse("failed", result.reason))
                 }
             }
 

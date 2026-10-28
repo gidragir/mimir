@@ -13,8 +13,13 @@ import dev.mimir.runtime.verifyOrInitCanary
 import dev.mimir.runtime.InvalidPasswordException
 import dev.mimir.runtime.CANARY_FILENAME
 
-import dev.mimir.client.DaemonBrowserLoginPoll
-import dev.mimir.client.DaemonDevicePoll
+import dev.mimir.client.DaemonLoginPoll
+import dev.mimir.client.DaemonLoginStart
+import dev.mimir.client.wireName
+import dev.mimir.runtime.login.BrowserLoginProvider
+import dev.mimir.runtime.login.DeviceCodeLoginProvider
+import dev.mimir.runtime.login.LoginProvider
+import dev.mimir.runtime.login.LoginRegistry
 import dev.mimir.core.ChangeFeedStorage
 import dev.mimir.core.Cipher
 import dev.mimir.core.RcloneCipher
@@ -26,15 +31,9 @@ import dev.mimir.core.fs.FileSystemLocalVault
 import dev.mimir.core.fs.NioWatchServiceVaultWatcher
 import dev.mimir.core.sync.DefaultSyncEngine
 import dev.mimir.drive.GoogleDriveStorage
-import dev.mimir.drive.api.GoogleDeviceCodeResponse
-import dev.mimir.drive.client.DriveAuthException
-import dev.mimir.drive.client.DriveHttpException
-import dev.mimir.drive.auth.GoogleAuthClient
 import dev.mimir.drive.auth.GoogleAuthClients
-import dev.mimir.drive.auth.LoginCallback
-import dev.mimir.drive.auth.OAuthTokens
+import dev.mimir.drive.auth.RefreshingTokenSource
 import dev.mimir.drive.auth.TokenStorage
-import dev.mimir.drive.auth.newBrowserLogin
 import dev.mimir.drive.client.DriveHttpClient
 import dev.mimir.drive.path.DrivePathResolver
 import io.ktor.client.HttpClient
@@ -50,8 +49,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -134,6 +131,19 @@ class DaemonRuntime(
 
     val tokenStorage: TokenStorage = FileTokenStorage(configDir.resolve("tokens.json"))
     val authClients: GoogleAuthClients = config.authClients(httpClient)
+
+    /** Способы входа по настроенным клиентам Google; оба пишут в одно хранилище токенов. */
+    private val loginRegistry: LoginRegistry = RefreshingTokenSource(tokenStorage, authClients).let { tokens ->
+        LoginRegistry(
+            listOfNotNull(
+                authClients.desktop?.let { BrowserLoginProvider(it, tokenStorage, scope, browserLoginTimeout, tokens) },
+                authClients.device?.let { DeviceCodeLoginProvider(it, tokenStorage, tokens) },
+            ),
+        )
+    }
+    private val loginMutex = Mutex()
+    private var activeLogin: LoginProvider? = null
+    private var loginCompleted = false
 
     override val status: StateFlow<SyncStatus> = _status.asStateFlow()
     override val progress: StateFlow<SyncProgress?> = _progress.asStateFlow()
@@ -260,110 +270,48 @@ class DaemonRuntime(
         refreshConflicts()
     }
 
-    override suspend fun startDeviceLogin(): dev.mimir.client.DaemonDeviceCodeDto {
-        val res = (authClients.device ?: throw SyncNotConfiguredException("Google device client is not configured")).requestDeviceCode()
-        return dev.mimir.client.DaemonDeviceCodeDto(
-            deviceCode = res.device_code,
-            userCode = res.user_code,
-            verificationUrl = res.verification_url,
-            expiresInSeconds = res.expires_in,
-            intervalSeconds = res.interval,
+    override suspend fun loginMethods(): Set<LoginMethod> = loginRegistry.methods()
+
+    override suspend fun startLogin(method: LoginMethod): DaemonLoginStart = loginMutex.withLock {
+        val provider = loginRegistry[method] ?: throw SyncNotConfiguredException(
+            when (method) {
+                LoginMethod.Browser -> "Google desktop client is not configured"
+                LoginMethod.DeviceCode -> "Google device client is not configured"
+                LoginMethod.SystemAccount -> "System account sign-in is not available"
+            },
         )
+        val start = provider.start()
+        activeLogin = provider
+        loginCompleted = false
+        start
     }
 
-    override suspend fun loginMethods(): Set<LoginMethod> = loginMethodsFor(config.googleCredentials())
-
-    override suspend fun pollDeviceLogin(deviceCode: String): DevicePoll {
-        val client = authClients.device ?: throw SyncNotConfiguredException("Google device client is not configured")
-        val tokens = try {
-            client.pollDeviceToken(deviceCode)
-        } catch (e: DriveAuthException) {
-            val message = e.message.orEmpty()
-            return if ("authorization_pending" in message || "slow_down" in message) DaemonDevicePoll.Pending else DaemonDevicePoll.Expired(message)
-        }
-        return DaemonDevicePoll.Authorized(completeLogin(tokens, client))
-    }
-
-    private class BrowserAttempt(val receiver: BrowserLoginReceiver, val job: Job, val state: MutableStateFlow<DaemonBrowserLoginPoll>)
-
-    private val browserMutex = Mutex()
-    private var browserAttempt: BrowserAttempt? = null
-
-    override suspend fun startBrowserLogin(): String = browserMutex.withLock {
-        val client = authClients.desktop ?: throw SyncNotConfiguredException("Google desktop client is not configured")
-        browserAttempt?.let {
-            // Дожидаемся завершения старой попытки, чтобы она не сохранила вход параллельно с новой.
-            // Задача попытки browserMutex не берёт, поэтому join под ним не взаимоблокируется.
-            it.job.cancel()
-            it.receiver.close()
-            it.job.join()
-        }
-        browserAttempt = null
-        val receiver = BrowserLoginReceiver(browserLoginTimeout)
-        val request = try {
-            receiver.start()
-            client.newBrowserLogin(receiver.port).also { receiver.expectedState = it.state }
-        } catch (e: Exception) {
-            receiver.close()
-            throw e
-        }
-        val state = MutableStateFlow<DaemonBrowserLoginPoll>(DaemonBrowserLoginPoll.Pending)
-        val job = scope.launch {
-            state.value = when (val callback = receiver.awaitCallback()) {
-                null -> DaemonBrowserLoginPoll.Failed("Время ожидания истекло")
-                LoginCallback.Denied -> DaemonBrowserLoginPoll.Failed("Вход отменён")
-                is LoginCallback.Invalid -> DaemonBrowserLoginPoll.Failed("Вход не удался")
-                is LoginCallback.Code -> {
-                    val tokens = try {
-                        client.exchangeAuthorizationCode(callback.code, request.verifier, request.redirectUri)
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: DriveHttpException) {
-                        logger.warning("Google rejected the authorization code: ${e.javaClass.simpleName}, HTTP ${e.statusCode}")
-                        null.also { state.value = DaemonBrowserLoginPoll.Failed("Google не принял вход") }
-                    } catch (e: Exception) {
-                        logger.warning("Token exchange failed: ${e.javaClass.name}")
-                        null.also { state.value = DaemonBrowserLoginPoll.Failed("Не удалось связаться с Google") }
-                    }
-                    if (tokens == null) return@launch
-                    try {
-                        DaemonBrowserLoginPoll.Authorized(completeLogin(tokens, client))
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        logger.warning("Saving sign-in failed: ${e.javaClass.name}")
-                        DaemonBrowserLoginPoll.Failed("Не удалось сохранить вход")
-                    }
-                }
-            }
-        }
-        browserAttempt = BrowserAttempt(receiver, job, state)
-        request.authUrl
-    }
-
-    override suspend fun pollBrowserLogin(): DaemonBrowserLoginPoll =
-        browserMutex.withLock { browserAttempt?.state?.value } ?: DaemonBrowserLoginPoll.Failed("Вход не начат")
-
-    /** Сохраняет токены, запоминает аккаунт и перезапускает синхронизацию. */
-    private suspend fun completeLogin(tokens: OAuthTokens, client: GoogleAuthClient): String? {
-        val email = try {
-            client.fetchAccount(tokens.accessToken).email.takeIf { it.isNotEmpty() }
+    /** Первый [DaemonLoginPoll.Authorized] попытки запоминает аккаунт и пересобирает движок — ровно один раз. */
+    override suspend fun pollLogin(): DaemonLoginPoll = loginMutex.withLock {
+        val provider = activeLogin ?: return@withLock DaemonLoginPoll.Failed("Вход не начат")
+        val result = provider.poll()
+        if (result !is DaemonLoginPoll.Authorized || loginCompleted) return@withLock result
+        try {
+            completeLogin(result.email, provider.method)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            null
+            logger.warning("Saving sign-in failed: ${e.javaClass.name}")
+            return@withLock DaemonLoginPoll.Failed("Не удалось сохранить вход")
         }
-        // Отменённая (перезапущенная) попытка входа не должна ничего сохранять.
-        currentCoroutineContext().ensureActive()
-        tokenStorage.save(tokens)
+        loginCompleted = true
+        result
+    }
+
+    /** Токены уже сохранены провайдером: запоминает аккаунт и перезапускает синхронизацию. */
+    private suspend fun completeLogin(email: String?, method: LoginMethod) {
+        writeFileAtomically(configDir.resolve("account.json"), Json.encodeToString(AccountFile(email, method.wireName)))
         accountEmail = email
-        writeFileAtomically(configDir.resolve("account.json"), Json.encodeToString(AccountFile(email)))
         rebuildLenient()
-        return email
     }
 
     fun close() {
-        browserAttempt?.receiver?.close()
+        loginRegistry.close()
         scheduler?.stop()
         watcher?.stop()
         vaultWatcher?.stop()
@@ -373,7 +321,7 @@ class DaemonRuntime(
     }
 
     @Serializable
-    private class AccountFile(val email: String?)
+    private class AccountFile(val email: String?, val method: String? = null)
 
     private fun readAccountEmail(): String? {
         val file = configDir.resolve("account.json")

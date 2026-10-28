@@ -23,8 +23,10 @@ interface DaemonService {
     suspend fun inspectVault(): DaemonVaultInspectionDto
     suspend fun unlock(password: String)
     suspend fun loginMethods(): Set<DaemonLoginMethod>
-    suspend fun startBrowserLogin(): String
-    suspend fun pollBrowserLogin(): DaemonBrowserLoginPoll
-    suspend fun startDeviceLogin(): DaemonDeviceCodeDto
-    suspend fun pollDeviceLogin(deviceCode: String): DaemonDevicePoll
+
+    /** [SyncNotConfiguredException], если способ недоступен. */
+    suspend fun startLogin(method: DaemonLoginMethod): DaemonLoginStart
+
+    /** Состояние последней начатой попытки входа; [DaemonLoginPoll.Failed], если вход не начат. */
+    suspend fun pollLogin(): DaemonLoginPoll
 }

@@ -22,10 +22,9 @@ class FakeMimirUiModel(
     private val onUnlock: (String, Boolean) -> Unit = { _, _ -> },
     private val onResolveConflict: (String, String, Boolean) -> Unit = { _, _, _ -> },
     private val deviceCode: UiDeviceCode = UiDeviceCode("ABCD-EFGH", "https://www.google.com/device", 1800, "device-code"),
-    private val devicePoll: () -> UiDevicePoll = { UiDevicePoll.Pending },
     private val loginMethods: Set<UiLoginMethod> = setOf(UiLoginMethod.DeviceCode),
     private val browserAuthUrl: String = "https://accounts.google.com/o/oauth2/v2/auth",
-    private val browserPoll: () -> UiBrowserPoll = { UiBrowserPoll.Pending },
+    private val loginPoll: () -> UiLoginPoll = { UiLoginPoll.Pending },
     connectionStatus: dev.mimir.client.DaemonConnectionStatus = dev.mimir.client.DaemonConnectionStatus.Connected,
 ) : MimirUiModel {
     override val connectionStatus: StateFlow<dev.mimir.client.DaemonConnectionStatus> = MutableStateFlow(connectionStatus)
@@ -56,13 +55,19 @@ class FakeMimirUiModel(
         conflicts.value = conflicts.value.filterNot { it.conflictPath == conflictPath }
     }
 
-    override suspend fun startDeviceLogin(): UiDeviceCode = deviceCode
-
-    override suspend fun pollDeviceLogin(deviceCode: String): UiDevicePoll = devicePoll()
+    /** Способы, которыми начинали вход, по порядку. */
+    val startedLogins = mutableListOf<UiLoginMethod>()
 
     override suspend fun loginMethods(): Set<UiLoginMethod> = loginMethods
 
-    override suspend fun startBrowserLogin(): String = browserAuthUrl
+    override suspend fun startLogin(method: UiLoginMethod): UiLoginStart {
+        startedLogins += method
+        return when (method) {
+            UiLoginMethod.SystemAccount -> UiLoginStart.Started
+            UiLoginMethod.Browser -> UiLoginStart.OpenUrl(browserAuthUrl)
+            UiLoginMethod.DeviceCode -> UiLoginStart.ShowDeviceCode(deviceCode)
+        }
+    }
 
-    override suspend fun pollBrowserLogin(): UiBrowserPoll = browserPoll()
+    override suspend fun pollLogin(): UiLoginPoll = loginPoll()
 }
