@@ -15,6 +15,11 @@ import dev.mimir.ui.model.UiLoginMethod
 import dev.mimir.ui.model.UiVaultInspection
 import dev.mimir.ui.picker.LocalFolderPicker
 import dev.mimir.ui.picker.PlatformFolderPicker
+import dev.mimir.ui.platform.LocalStorageAccess
+import dev.mimir.ui.platform.LocalVaultDiscovery
+import dev.mimir.ui.platform.StorageAccess
+import dev.mimir.ui.platform.VaultDiscovery
+import kotlinx.coroutines.flow.MutableStateFlow
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
@@ -305,5 +310,85 @@ class SetupWizardScreenTest {
         waitUntilExactlyOneExists(hasText("Войти через Google"))
         onNodeWithText("Войти через Google").performClick()
         waitUntilExactlyOneExists(hasText("Мастер-пароль шифрования"))
+    }
+
+    @Test
+    fun `wizard starts on access step when storage access is not granted`() = runComposeUiTest {
+        val model = FakeMimirUiModel()
+        val access = object : StorageAccess {
+            override val granted = MutableStateFlow(false)
+            override fun requestAllFiles() {}
+            override fun requestNotifications() {}
+        }
+        setContent {
+            CompositionLocalProvider(LocalStorageAccess provides access) {
+                SetupWizardScreen(model, onComplete = {})
+            }
+        }
+
+        onNodeWithText("Доступ к файлам").assertExists()
+        onNodeWithText("Предоставить доступ").assertExists()
+        onNodeWithText("Путь к хранилищу Obsidian").assertDoesNotExist()
+
+        access.granted.value = true
+        waitUntilExactlyOneExists(hasText("Путь к хранилищу Obsidian"))
+    }
+
+    @Test
+    fun `wizard skips access step when storage access is already granted`() = runComposeUiTest {
+        val model = FakeMimirUiModel()
+        val access = object : StorageAccess {
+            override val granted = MutableStateFlow(true)
+            override fun requestAllFiles() {}
+            override fun requestNotifications() {}
+        }
+        setContent {
+            CompositionLocalProvider(LocalStorageAccess provides access) {
+                SetupWizardScreen(model, onComplete = {})
+            }
+        }
+
+        onNodeWithText("Путь к хранилищу Obsidian").assertExists()
+        onNodeWithText("Доступ к файлам").assertDoesNotExist()
+    }
+
+    @Test
+    fun `vault step shows discovered vaults list and selecting one configures path`() = runComposeUiTest {
+        var configuredPath = ""
+        val model = FakeMimirUiModel(
+            fileCount = 15,
+            onConfigureVault = { configuredPath = it; 15 },
+        )
+        val discovery = object : VaultDiscovery {
+            override suspend fun findVaults(): List<String> = listOf("/sdcard/Documents/Notes")
+        }
+        setContent {
+            CompositionLocalProvider(LocalVaultDiscovery provides discovery) {
+                SetupWizardScreen(model, onComplete = {})
+            }
+        }
+
+        waitUntilExactlyOneExists(hasText("📁 Notes (/sdcard/Documents/Notes)"))
+        onNodeWithText("📁 Notes (/sdcard/Documents/Notes)").performClick()
+        waitUntilExactlyOneExists(hasText("✓ Найдено заметок: 15"))
+        assertEquals("/sdcard/Documents/Notes", configuredPath)
+    }
+
+    @Test
+    fun `untranslatable uri error in vault step is displayed`() = runComposeUiTest {
+        val model = FakeMimirUiModel()
+        val picker = object : PlatformFolderPicker {
+            override suspend fun pickDirectory(initialPath: String?): String? {
+                throw IllegalArgumentException("Эта папка не на телефоне. Выберите папку во внутренней памяти или на карте памяти")
+            }
+        }
+        setContent {
+            CompositionLocalProvider(LocalFolderPicker provides picker) {
+                SetupWizardScreen(model, onComplete = {})
+            }
+        }
+
+        onNodeWithText("📁 Обзор…").performClick()
+        waitUntilExactlyOneExists(hasText("Эта папка не на телефоне. Выберите папку во внутренней памяти или на карте памяти"))
     }
 }

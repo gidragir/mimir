@@ -15,27 +15,38 @@ import androidx.compose.ui.unit.dp
 import dev.mimir.ui.MimirTheme
 import dev.mimir.ui.model.FakeMimirUiModel
 import dev.mimir.ui.model.MimirUiModel
+import dev.mimir.ui.platform.LocalStorageAccess
+import dev.mimir.ui.screens.setup.AccessStep
 import dev.mimir.ui.screens.setup.GoogleStep
 import dev.mimir.ui.screens.setup.InitialResolutionStep
 import dev.mimir.ui.screens.setup.PasswordStep
 import dev.mimir.ui.screens.setup.VaultStep
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
-private enum class Step { Vault, Google, Password, InitialResolution }
+private enum class Step { Access, Vault, Google, Password, InitialResolution }
 
 /**
- * Мастер первого запуска: папка хранилища → вход в Google → пароль шифрования → подтверждение первого слияния
+ * Мастер первого запуска: доступ к файлам (если не выдан) → папка хранилища → вход в Google → пароль шифрования → подтверждение первого слияния
  * (шаг показывается, только когда данные есть и локально, и в облаке).
  */
 @Composable
 fun SetupWizardScreen(model: MimirUiModel, onComplete: () -> Unit, pollIntervalMillis: Long = 5_000) {
-    var step by remember { mutableStateOf(Step.Vault) }
+    val storageAccess = LocalStorageAccess.current
+    val initialStep = remember {
+        if (storageAccess != null && !storageAccess.granted.value) {
+            Step.Access
+        } else {
+            Step.Vault
+        }
+    }
+    var step by remember { mutableStateOf(initialStep) }
     Column(
         modifier = Modifier.fillMaxSize().padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         when (step) {
+            Step.Access -> AccessStep(onNext = { step = Step.Vault })
             Step.Vault -> VaultStep(model, onNext = { step = Step.Google })
             Step.Google -> GoogleStep(model, pollIntervalMillis, onNext = { step = Step.Password })
             Step.Password -> PasswordStep(model, onNext = { step = Step.InitialResolution })
