@@ -23,6 +23,12 @@ android {
         resValue("string", "app_name", appName)
     }
 
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+        }
+    }
+
     buildFeatures {
         resValues = true
     }
@@ -47,10 +53,18 @@ android {
 
 dependencies {
     implementation(project(":core"))
+    implementation(project(":drive"))
+    implementation(project(":runtime"))
     implementation(project(":ui"))
     implementation(libs.compose.ui)
     implementation(libs.activity.compose)
     implementation(libs.work.runtime.ktx)
+    implementation(libs.play.services.auth)
+    implementation(libs.coroutines.play.services)
+    implementation(libs.ktor.client.core)
     testImplementation(libs.kotlin.test.junit)
     testImplementation(libs.junit)
+    testImplementation(libs.coroutines.test)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
 }
