@@ -75,6 +75,10 @@ class MimirApplication : Application(), Configuration.Provider {
                 scope = applicationScope,
             ),
         )
+
+        if (runtime.vaultPath != null) {
+            workScheduler.scheduleVaultTrigger()
+            workScheduler.schedulePeriodic()
+        }
     }
 }
-

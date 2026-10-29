@@ -1,5 +1,6 @@
 package dev.mimir.android.work
 
+import android.provider.MediaStore
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
@@ -13,11 +14,11 @@ import java.util.concurrent.TimeUnit
 /**
  * Планировщик фоновых задач WorkManager для Mimir на Android.
  */
-class SyncWorkScheduler(
+open class SyncWorkScheduler(
     private val workManager: WorkManager,
     private val wifiOnly: () -> Boolean = { false },
 ) {
-    fun schedulePeriodic() {
+    open fun schedulePeriodic() {
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(if (wifiOnly()) NetworkType.UNMETERED else NetworkType.CONNECTED)
             .build()
@@ -33,7 +34,7 @@ class SyncWorkScheduler(
         )
     }
 
-    fun scheduleExpedited() {
+    open fun scheduleExpedited() {
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(if (wifiOnly()) NetworkType.UNMETERED else NetworkType.CONNECTED)
             .build()
@@ -50,8 +51,23 @@ class SyncWorkScheduler(
         )
     }
 
-    fun scheduleVaultTrigger() {
-        // Зарезервировано для Task 9 (MediaStore ContentUriTrigger)
+    open fun scheduleVaultTrigger() {
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(if (wifiOnly()) NetworkType.UNMETERED else NetworkType.CONNECTED)
+            .addContentUriTrigger(MediaStore.Files.getContentUri("external"), true)
+            .setTriggerContentUpdateDelay(10, TimeUnit.SECONDS)
+            .setTriggerContentMaxDelay(60, TimeUnit.SECONDS)
+            .build()
+
+        val request = OneTimeWorkRequestBuilder<VaultChangeWorker>()
+            .setConstraints(constraints)
+            .build()
+
+        workManager.enqueueUniqueWork(
+            VAULT_CHANGE,
+            ExistingWorkPolicy.REPLACE,
+            request,
+        )
     }
 
     companion object {

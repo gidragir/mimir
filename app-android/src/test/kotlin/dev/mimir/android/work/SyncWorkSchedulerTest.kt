@@ -2,8 +2,9 @@ package dev.mimir.android.work
 
 import android.app.Application
 import android.content.Context
+import android.provider.MediaStore
 import androidx.test.core.app.ApplicationProvider
-import androidx.work.ExistingWorkPolicy
+import androidx.work.Constraints
 import androidx.work.NetworkType
 import androidx.work.WorkManager
 import androidx.work.testing.WorkManagerTestInitHelper
@@ -70,5 +71,41 @@ class SyncWorkSchedulerTest {
         val secondId = secondInfos[0].id
 
         assertEquals(firstId, secondId, "ExistingWorkPolicy.KEEP must preserve the first work request")
+    }
+
+    @Test
+    fun `vault trigger enqueues unique work with replace policy and constraints`() {
+        val scheduler = SyncWorkScheduler(workManager, wifiOnly = { false })
+        scheduler.scheduleVaultTrigger()
+
+        val firstInfos = workManager.getWorkInfosForUniqueWork(SyncWorkScheduler.VAULT_CHANGE).get()
+        assertEquals(1, firstInfos.size)
+        val firstInfo = firstInfos[0]
+        assertEquals(NetworkType.CONNECTED, firstInfo.constraints.requiredNetworkType)
+        assertTrue(firstInfo.constraints.hasContentUriTriggers())
+        assertEquals(10_000L, firstInfo.constraints.contentTriggerUpdateDelayMillis)
+        assertEquals(60_000L, firstInfo.constraints.contentTriggerMaxDelayMillis)
+        assertEquals(
+            setOf(Constraints.ContentUriTrigger(MediaStore.Files.getContentUri("external"), true)),
+            firstInfo.constraints.contentUriTriggers,
+        )
+
+        val firstId = firstInfo.id
+        scheduler.scheduleVaultTrigger()
+        val secondInfos = workManager.getWorkInfosForUniqueWork(SyncWorkScheduler.VAULT_CHANGE).get()
+        assertEquals(1, secondInfos.size)
+        val secondId = secondInfos[0].id
+
+        assertTrue(firstId != secondId, "ExistingWorkPolicy.REPLACE must replace the previous work request")
+    }
+
+    @Test
+    fun `vault trigger respects wifiOnly constraint`() {
+        val scheduler = SyncWorkScheduler(workManager, wifiOnly = { true })
+        scheduler.scheduleVaultTrigger()
+
+        val workInfos = workManager.getWorkInfosForUniqueWork(SyncWorkScheduler.VAULT_CHANGE).get()
+        assertEquals(1, workInfos.size)
+        assertEquals(NetworkType.UNMETERED, workInfos[0].constraints.requiredNetworkType)
     }
 }
