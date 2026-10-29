@@ -37,7 +37,7 @@ class NotificationDismissReceiver : BroadcastReceiver() {
 class StatusNotifier(context: Context) {
 
     private val context: Context = context.applicationContext
-    private val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    private val notificationManager = context.getSystemService(NotificationManager::class.java)
 
     init {
         createNotificationChannels()

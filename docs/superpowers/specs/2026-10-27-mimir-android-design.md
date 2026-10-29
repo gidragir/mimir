@@ -153,7 +153,15 @@ GIS — `revokeAccess`; браузер — отзыв refresh-токена. За
 
 - **Вшитый Desktop-клиент в APK.** `MIMIR_BUILD_GOOGLE_DESKTOP_*` попадает в BuildConfig `app-android`. Секрет Desktop-клиента у установленных приложений не секретен (позиция Google); запрет AGENTS.md касается `core`/JS-бандлов, APK — нативная точка входа, как `daemon`. Device-клиент в APK не попадает. AGENTS.md уточняется.
 - **`versionCode`** вычисляется из `mimir.version` (`major*10000 + minor*100 + patch`), чтобы APK обновлялся поверх.
-- **Отступление от §6.4 основной спеки:** к GIS добавлен запасной вход через браузер (loopback) для устройств без Play Services.
+- **Отступление от §6.4 основной спеки:** к GIS добавлен запасной вход через браузер (loopback/deep link `mimir://authorized`) для устройств без Play Services.
+- **Пропуск Task 1 (device spike) и Task 14 (on-device verification):** проверка на физическом устройстве через adb не может быть выполнена агентами в автономной среде. WorkManager-синхронизация реализована в максимальном объёме (триггер MediaStore + периодическая 15 мин + expedited при уходе в фон); подтверждение задержки на реальном устройстве выносится на ручную верификацию.
+- **Работа на ветке feat/android-mvp в основном чекауте:** git в worktree-сессиях блокируется защитным фильтром harness guard. Коммиты формируются точечно только для изменённых файлов задачи.
+- **Размещение DeviceCodeLoginProvider:** класс размещён в `runtime/login` (вместо `daemon`), Android-клиент не регистрирует его в `LoginRegistry`.
+- **Получение email пользователя:** используется `DriveHttpClient.fetchAccount` вместо прямого вызова `about.get`.
+- **Явный ioDispatcher в JsonSyncStateStore:** `ioDispatcher: CoroutineDispatcher` передаётся обязательным параметром из платформенных корней (`daemon`, `app-desktop`, `app-android`) во избежание хардкода `Dispatchers.IO` в `runtime`.
+- **Опрос /auth/device/poll:** эндпоинт опрашивает попытку входа, стартованную в текущем процессе демона (`device_code` валидируется на непустоту).
+- **Сохранение account.json:** фиксация аккаунта и пересборка графа выполняются при первом получении статуса `Authorized` методом `DaemonRuntime.pollLogin`.
+- **Контракт VaultWatcher:** интерфейс `core` расширен методом по умолчанию `start(onWatching: () -> Unit)` для атомарного сканирования после регистрации вотчера в `ConflictTracker`.
 
 ## 9. Тестирование и сборка
 

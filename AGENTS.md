@@ -26,6 +26,7 @@ Mimir — клиент синхронизации Obsidian-хранилища с
 | `build-logic` | convention-плагины: `mimir.settings`, `mimir.android-support`, `mimir.kmp-library`; `AndroidSdk` |
 | `core` | чистый Kotlin (jvm, js, wasmJs, android): порты, шифрование, локальная ФС, движок синхронизации, фейки для тестов |
 | `drive` | адаптер Google Drive: HTTP, OAuth, путь→id, загрузка |
+| `runtime` | общая логика демона и Android (KMP jvm/android): движок, вход в Google, база состояния, планировщик |
 | `daemon` | единый бэкенд: сборка движка, HTTP API, планировщик, вход в Google (встраивается в desktop или работает отдельно/в Docker) |
 | `ui` | общий Compose-интерфейс (desktop + wasmJs, Android при SDK) |
 | `app-desktop` | окно, трей, выбор папки, браузер; встроенный или удалённый демон |
@@ -47,6 +48,7 @@ Mimir — клиент синхронизации Obsidian-хранилища с
 | Правила синхронизации | `core/…/rules/` (`SyncRules`, `GlobMatcher`) |
 | Фейки для тестов | `core/…/testing/`: `InMemoryRemoteStorage`, `InMemoryLocalVault`; UI — `ui/model/FakeMimirUiModel` |
 | Google Drive | `drive/`: порт — `GoogleDriveStorage`; токены, retry, ошибки сети — `client/DriveHttpClient`; OAuth/PKCE — `auth/`; путь→id и кэш — `path/DrivePathResolver`; загрузка (resumable) — `upload/DriveUploader` |
+| Runtime | `runtime/`: фасад — `MimirRuntime`; сборка движка — `EngineAssembler`; вход — `login/`; настройки — `JsonRuntimeSettingsStore` |
 | Демон | composition root — `DaemonRuntime`; API — `Routes` + `ProgressDto`; конфиг, env и каталоги ОС — `DaemonConfig`; расписание — `SyncScheduler`; вход через браузер — `BrowserLoginReceiver`; индекс — `JsonSyncStateStore`, атомарная запись — `AtomicFiles.kt` |
 | UI | контракт — `ui/model/MimirUiModel`; экраны — `ui/screens/`; тексты — `SyncTexts`; тема — `MimirTheme`, `ObsidianStyle`; платформенные сервисы (CompositionLocal) — `ui/picker/`, `ui/platform/` |
 | Desktop | composition root — `app-desktop/Main.kt`; встроенный/удалённый демон — `DaemonServiceFactory`; HTTP-клиент — `HttpDaemonClient`; трей — `tray/`; выбор папки — `picker/`; браузер — `SystemBrowserOpener` |
@@ -62,7 +64,7 @@ Mimir — клиент синхронизации Obsidian-хранилища с
 - **Docker-образ демона** строится на glibc-базе (`eclipse-temurin:27-jdk` / `27-jre`), а не на alpine: Kotlin/JS скачивает Node под glibc.
 - **Android**: нужны AGP ≥ 9.4 и compileSdk 37 (иначе jlink `JdkImageTransform` падает на JDK 27, а Compose 1.12 требует compileSdk 37).
 - Шифрование реализовано (`RcloneCipher`, совместим с rclone crypt, чистый Kotlin в `core`; `expect/actual` в `core` — только источник случайности и проверка символьных ссылок). Синхронизация, Google Drive и OAuth реализованы; заглушками (`NotImplementedError` с осмысленным сообщением) остаются `StubSyncEngine` и точки входа Android/web/плагина/расширения. Пароль в `RcloneCipher` передаётся в открытом виде; golden-векторы `RcloneVectors.kt` генерирует `scripts/gen-rclone-vectors.sh` (нужен rclone), обычные сборка и тесты rclone не требуют.
-- **Google OAuth-клиенты**: две пары — `MIMIR_GOOGLE_DESKTOP_CLIENT_ID/SECRET` (вход через браузер) и `MIMIR_GOOGLE_DEVICE_CLIENT_ID/SECRET` (Device Code); старые `MIMIR_GOOGLE_CLIENT_*` — алиас Device-пары. Вшитые значения (`MIMIR_BUILD_GOOGLE_*`) живут только в BuildConfig `daemon` (не в `core`: он попадает в JS-бандлы), в Docker-образ не вшиваются — Docker-демон настраивается переменными окружения.
+- **Google OAuth-клиенты**: две пары — `MIMIR_GOOGLE_DESKTOP_CLIENT_ID/SECRET` (вход через браузер) и `MIMIR_GOOGLE_DEVICE_CLIENT_ID/SECRET` (Device Code); старые `MIMIR_GOOGLE_CLIENT_*` — алиас Device-пары. Вшитые значения (`MIMIR_BUILD_GOOGLE_*`) живут только в BuildConfig `daemon` и `app-android` (Desktop-пара допустима в BuildConfig `app-android` для fallback-входа через браузер; не в `core`: он попадает в JS-бандлы), в Docker-образ не вшиваются — Docker-демон настраивается переменными окружения.
 - **Linux-лаунчеры** (`run` в `app-desktop/build.gradle.kts`, `packaging/arch/mimir.sh`) выставляют `_JAVA_AWT_WM_NONREPARENTING=1` — иначе под niri окно рисуется только в левом верхнем углу.
 - `SyncStatus` включает `Offline` (нет сети); прогресс — `SyncEngine.progress`. Ошибка одного файла не прерывает синхронизацию: она попадает в проблемы и повторяется в следующем прогоне.
 - Защита от удаления: при пустом удалённом списке и непустом индексе движок прерывает прогон (`SyncAbortedException`), ничего не трогая; каждый `DeleteLocal` перед выполнением перепроверяется через `stat` (файл найден или проверка не удалась — локальный файл не удаляется). `GoogleDriveStorage.listAll` сбрасывает кэши путей, чтобы `stat` не был устаревшим. `GoogleDriveStorage.delete` переносит файл в корзину Drive, а не стирает его.

@@ -48,5 +48,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         },
         backgroundSync = backgroundSyncFlow,
     )
+
+    override fun onCleared() {
+        super.onCleared()
+        networkState.close()
+    }
 }
 

@@ -105,4 +105,29 @@ class GoogleStepSystemAccountTest {
         assertEquals(listOf(UiLoginMethod.Browser), model.startedLogins)
         assertFalse(nextCalled)
     }
+
+    @Test
+    fun `unavailable without browser shows error and does not start login`() = runComposeUiTest {
+        val login = FakeSystemAccountLogin(result = SystemLoginResult.Unavailable("Play services missing"))
+        var nextCalled = false
+
+        val model = FakeMimirUiModel(
+            loginMethods = setOf(UiLoginMethod.SystemAccount),
+            loginPoll = { UiLoginPoll.Pending },
+        )
+
+        setContent {
+            CompositionLocalProvider(LocalSystemAccountLogin provides login) {
+                GoogleStep(model, pollIntervalMillis = 10, onNext = { nextCalled = true })
+            }
+        }
+
+        onNodeWithText("Войти через Google").performClick()
+        waitForIdle()
+
+        assertEquals(1, login.authorizeCallCount)
+        assertTrue(model.startedLogins.isEmpty())
+        assertFalse(nextCalled)
+        onNodeWithText("Вход через Google недоступен на этом устройстве").assertExists()
+    }
 }

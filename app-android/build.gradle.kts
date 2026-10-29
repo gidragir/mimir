@@ -18,7 +18,7 @@ android {
         applicationId = appId
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
+        versionCode = dev.mimir.build.VersionCode.versionCodeOf(appVersion)
         versionName = appVersion
         resValue("string", "app_name", appName)
 

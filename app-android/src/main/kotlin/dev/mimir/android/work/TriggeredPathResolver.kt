@@ -39,28 +39,31 @@ class ContentResolverTriggeredPathResolver(
         if (ids.isEmpty()) return emptyList()
 
         val projection = arrayOf(MediaStore.MediaColumns.DATA)
-        val placeholders = ids.joinToString(",") { "?" }
-        val selection = "${MediaStore.MediaColumns._ID} IN ($placeholders)"
-        val selectionArgs = ids.map { it.toString() }.toTypedArray()
-
         val results = mutableListOf<String>()
-        try {
-            contentResolver.query(
-                MediaStore.Files.getContentUri("external"),
-                projection,
-                selection,
-                selectionArgs,
-                null,
-            )?.use { cursor ->
-                val dataIndex = cursor.getColumnIndex(MediaStore.MediaColumns.DATA)
-                if (dataIndex != -1) {
-                    while (cursor.moveToNext()) {
-                        cursor.getString(dataIndex)?.let { results.add(it) }
+
+        for (chunk in ids.chunked(999)) {
+            val placeholders = chunk.joinToString(",") { "?" }
+            val selection = "${MediaStore.MediaColumns._ID} IN ($placeholders)"
+            val selectionArgs = chunk.map { it.toString() }.toTypedArray()
+
+            try {
+                contentResolver.query(
+                    MediaStore.Files.getContentUri("external"),
+                    projection,
+                    selection,
+                    selectionArgs,
+                    null,
+                )?.use { cursor ->
+                    val dataIndex = cursor.getColumnIndex(MediaStore.MediaColumns.DATA)
+                    if (dataIndex != -1) {
+                        while (cursor.moveToNext()) {
+                            cursor.getString(dataIndex)?.let { results.add(it) }
+                        }
                     }
                 }
+            } catch (_: Exception) {
+                // Игнорируем ошибки доступа к ContentResolver
             }
-        } catch (_: Exception) {
-            // Игнорируем ошибки доступа к ContentResolver
         }
         return results
     }

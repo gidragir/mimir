@@ -28,7 +28,7 @@ class PlayServicesGisAuthorizer(
         const val PREF_GIS_ACCOUNT = "gis_account"
     }
 
-    override suspend fun authorizeSilently(): String? {
+    override suspend fun authorizeSilently(): String? = withContext(Dispatchers.IO) {
         val builder = AuthorizationRequest.builder()
             .setRequestedScopes(GoogleAuthConfig.scopes.map { Scope(it) })
         val accountName = accountPrefs.getString(PREF_GIS_ACCOUNT, null)
@@ -36,7 +36,7 @@ class PlayServicesGisAuthorizer(
             builder.setAccount(Account(accountName, "com.google"))
         }
         val request = builder.build()
-        return try {
+        try {
             val result = Identity.getAuthorizationClient(context).authorize(request).await()
             if (result.hasResolution()) {
                 null

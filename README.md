@@ -18,6 +18,8 @@
 | `ui` | общий Compose-интерфейс для desktop, Android и web |
 | `app-desktop` | запускалка для Windows и Linux, трей |
 | `app-android` | запускалка для Android |
+| `client` | HTTP-клиент, DTO и интерфейс удалённого демона |
+| `runtime` | общая логика демона и Android (KMP jvm/android): движок, вход в Google, база состояния, планировщик |
 | `daemon` | headless-движок и локальный HTTP API (`127.0.0.1:47821`) |
 | `web-ui` | сборка `ui` под wasmJs, раздаётся демоном |
 | `obsidian-plugin` | плагин Obsidian на Kotlin/JS (работает и на телефоне) |
@@ -69,6 +71,20 @@ curl -s 127.0.0.1:47821/health
 ### Что проверяется только с SDK или в CI
 
 Задачи `:app-android:*` (в том числе `ManifestPermissionsTest` и `assembleDebug`) выполняются только при наличии Android SDK (проверены на Arch с SDK из Android Studio: `ANDROID_HOME=~/Android/Sdk`); без SDK они пропускаются, в CI на Linux идут с `setup-android`. MSI (`package:msi`) собирается и проверяется только на Windows-раннере в CI. Остальное (сборка, тесты, Docker, пакет Arch) проверяется на Arch.
+
+### Android
+
+- **Требования:** Android 8.0+ (API 26+). Установка APK вне Google Play (sideloading).
+- **Разрешения:** `MANAGE_EXTERNAL_STORAGE` («Доступ ко всем файлам») для чтения и записи локального хранилища Obsidian, `POST_NOTIFICATIONS` (Android 13+) для системных уведомлений о состоянии синхронизации.
+- **Настройка Google OAuth (Google Identity Services):**
+  - Android-клиенты заводятся в том же проекте Google Cloud Platform, где созданы остальные клиенты (единый scope `drive.file`).
+  - Тип клиента — «Android», package name — `dev.mimir.android`.
+  - В консоли GCP указываются SHA-1 фингерпринты для используемых ключей подписи (debug и release).
+  - Команда для получения SHA-1 debug-ключа:
+    ```sh
+    keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android
+    ```
+  - При отсутствии Google Play Services или ненастроенном GIS-клиенте приложение прозрачно переключается на вход через браузер (Custom Tabs / системный браузер с перенаправлением на `mimir://authorized`).
 
 ### niri
 

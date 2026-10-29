@@ -4,7 +4,10 @@ import dev.mimir.core.SyncErrorKind
 import dev.mimir.core.SyncItem
 import dev.mimir.core.SyncItemAction
 import dev.mimir.core.SyncStatus
+import dev.mimir.ui.model.UiBackgroundSync
 import dev.mimir.ui.screens.SyncTexts
+import kotlinx.datetime.Instant
+import kotlinx.datetime.TimeZone
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -71,6 +74,30 @@ class SyncTextsTest {
         assertEquals(
             "Синхронизация остановлена: папка в Drive пуста",
             SyncTexts.phaseTitle(SyncStatus.Error("empty", SyncErrorKind.Aborted), null, needsSignIn = false),
+        )
+    }
+
+    @Test
+    fun backgroundSyncTextFormatsAllStates() {
+        assertEquals(
+            "Фоновая синхронизация: ждёт Wi‑Fi",
+            SyncTexts.backgroundSyncText(UiBackgroundSync(enabled = true, lastRun = null, waitingForWifi = true)),
+        )
+        assertEquals(
+            "Фоновая синхронизация: отключена",
+            SyncTexts.backgroundSyncText(UiBackgroundSync(enabled = false, lastRun = null, waitingForWifi = false)),
+        )
+        assertEquals(
+            "Фоновая синхронизация: включена",
+            SyncTexts.backgroundSyncText(UiBackgroundSync(enabled = true, lastRun = null, waitingForWifi = false)),
+        )
+        val time = Instant.parse("2026-10-29T14:32:00Z")
+        assertEquals(
+            "Фоновая синхронизация: включена · последняя 14:32",
+            SyncTexts.backgroundSyncText(
+                UiBackgroundSync(enabled = true, lastRun = time, waitingForWifi = false),
+                timeZone = TimeZone.UTC,
+            ),
         )
     }
 }

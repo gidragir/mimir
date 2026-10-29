@@ -12,10 +12,11 @@ import kotlinx.coroutines.flow.asStateFlow
 
 class AndroidNetworkState(
     context: Context,
-) : NetworkState {
+) : NetworkState, AutoCloseable {
     private val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
     private val _current = MutableStateFlow(determineCurrentNetwork())
     override val current: StateFlow<NetworkKind> = _current.asStateFlow()
+    private var callback: ConnectivityManager.NetworkCallback? = null
 
     init {
         registerCallback()
@@ -42,7 +43,7 @@ class AndroidNetworkState(
     private fun registerCallback() {
         val cm = connectivityManager ?: return
         try {
-            cm.registerDefaultNetworkCallback(object : ConnectivityManager.NetworkCallback() {
+            val cb = object : ConnectivityManager.NetworkCallback() {
                 override fun onAvailable(network: Network) {
                     val caps = cm.getNetworkCapabilities(network)
                     _current.value = caps?.let { capabilitiesToKind(it) } ?: NetworkKind.NONE
@@ -55,9 +56,22 @@ class AndroidNetworkState(
                 override fun onLost(network: Network) {
                     _current.value = determineCurrentNetwork()
                 }
-            })
+            }
+            cm.registerDefaultNetworkCallback(cb)
+            callback = cb
         } catch (_: Exception) {
             // Ignored in restricted environments or unit test shadows without connectivity callback support
+        }
+    }
+
+    override fun close() {
+        val cm = connectivityManager ?: return
+        val cb = callback ?: return
+        try {
+            cm.unregisterNetworkCallback(cb)
+        } catch (_: Exception) {
+        } finally {
+            callback = null
         }
     }
 }

@@ -2,6 +2,7 @@ packages:
   - core
   - drive
   - client
+  - runtime
   - ui
   - app-desktop
   - app-android
