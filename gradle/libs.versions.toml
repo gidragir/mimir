@@ -14,6 +14,8 @@ buildconfig = "6.0.0"
 junit = "4.13.2"
 dbusJava = "5.2.2"
 work = "2.10.0"
+lifecycle = "2.8.7"
+asm = "9.11.1"
 playServicesAuth = "21.3.0"
 robolectric = "4.14.1"
 androidxTestCore = "1.6.1"
@@ -44,6 +46,8 @@ ktor-server-test-host = { module = "io.ktor:ktor-server-test-host", version.ref 
 dbus-java-core = { module = "com.github.hypfvieh:dbus-java-core", version.ref = "dbusJava" }
 dbus-java-transport-native = { module = "com.github.hypfvieh:dbus-java-transport-native-unixsocket", version.ref = "dbusJava" }
 work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "work" }
+work-testing = { module = "androidx.work:work-testing", version.ref = "work" }
+lifecycle-process = { module = "androidx.lifecycle:lifecycle-process", version.ref = "lifecycle" }
 compose-runtime = { module = "org.jetbrains.compose.runtime:runtime", version.ref = "compose" }
 compose-foundation = { module = "org.jetbrains.compose.foundation:foundation", version.ref = "compose" }
 compose-material3 = { module = "org.jetbrains.compose.material3:material3", version.ref = "composeMaterial3" }

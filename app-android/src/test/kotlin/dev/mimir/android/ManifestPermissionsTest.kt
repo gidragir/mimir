@@ -1,13 +1,10 @@
 package dev.mimir.android
 
-import androidx.work.NetworkType
-import androidx.work.OutOfQuotaPolicy
 import java.io.File
 import javax.xml.parsers.DocumentBuilderFactory
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
-import kotlin.test.assertTrue
 
 class ManifestPermissionsTest {
     private val androidName = "http://schemas.android.com/apk/res/android"
@@ -31,14 +28,18 @@ class ManifestPermissionsTest {
     }
 
     @Test
-    fun `worker requests are built with connected network constraints`() {
-        val periodic = MimirSyncWorker.buildPeriodicRequest(repeatIntervalMinutes = 15, requiresCharging = true)
-        assertEquals(NetworkType.CONNECTED, periodic.workSpec.constraints.requiredNetworkType)
-        assertTrue(periodic.workSpec.constraints.requiresCharging())
+    fun `application name is MimirApplication`() {
+        val document = DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }
+            .newDocumentBuilder().parse(File("src/main/AndroidManifest.xml"))
+        val app = document.getElementsByTagName("application").item(0) as org.w3c.dom.Element
+        assertEquals(".MimirApplication", app.getAttributeNS(androidName, "name"))
+    }
 
-        val expedited = MimirSyncWorker.buildExpeditedRequest()
-        assertEquals(NetworkType.CONNECTED, expedited.workSpec.constraints.requiredNetworkType)
-        assertTrue(expedited.workSpec.expedited)
-        assertEquals(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST, expedited.workSpec.outOfQuotaPolicy)
+    @Test
+    fun `no foreground service declared`() {
+        val document = DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }
+            .newDocumentBuilder().parse(File("src/main/AndroidManifest.xml"))
+        val services = document.getElementsByTagName("service")
+        assertEquals(0, services.length)
     }
 }

@@ -6,6 +6,7 @@ import dev.mimir.core.EncryptedRemoteStorage
 import dev.mimir.core.InMemoryRemoteStorage
 import dev.mimir.core.RcloneCipher
 import dev.mimir.core.RemotePath
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -17,6 +18,7 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -65,6 +67,23 @@ class MimirRuntimeModesTest {
 
         rt.setInteractive(true)
         eventually { watchers.activeCount() == 2 }
+    }
+
+    @Test
+    fun `setInteractive false does not cancel in-flight sync`(): Unit = runBlocking {
+        signIn(dataDir)
+        vaultDir.resolve("a.md").writeText("hello")
+        val rt = runtime()
+        rt.initialize()
+        assertTrue(rt.isReady)
+
+        // Запускаем ручной syncOnce в фоне
+        val syncJob = async { rt.syncOnce() }
+        // Переключаем в неинтерактивный режим во время синхронизации
+        rt.setInteractive(false)
+
+        assertTrue(syncJob.await(), "in-flight sync must succeed")
+        assertNotNull(rt.lastSyncTime)
     }
 
     @Test

@@ -354,4 +354,23 @@ class SyncSchedulerTest {
         assertFalse(scheduler.pendingLocalChanges.value)
         scheduler.stop()
     }
+
+    @Test
+    fun `stop with cancelRunner false keeps in-flight sync running`() = runTest {
+        val engine = FakeEngine().apply { gate = CompletableDeferred() }
+        val scheduler = scheduler(engine)
+
+        assertTrue(scheduler.triggerSync())
+        runCurrent()
+        assertEquals(1, engine.calls)
+
+        scheduler.stop(cancelRunner = false)
+        runCurrent()
+        assertFalse(engine.cancelled, "in-flight runner must not be cancelled")
+
+        engine.gate!!.complete(Unit)
+        runCurrent()
+        assertEquals(1, engine.calls)
+        kotlin.test.assertNotNull(scheduler.lastSyncTime)
+    }
 }

@@ -89,10 +89,12 @@ class SyncScheduler(
         )
     }
 
-    fun stop() {
+    fun stop(cancelRunner: Boolean = true) {
         jobs.forEach { it.cancel() }
         jobs = emptyList()
-        runner?.cancel() // прогон не должен пережить планировщик: новый мог бы запуститься параллельно
+        if (cancelRunner) {
+            runner?.cancel() // прогон не должен пережить планировщик: новый мог бы запуститься параллельно
+        }
     }
 
     /** Ручной запуск; `false`, если синхронизация уже идёт. Сам прогон выполняется в фоне. */

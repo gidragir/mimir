@@ -122,7 +122,7 @@ class MimirRuntime(
             conflictTracker.watch()
             if (!holdInitialSync) scheduler?.start()
         } else {
-            scheduler?.stop()
+            scheduler?.stop(cancelRunner = false)
             assembled?.watcher?.stop()
             conflictTracker.stop()
         }

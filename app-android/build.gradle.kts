@@ -21,6 +21,11 @@ android {
         versionCode = 1
         versionName = appVersion
         resValue("string", "app_name", appName)
+
+        val desktopClientId = providers.environmentVariable("MIMIR_BUILD_GOOGLE_DESKTOP_CLIENT_ID").orElse("").get()
+        val desktopClientSecret = providers.environmentVariable("MIMIR_BUILD_GOOGLE_DESKTOP_CLIENT_SECRET").orElse("").get()
+        buildConfigField("String", "GOOGLE_DESKTOP_CLIENT_ID", "\"$desktopClientId\"")
+        buildConfigField("String", "GOOGLE_DESKTOP_CLIENT_SECRET", "\"$desktopClientSecret\"")
     }
 
     testOptions {
@@ -31,6 +36,12 @@ android {
 
     buildFeatures {
         resValues = true
+        buildConfig = true
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
     }
 
     signingConfigs {
@@ -59,12 +70,37 @@ dependencies {
     implementation(libs.compose.ui)
     implementation(libs.activity.compose)
     implementation(libs.work.runtime.ktx)
+    implementation(libs.lifecycle.process)
     implementation(libs.play.services.auth)
     implementation(libs.coroutines.play.services)
     implementation(libs.ktor.client.core)
+    implementation(libs.ktor.client.cio)
+    implementation(libs.ktor.client.content.negotiation)
+    implementation(libs.ktor.serialization.json)
+    implementation(libs.serialization.json)
     testImplementation(libs.kotlin.test.junit)
     testImplementation(libs.junit)
     testImplementation(libs.coroutines.test)
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.test.core)
+    testImplementation(libs.work.testing)
+}
+
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
+    }
+}
+
+tasks.withType<Test>().configureEach {
+    systemProperty("org.objectweb.asm.experimental", "true")
+}
+
+val asmVersion = libs.versions.asm.get()
+configurations.configureEach {
+    resolutionStrategy.eachDependency {
+        if (requested.group == "org.ow2.asm") {
+            useVersion(asmVersion)
+        }
+    }
 }
