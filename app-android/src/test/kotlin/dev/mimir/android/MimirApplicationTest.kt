@@ -32,6 +32,12 @@ class MimirApplicationTest {
     }
 
     @Test
+    fun `statusNotifier is available and updateNotification handles not configured without error`() {
+        kotlin.test.assertNotNull(app.statusNotifier)
+        app.updateNotification()
+    }
+
+    @Test
     fun `when vault is configured schedules vault trigger and periodic sync`() {
         val vaultDir = File(app.filesDir, "TestVault").apply { mkdirs() }
         runBlocking {

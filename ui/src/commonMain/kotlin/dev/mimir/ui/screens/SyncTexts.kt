@@ -29,6 +29,19 @@ object SyncTexts {
     const val NEXT = "Далее"
     const val SYNC_NOW = "Синхронизировать сейчас"
     const val SIGN_IN = "Войти через Google"
+    const val PENDING_CHANGES = "Есть неотправленные изменения"
+    const val OFFLINE_PENDING = "Нет сети — изменения отправятся позже"
+    const val NOTIFICATION_SYNCED = "Всё синхронизировано"
+
+    fun notificationSynced(time: String): String = "Всё синхронизировано · $time"
+
+    fun notificationSynced(at: Instant, zone: TimeZone = TimeZone.currentSystemDefault()): String {
+        val local = at.toLocalDateTime(zone)
+        val time = "${local.hour.pad()}:${local.minute.pad()}"
+        return notificationSynced(time)
+    }
+
+    fun notificationConflict(count: Int): String = "Конфликт: ${files(count)}"
 
     fun errorTitle(kind: SyncErrorKind): String = when (kind) {
         SyncErrorKind.SignInRequired -> SIGN_IN_REQUIRED

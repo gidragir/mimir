@@ -6,8 +6,12 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.work.Configuration
 import androidx.work.WorkManager
+import dev.mimir.android.notify.StatusNotifier
+import dev.mimir.android.notify.notificationFor
 import dev.mimir.android.work.MimirWorkerFactory
 import dev.mimir.android.work.SyncWorkScheduler
+import dev.mimir.core.SyncPhase
+import dev.mimir.core.SyncStatus
 import dev.mimir.runtime.MimirRuntime
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -58,6 +62,8 @@ class MimirApplication : Application(), Configuration.Provider {
         SyncWorkScheduler(WorkManager.getInstance(this)) { false }
     }
 
+    val statusNotifier: StatusNotifier by lazy { StatusNotifier(this) }
+
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     override val workManagerConfiguration: Configuration
@@ -79,6 +85,53 @@ class MimirApplication : Application(), Configuration.Provider {
         if (runtime.vaultPath != null) {
             workScheduler.scheduleVaultTrigger()
             workScheduler.schedulePeriodic()
+        }
+
+        observeSyncForNotifications()
+    }
+
+    private fun observeSyncForNotifications() {
+        applicationScope.launch {
+            runtime.status.collect { status ->
+                if (status !is SyncStatus.Syncing) {
+                    updateNotification()
+                }
+            }
+        }
+        applicationScope.launch {
+            runtime.progress.collect { progress ->
+                if (progress?.phase == SyncPhase.Finished) {
+                    updateNotification()
+                }
+            }
+        }
+        applicationScope.launch {
+            runtime.conflictsFlow.collect {
+                updateNotification()
+            }
+        }
+        applicationScope.launch {
+            runtime.pendingLocalChanges.collect {
+                updateNotification()
+            }
+        }
+    }
+
+    fun updateNotification() {
+        val status = runtime.status.value
+        if (status is SyncStatus.Syncing) return
+        if (status is SyncStatus.NotConfigured) {
+            statusNotifier.cancelAll()
+            return
+        }
+        val content = notificationFor(
+            status = status,
+            conflicts = runtime.conflictsFlow.value.size,
+            pendingLocal = runtime.pendingLocalChanges.value,
+            lastSync = runtime.lastSyncTime,
+        )
+        if (content != null) {
+            statusNotifier.show(content)
         }
     }
 }
