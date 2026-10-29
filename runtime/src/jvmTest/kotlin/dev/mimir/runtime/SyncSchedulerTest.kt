@@ -326,4 +326,32 @@ class SyncSchedulerTest {
         assertTrue(scheduler.pendingLocalChanges.value)
         scheduler.stop()
     }
+
+    @Test
+    fun `local change during runNow triggers rerun after lock is released`() = runTest {
+        val engine = FakeEngine()
+        val local = MutableSharedFlow<VaultChange>()
+        val scheduler = scheduler(engine, local = local).also { it.start() }
+        runCurrent()
+        assertEquals(1, engine.calls)
+
+        val runNowGate = CompletableDeferred<Unit>()
+        engine.gate = runNowGate
+        val inFlight = async { scheduler.runNow() }
+        runCurrent()
+        assertEquals(2, engine.calls)
+
+        local.emit(VaultChange.Modified(entry.id, entry))
+        runCurrent()
+        assertTrue(scheduler.pendingLocalChanges.value)
+        assertEquals(2, engine.calls)
+
+        runNowGate.complete(Unit)
+        assertTrue(inFlight.await())
+        runCurrent()
+
+        assertEquals(3, engine.calls, "rerun requested during runNow must execute after lock is released")
+        assertFalse(scheduler.pendingLocalChanges.value)
+        scheduler.stop()
+    }
 }

@@ -107,9 +107,13 @@ class SyncScheduler(
      * Один прогон до конца в вызывающей корутине: если идёт другой, ждёт его, а не запускается параллельно.
      * Работает и при остановленном планировщике. Ошибка прогона пробрасывается (после записи в [lastError]).
      */
-    suspend fun runNow(): Boolean = syncMutex.withLock {
-        runOnce(rethrow = true)
-        true
+    suspend fun runNow(): Boolean {
+        syncMutex.withLock {
+            rerunRequested.set(false)
+            runOnce(rethrow = true)
+        }
+        if (rerunRequested.get() && syncMutex.tryLock()) launchRunner()
+        return true
     }
 
     private fun requestSync() {
