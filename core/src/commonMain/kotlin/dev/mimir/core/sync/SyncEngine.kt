@@ -2,12 +2,21 @@ package dev.mimir.core
 
 import kotlinx.coroutines.flow.StateFlow
 
+enum class SyncErrorKind {
+    Other,
+    SignInRequired,
+    Aborted,
+}
+
 sealed interface SyncStatus {
     data object NotConfigured : SyncStatus
     data object Idle : SyncStatus
     data object Syncing : SyncStatus
     data object Offline : SyncStatus
-    data class Error(val message: String) : SyncStatus
+    data class Error(
+        val message: String,
+        val kind: SyncErrorKind = SyncErrorKind.Other,
+    ) : SyncStatus
 }
 
 interface SyncEngine {

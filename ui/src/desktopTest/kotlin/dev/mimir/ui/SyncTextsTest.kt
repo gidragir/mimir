@@ -1,7 +1,9 @@
 package dev.mimir.ui
 
+import dev.mimir.core.SyncErrorKind
 import dev.mimir.core.SyncItem
 import dev.mimir.core.SyncItemAction
+import dev.mimir.core.SyncStatus
 import dev.mimir.ui.screens.SyncTexts
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -50,6 +52,25 @@ class SyncTextsTest {
         assertEquals(
             "Сверяю с Google Drive: notes/a.md",
             SyncTexts.actionNow(SyncItem("notes/a.md", SyncItemAction.Verify)),
+        )
+    }
+
+    @Test
+    fun errorTitleTranslatesErrorKind() {
+        assertEquals("Войдите в Google снова", SyncTexts.errorTitle(SyncErrorKind.SignInRequired))
+        assertEquals("Синхронизация остановлена: папка в Drive пуста", SyncTexts.errorTitle(SyncErrorKind.Aborted))
+        assertEquals("Не удалось синхронизировать", SyncTexts.errorTitle(SyncErrorKind.Other))
+    }
+
+    @Test
+    fun phaseTitleTranslatesErrorKind() {
+        assertEquals(
+            "Войдите в Google снова",
+            SyncTexts.phaseTitle(SyncStatus.Error("auth", SyncErrorKind.SignInRequired), null, needsSignIn = false),
+        )
+        assertEquals(
+            "Синхронизация остановлена: папка в Drive пуста",
+            SyncTexts.phaseTitle(SyncStatus.Error("empty", SyncErrorKind.Aborted), null, needsSignIn = false),
         )
     }
 }

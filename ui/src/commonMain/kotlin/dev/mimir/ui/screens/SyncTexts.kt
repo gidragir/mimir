@@ -1,5 +1,6 @@
 package dev.mimir.ui.screens
 
+import dev.mimir.core.SyncErrorKind
 import dev.mimir.core.SyncItem
 import dev.mimir.core.SyncItemAction
 import dev.mimir.core.SyncPhase
@@ -18,6 +19,8 @@ object SyncTexts {
     const val RECONNECTING = "Нет связи с Mimir. Подключаюсь заново…"
     const val OFFLINE = "Нет подключения к интернету"
     const val SIGN_IN_AGAIN = "Нужно снова войти в Google"
+    const val SIGN_IN_REQUIRED = "Войдите в Google снова"
+    const val SYNC_ABORTED_EMPTY_DRIVE = "Синхронизация остановлена: папка в Drive пуста"
     const val FAILED = "Не удалось синхронизировать"
     const val OFFLINE_HINT = "Mimir продолжит, когда сеть появится. Изменения на этом компьютере сохранены."
     const val RETRY_HINT = "Mimir попробует ещё раз при следующей синхронизации"
@@ -27,14 +30,26 @@ object SyncTexts {
     const val SYNC_NOW = "Синхронизировать сейчас"
     const val SIGN_IN = "Войти через Google"
 
+    fun errorTitle(kind: SyncErrorKind): String = when (kind) {
+        SyncErrorKind.SignInRequired -> SIGN_IN_REQUIRED
+        SyncErrorKind.Aborted -> SYNC_ABORTED_EMPTY_DRIVE
+        SyncErrorKind.Other -> FAILED
+    }
+
+    fun errorTitle(error: SyncStatus.Error): String = errorTitle(error.kind)
+
     /**
      * Заголовок фазы. `null` — показывать служебную строку статуса (до подключения: ровно `Mimir: not connected`).
      * [needsSignIn] — ошибка вызвана тем, что вход в Google больше не действует.
      */
-    fun phaseTitle(status: SyncStatus, progress: SyncProgress?, needsSignIn: Boolean): String? = when (status) {
+    fun phaseTitle(status: SyncStatus, progress: SyncProgress?, needsSignIn: Boolean = false): String? = when (status) {
         SyncStatus.NotConfigured -> null
         SyncStatus.Offline -> OFFLINE
-        is SyncStatus.Error -> if (needsSignIn) SIGN_IN_AGAIN else FAILED
+        is SyncStatus.Error -> when (status.kind) {
+            SyncErrorKind.SignInRequired -> SIGN_IN_REQUIRED
+            SyncErrorKind.Aborted -> SYNC_ABORTED_EMPTY_DRIVE
+            SyncErrorKind.Other -> if (needsSignIn) SIGN_IN_AGAIN else FAILED
+        }
         SyncStatus.Idle -> DONE
         SyncStatus.Syncing -> when (progress?.phase) {
             SyncPhase.Scanning, SyncPhase.Comparing -> SCANNING

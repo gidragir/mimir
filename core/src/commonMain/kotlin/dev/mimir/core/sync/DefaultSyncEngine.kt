@@ -13,6 +13,7 @@ import dev.mimir.core.SyncPhase
 import dev.mimir.core.SyncProblem
 import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncAbortedException
+import dev.mimir.core.SyncErrorKind
 import dev.mimir.core.SyncStatus
 import dev.mimir.core.rules.SyncRules
 import kotlinx.coroutines.CoroutineDispatcher
@@ -72,6 +73,8 @@ class DefaultSyncEngine(
                     // Отмена (stop/пауза планировщика) — не ошибка: статус без сбоя.
                     is CancellationException -> SyncStatus.Idle
                     is RemoteUnavailableException -> SyncStatus.Offline
+                    is RemoteAuthException -> SyncStatus.Error(e.message ?: "Authentication failed", SyncErrorKind.SignInRequired)
+                    is SyncAbortedException -> SyncStatus.Error(e.message ?: "Sync aborted", SyncErrorKind.Aborted)
                     else -> SyncStatus.Error(e.message ?: "Unknown sync error")
                 }
                 throw e

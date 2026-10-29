@@ -20,6 +20,7 @@ import kotlinx.io.readByteArray
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -203,13 +204,28 @@ class SyncEngineProgressTest {
     }
 
     @Test
-    fun remoteAuthFailureSetsError() = runTest {
+    fun `auth failure sets SignInRequired error`() = runTest {
         val f = Fixture()
         f.remote.failListWith = RemoteAuthException("revoked")
 
         assertFailsWith<RemoteAuthException> { f.engine.syncNow() }
 
-        assertTrue(f.engine.status.value is SyncStatus.Error)
+        val status = assertIs<SyncStatus.Error>(f.engine.status.value)
+        assertEquals(SyncErrorKind.SignInRequired, status.kind)
+    }
+
+    @Test
+    fun `empty remote with index sets Aborted error`() = runTest {
+        val f = Fixture()
+        f.vault.write("a.md", bufferOf("A"))
+        f.engine.syncNow()
+
+        f.remote.delete(RemotePath("a.md"))
+
+        assertFailsWith<SyncAbortedException> { f.engine.syncNow() }
+
+        val status = assertIs<SyncStatus.Error>(f.engine.status.value)
+        assertEquals(SyncErrorKind.Aborted, status.kind)
     }
 
     @Test
