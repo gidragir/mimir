@@ -15,7 +15,9 @@ import androidx.compose.ui.unit.dp
 import dev.mimir.ui.MimirTheme
 import dev.mimir.ui.model.FakeMimirUiModel
 import dev.mimir.ui.model.MimirUiModel
+import dev.mimir.ui.platform.LocalBackHandler
 import dev.mimir.ui.platform.LocalStorageAccess
+
 import dev.mimir.ui.screens.setup.AccessStep
 import dev.mimir.ui.screens.setup.GoogleStep
 import dev.mimir.ui.screens.setup.InitialResolutionStep
@@ -40,6 +42,17 @@ fun SetupWizardScreen(model: MimirUiModel, onComplete: () -> Unit, pollIntervalM
         }
     }
     var step by remember { mutableStateOf(initialStep) }
+
+    LocalBackHandler.current?.invoke(step != initialStep) {
+        step = when (step) {
+            Step.InitialResolution -> Step.Password
+            Step.Password -> Step.Google
+            Step.Google -> Step.Vault
+            Step.Vault -> if (initialStep == Step.Access) Step.Access else Step.Vault
+            Step.Access -> Step.Access
+        }
+    }
+
     Column(
         modifier = Modifier.fillMaxSize().padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),

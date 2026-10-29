@@ -30,7 +30,9 @@ class DaemonServiceUiModel(
     scope: CoroutineScope,
     private val rememberPassword: ((String) -> Unit)? = null,
     refreshInterval: Duration = 500.milliseconds,
+    override val backgroundSync: StateFlow<UiBackgroundSync?> = MutableStateFlow(null),
 ) : MimirUiModel {
+
     private val _vaultPath = MutableStateFlow(service.vaultPath)
     private val _isLocked = MutableStateFlow(service.isLocked)
     private val _lastSyncTime = MutableStateFlow(service.lastSyncTime)

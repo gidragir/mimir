@@ -9,6 +9,9 @@ import kotlin.time.Instant
 
 data class UiConflictEntry(val originalPath: String, val conflictPath: String, val createdAt: Instant)
 
+data class UiBackgroundSync(val enabled: Boolean, val lastRun: Instant?, val waitingForWifi: Boolean)
+
+
 data class UiDeviceCode(val userCode: String, val verificationUrl: String, val expiresInSeconds: Int, val deviceCode: String = "")
 
 /** Сколько файлов лежит в локальной папке и в облаке; [requiresStrategyConfirmation] — есть данные с обеих сторон. */
@@ -40,9 +43,11 @@ interface MimirUiModel {
     val lastSyncTime: StateFlow<Instant?>
     val accountEmail: StateFlow<String?>
     val conflicts: StateFlow<List<UiConflictEntry>>
+    val backgroundSync: StateFlow<UiBackgroundSync?> get() = DefaultBackgroundSync
 
     /** Связь с демоном; для моделей без сетевого демона всегда [DaemonConnectionStatus.Connected]. */
     val connectionStatus: StateFlow<DaemonConnectionStatus> get() = AlwaysConnected
+
 
     /** `false`, если синхронизация уже идёт. */
     suspend fun triggerSync(): Boolean
@@ -68,3 +73,5 @@ interface MimirUiModel {
 }
 
 private val AlwaysConnected: StateFlow<DaemonConnectionStatus> = MutableStateFlow(DaemonConnectionStatus.Connected)
+private val DefaultBackgroundSync: StateFlow<UiBackgroundSync?> = MutableStateFlow(null)
+

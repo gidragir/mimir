@@ -7,7 +7,9 @@ import dev.mimir.core.SyncPhase
 import dev.mimir.core.SyncProblemKind
 import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncStatus
+import dev.mimir.ui.model.UiBackgroundSync
 import kotlinx.datetime.TimeZone
+
 import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Instant
 
@@ -32,6 +34,26 @@ object SyncTexts {
     const val PENDING_CHANGES = "Есть неотправленные изменения"
     const val OFFLINE_PENDING = "Нет сети — изменения отправятся позже"
     const val NOTIFICATION_SYNCED = "Всё синхронизировано"
+    const val STORAGE_ACCESS_REVOKED = "Нет доступа к файлам"
+    const val GRANT = "Выдать"
+    const val GOOGLE_UNAVAILABLE = "Вход через Google недоступен на этом устройстве"
+
+    fun backgroundSyncText(bg: UiBackgroundSync, timeZone: TimeZone = TimeZone.currentSystemDefault()): String {
+        if (bg.waitingForWifi) {
+            return "Фоновая синхронизация: ждёт Wi‑Fi"
+        }
+        if (!bg.enabled) {
+            return "Фоновая синхронизация: отключена"
+        }
+        return if (bg.lastRun != null) {
+            val local = bg.lastRun.toLocalDateTime(timeZone)
+            val time = "${local.hour.pad()}:${local.minute.pad()}"
+            "Фоновая синхронизация: включена · последняя $time"
+        } else {
+            "Фоновая синхронизация: включена"
+        }
+    }
+
 
     fun notificationSynced(time: String): String = "Всё синхронизировано · $time"
 

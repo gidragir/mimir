@@ -69,6 +69,8 @@ dependencies {
     implementation(project(":ui"))
     implementation(libs.compose.ui)
     implementation(libs.activity.compose)
+    implementation(libs.androidx.browser)
+
     implementation(libs.work.runtime.ktx)
     implementation(libs.lifecycle.process)
     implementation(libs.play.services.auth)

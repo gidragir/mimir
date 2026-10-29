@@ -19,6 +19,8 @@ asm = "9.11.1"
 playServicesAuth = "21.3.0"
 robolectric = "4.14.1"
 androidxTestCore = "1.6.1"
+browser = "1.8.0"
+
 
 [libraries]
 kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
@@ -58,6 +60,8 @@ play-services-auth = { module = "com.google.android.gms:play-services-auth", ver
 coroutines-play-services = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-play-services", version.ref = "coroutines" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 androidx-test-core = { module = "androidx.test:core", version.ref = "androidxTestCore" }
+androidx-browser = { module = "androidx.browser:browser", version.ref = "browser" }
+
 
 [plugins]
 compose-multiplatform = { id = "org.jetbrains.compose", version.ref = "compose" }

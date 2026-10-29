@@ -18,7 +18,11 @@ import dev.mimir.ui.model.UiDeviceCode
 import dev.mimir.ui.model.UiLoginMethod
 import dev.mimir.ui.model.UiLoginPoll
 import dev.mimir.ui.model.UiLoginStart
+import dev.mimir.ui.platform.LocalSystemAccountLogin
+import dev.mimir.ui.platform.SystemLoginResult
+import dev.mimir.ui.screens.SyncTexts
 import kotlinx.coroutines.CancellationException
+
 import kotlinx.coroutines.delay
 
 @Composable
@@ -57,9 +61,10 @@ fun GoogleStep(model: MimirUiModel, pollIntervalMillis: Long, onNext: () -> Unit
             Text("Вход в Google не настроен в этой сборке")
         }
         primary != UiLoginMethod.DeviceCode && !showCode -> InteractiveLoginStep(
-            model, primary, pollIntervalMillis, onNext,
+            model, primary, available, pollIntervalMillis, onNext,
             onUseCode = if (UiLoginMethod.DeviceCode in available) ({ showCode = true }) else null,
         )
+
         else -> DeviceCodeStep(
             model, pollIntervalMillis, onNext,
             onBack = if (primary != UiLoginMethod.DeviceCode) ({ showCode = false }) else null,
@@ -72,6 +77,7 @@ fun GoogleStep(model: MimirUiModel, pollIntervalMillis: Long, onNext: () -> Unit
 private fun InteractiveLoginStep(
     model: MimirUiModel,
     method: UiLoginMethod,
+    availableMethods: Set<UiLoginMethod>,
     pollIntervalMillis: Long,
     onNext: () -> Unit,
     onUseCode: (() -> Unit)?,
@@ -81,6 +87,7 @@ private fun InteractiveLoginStep(
     var error by remember { mutableStateOf<String?>(null) }
     var inBrowser by remember { mutableStateOf(false) }
     var openFailedUrl by remember { mutableStateOf<String?>(null) }
+    val systemAccountLogin = LocalSystemAccountLogin.current
     @Suppress("DEPRECATION")
     val clipboard = LocalClipboardManager.current
     val uriHandler = LocalUriHandler.current
@@ -90,8 +97,29 @@ private fun InteractiveLoginStep(
             error = null
             openFailedUrl = null
             inBrowser = false
+            var activeMethod = method
             try {
-                when (val start = model.startLogin(method)) {
+                if (activeMethod == UiLoginMethod.SystemAccount) {
+                    val authResult = systemAccountLogin?.authorize() ?: SystemLoginResult.Granted
+                    when (authResult) {
+                        SystemLoginResult.Granted -> Unit
+
+                        SystemLoginResult.Cancelled -> {
+                            started = false
+                            return@LaunchedEffect
+                        }
+                        is SystemLoginResult.Unavailable -> {
+                            if (UiLoginMethod.Browser in availableMethods) {
+                                activeMethod = UiLoginMethod.Browser
+                            } else {
+                                error = SyncTexts.GOOGLE_UNAVAILABLE
+                                return@LaunchedEffect
+                            }
+                        }
+                    }
+                }
+
+                when (val start = model.startLogin(activeMethod)) {
                     is UiLoginStart.OpenUrl -> {
                         inBrowser = true
                         try {
@@ -103,7 +131,7 @@ private fun InteractiveLoginStep(
                         }
                     }
                     UiLoginStart.Started -> Unit
-                    is UiLoginStart.ShowDeviceCode -> error("Unexpected device code for $method")
+                    is UiLoginStart.ShowDeviceCode -> error("Unexpected device code for $activeMethod")
                 }
                 while (true) {
                     delay(pollIntervalMillis)
@@ -120,6 +148,7 @@ private fun InteractiveLoginStep(
             }
         }
     }
+
 
     Text("Вход через Google", style = MaterialTheme.typography.headlineSmall)
     if (!started) {

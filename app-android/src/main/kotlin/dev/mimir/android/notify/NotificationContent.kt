@@ -21,11 +21,8 @@ enum class Channel(val id: String, val importance: Int, val channelName: String)
  * Точка назначения при нажатии на уведомление.
  * Передаётся в extra "destination" для [MainActivity].
  */
-enum class Destination {
-    Status,
-    Conflicts,
-    Login,
-}
+typealias Destination = dev.mimir.ui.Destination
+
 
 /**
  * Содержимое системного уведомления Mimir.

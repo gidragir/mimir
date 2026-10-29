@@ -28,7 +28,9 @@ import dev.mimir.core.SyncEngine
 import dev.mimir.ui.model.EngineMimirUiModel
 import dev.mimir.ui.model.FakeMimirUiModel
 import dev.mimir.ui.model.MimirUiModel
+import dev.mimir.ui.platform.LocalBackHandler
 import dev.mimir.ui.screens.ConflictsScreen
+
 import dev.mimir.ui.screens.SetupWizardScreen
 import dev.mimir.ui.screens.StatusScreen
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -36,14 +38,29 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 private enum class Screen { Status, Setup, Conflicts }
 
 @Composable
-fun MimirApp(model: MimirUiModel, touchInput: Boolean = false) {
+fun MimirApp(
+    model: MimirUiModel,
+    touchInput: Boolean = false,
+    initialDestination: Destination = Destination.Status,
+) {
     MimirTheme {
       CompositionLocalProvider(LocalTouchInput provides touchInput) {
         Surface(Modifier.fillMaxSize()) {
           Column(Modifier.fillMaxSize().safeDrawingPadding()) {
             val connection by model.connectionStatus.collectAsState()
             if (connection != DaemonConnectionStatus.Connected) ReconnectingBanner()
-            var screen by remember { mutableStateOf(Screen.Status) }
+            var screen by remember(initialDestination) {
+                mutableStateOf(
+                    when (initialDestination) {
+                        Destination.Status -> Screen.Status
+                        Destination.Conflicts -> Screen.Conflicts
+                        Destination.Login -> Screen.Setup
+                    }
+                )
+            }
+            LocalBackHandler.current?.invoke(screen != Screen.Status) {
+                screen = Screen.Status
+            }
             Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.TopCenter) {
                 Box(Modifier.widthIn(max = 880.dp).fillMaxWidth()) {
                     when (screen) {
@@ -59,6 +76,7 @@ fun MimirApp(model: MimirUiModel, touchInput: Boolean = false) {
     }
 }
 
+
 @Composable
 private fun ReconnectingBanner() {
     Text(
@@ -71,7 +89,12 @@ private fun ReconnectingBanner() {
 
 /** Для точек входа без демона (Android, web): статус движка и больше ничего. */
 @Composable
-fun MimirApp(engine: SyncEngine, touchInput: Boolean = false) = MimirApp(remember(engine) { EngineMimirUiModel(engine) }, touchInput)
+fun MimirApp(
+    engine: SyncEngine,
+    touchInput: Boolean = false,
+    initialDestination: Destination = Destination.Status,
+) = MimirApp(remember(engine) { EngineMimirUiModel(engine) }, touchInput, initialDestination)
+
 
 @Preview
 @Composable

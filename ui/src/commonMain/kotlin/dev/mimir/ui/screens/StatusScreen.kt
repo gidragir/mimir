@@ -27,7 +27,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import dev.mimir.core.BuildConfig
+import dev.mimir.core.SyncErrorKind
 import dev.mimir.core.SyncPhase
+
 import dev.mimir.core.SyncProblem
 import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncStatus
@@ -74,8 +76,10 @@ fun StatusScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(BuildConfig.APP_NAME, style = MaterialTheme.typography.headlineMedium)
+        StatusBanners(model, onOpenSetup)
 
         val needsSignIn = status is SyncStatus.Error && email == null
+
         val title = SyncTexts.phaseTitle(status, progress, needsSignIn = needsSignIn)
         Text(title ?: status.label(), style = MaterialTheme.typography.titleLarge)
 
@@ -85,14 +89,17 @@ fun StatusScreen(
                 // Вход предлагается при любой ошибке: после отзыва/истечения refresh-токена
                 // email остаётся в account.json, и иначе вернуться ко входу было бы нельзя.
                 Details(s.message)
-                Button(
-                    onClick = onOpenSetup,
-                    shape = MaterialTheme.shapes.extraSmall,
-                    colors = ObsidianStyle.buttonColors(),
-                    contentPadding = ObsidianStyle.buttonPadding,
-                    modifier = Modifier.compactButton(),
-                ) { Text(SyncTexts.SIGN_IN) }
+                if (s.kind != SyncErrorKind.SignInRequired) {
+                    Button(
+                        onClick = onOpenSetup,
+                        shape = MaterialTheme.shapes.extraSmall,
+                        colors = ObsidianStyle.buttonColors(),
+                        contentPadding = ObsidianStyle.buttonPadding,
+                        modifier = Modifier.compactButton(),
+                    ) { Text(SyncTexts.SIGN_IN) }
+                }
             }
+
             else -> {}
         }
 
@@ -138,7 +145,10 @@ fun StatusScreen(
         }
 
         HorizontalDivider()
+        val bgSync by model.backgroundSync.collectAsState()
+        bgSync?.let { Text(SyncTexts.backgroundSyncText(it)) }
         email?.let { Text("Аккаунт: $it") }
+
         if (conflicts.isNotEmpty()) {
             OutlinedButton(
                 onClick = onOpenConflicts,
