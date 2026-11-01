@@ -14,6 +14,7 @@ fun googleSecret(name: String) = providers.environmentVariable("MIMIR_BUILD_GOOG
 buildConfig {
     packageName("dev.mimir.extension")
     className("ExtensionBuildConfig")
+    buildConfigField("ROOT_FOLDER", providers.environmentVariable("MIMIR_ROOT_FOLDER").orElse("MimirVault"))
     buildConfigField("GOOGLE_DESKTOP_CLIENT_ID", googleSecret("DESKTOP_CLIENT_ID"))
     buildConfigField("GOOGLE_DESKTOP_CLIENT_SECRET", googleSecret("DESKTOP_CLIENT_SECRET"))
     buildConfigField("GOOGLE_DEVICE_CLIENT_ID", googleSecret("DEVICE_CLIENT_ID"))

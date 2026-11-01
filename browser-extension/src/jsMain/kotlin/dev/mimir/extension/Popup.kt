@@ -26,8 +26,6 @@ import kotlinx.serialization.json.Json
 import org.w3c.dom.HTMLElement
 import org.w3c.dom.url.URLSearchParams
 
-private const val DEFAULT_ROOT_FOLDER = "MimirVault"
-
 fun main() {
     val params = URLSearchParams(window.location.search)
     val isTab = params.get("mode") == "tab"
@@ -44,7 +42,7 @@ fun main() {
     )
     val remoteStorageFactory: suspend () -> RemoteStorage = {
         val driveClient = DriveHttpClient(http, tokenStorage, clients)
-        val rootFolder = platform.getLocalString("settings.rootFolder") ?: DEFAULT_ROOT_FOLDER
+        val rootFolder = platform.getLocalString("settings.rootFolder") ?: ExtensionBuildConfig.ROOT_FOLDER
         GoogleDriveStorage(driveClient, DrivePathResolver(driveClient, rootFolder))
     }
     val controller = ExtensionController(
