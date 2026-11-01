@@ -248,9 +248,9 @@ class ExtensionController(
         }
         if (cipher !== c) return
         // «Назад» или другая заметка, нажатые пока эта грузилась, не должны отменяться её поздним ответом
-        val current = _state.value as? ExtensionUiState.VaultReady ?: return
-        val stillWanted = (current.activeNote as? ActiveNoteState.Loading)?.file?.relativePath == file.relativePath
-        if (stillWanted) _state.value = current.copy(activeNote = note)
+        val latest = _state.value as? ExtensionUiState.VaultReady ?: return
+        val stillWanted = (latest.activeNote as? ActiveNoteState.Loading)?.file?.relativePath == file.relativePath
+        if (stillWanted) _state.value = latest.copy(activeNote = note)
     }
 
     suspend fun openWikilink(target: String) {
