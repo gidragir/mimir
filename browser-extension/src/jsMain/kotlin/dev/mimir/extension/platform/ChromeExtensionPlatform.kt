@@ -2,6 +2,9 @@ package dev.mimir.extension.platform
 
 import kotlinx.browser.window
 import kotlinx.coroutines.await
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import kotlin.js.Promise
 import kotlin.js.json
 
@@ -39,6 +42,35 @@ class ChromeExtensionPlatform : ExtensionPlatform {
         val result = (chrome.identity.launchWebAuthFlow(details) as Promise<dynamic>).await()
         return result as? String ?: error("Окно входа закрыто без результата")
     }
+
+    override suspend fun launchLoopbackAuthFlow(authUrl: String, redirectPrefix: String): String =
+        suspendCancellableCoroutine { continuation ->
+            var tabId = -1
+            var onUpdated: dynamic = null
+            var onRemoved: dynamic = null
+            fun finish() {
+                chrome.tabs.onUpdated.removeListener(onUpdated)
+                chrome.tabs.onRemoved.removeListener(onRemoved)
+            }
+            onUpdated = { id: Int, change: dynamic, _: dynamic ->
+                val url = change.url as? String
+                if (id == tabId && url != null && url.startsWith(redirectPrefix) && continuation.isActive) {
+                    finish()
+                    chrome.tabs.remove(id)
+                    continuation.resume(url)
+                }
+            }
+            onRemoved = { id: Int, _: dynamic ->
+                if (id == tabId && continuation.isActive) {
+                    finish()
+                    continuation.resumeWithException(IllegalStateException("Окно входа закрыто без результата"))
+                }
+            }
+            chrome.tabs.onUpdated.addListener(onUpdated)
+            chrome.tabs.onRemoved.addListener(onRemoved)
+            (chrome.tabs.create(json("url" to authUrl)) as Promise<dynamic>).then { tab: dynamic -> tabId = tab.id as Int }
+            continuation.invokeOnCancellation { finish() }
+        }
 
     override fun openFullTab(relativePath: String?) {
         val url = chrome.runtime.getURL(fullTabPageUrl(relativePath)) as String

@@ -16,7 +16,8 @@
     "https://accounts.google.com/*",
     "https://oauth2.googleapis.com/*",
     "https://www.googleapis.com/*",
-    "https://drive.google.com/*"
+    "https://drive.google.com/*",
+    "http://127.0.0.1/*"
   ],
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self';"

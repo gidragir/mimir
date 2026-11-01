@@ -14,7 +14,9 @@ import kotlinx.coroutines.delay
 import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
-/** Вход в Google: PKCE через `chrome.identity.launchWebAuthFlow` или резервный Device Code Flow. */
+private const val LOOPBACK_PORT = 47999
+
+/** Вход в Google: PKCE через loopback-redirect во вкладке или резервный Device Code Flow. */
 class GoogleExtensionAuthHandler(
     private val platform: ExtensionPlatform,
     private val clients: GoogleAuthClients,
@@ -27,13 +29,18 @@ class GoogleExtensionAuthHandler(
         return AccountCodec.load(platform)
     }
 
+    /**
+     * Desktop-клиент Google допускает loopback-redirect с любым портом без регистрации. Слушать порт не нужно:
+     * вкладка входа перехватывается на переходе к `http://127.0.0.1:<порт>/callback?code=…`.
+     */
     override suspend fun signInWithWebAuthFlow(): Account {
-        val client = clients.desktop ?: clients.device ?: error("Не задан Google Client ID")
+        val client = clients.desktop
+            ?: error("Для входа через Google нужен Desktop Client ID; используйте вход по коду устройства")
         val verifier = Pkce.newVerifier()
         val state = Uuid.random().toHexString()
-        val redirectUri = platform.getRedirectUrl("oauth2")
+        val redirectUri = "http://127.0.0.1:$LOOPBACK_PORT/callback"
         val authUrl = client.buildAuthorizationUrl(redirectUri, Pkce.challenge(verifier), state)
-        val finalUrl = platform.launchWebAuthFlow(authUrl, interactive = true)
+        val finalUrl = platform.launchLoopbackAuthFlow(authUrl, redirectUri)
         val code = when (val callback = parseLoginCallback(parseQuery(finalUrl), state)) {
             is LoginCallback.Code -> callback.code
             LoginCallback.Denied -> error("Доступ отклонён")

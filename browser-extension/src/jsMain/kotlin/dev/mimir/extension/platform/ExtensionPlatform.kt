@@ -21,6 +21,13 @@ interface ExtensionPlatform {
 
     fun getRedirectUrl(path: String = "oauth2"): String
     suspend fun launchWebAuthFlow(authUrl: String, interactive: Boolean = true): String
+    /**
+     * Открывает [authUrl] во вкладке и возвращает адрес, на который Google перенаправил браузер: он начинается
+     * с [redirectPrefix] (loopback `http://127.0.0.1:<порт>/…`, как у Desktop-клиента). Сервер не нужен:
+     * переход перехватывается до загрузки страницы, вкладка закрывается.
+     */
+    suspend fun launchLoopbackAuthFlow(authUrl: String, redirectPrefix: String): String
+
     fun openFullTab(relativePath: String?)
     fun openExternalUrl(url: String)
     suspend fun copyToClipboard(text: String)

@@ -13,6 +13,10 @@ class FakeExtensionPlatform : ExtensionPlatform {
     val clipboard = mutableListOf<String>()
     var webAuthResult: String = ""
 
+    /** Что «вернёт» вкладка входа: по адресу авторизации строит итоговый loopback-URL. */
+    var loopbackResponder: (authUrl: String) -> String = { error("loopbackResponder не задан") }
+    val loopbackAuthUrls = mutableListOf<String>()
+
     /** Профиль «пользователь уже вошёл в Google»: сохранённый аккаунт в local-хранилище. */
     fun seedAuthenticatedAccount(account: Account) {
         local["auth.account"] = AccountCodec.encode(account)
@@ -40,6 +44,10 @@ class FakeExtensionPlatform : ExtensionPlatform {
 
     override fun getRedirectUrl(path: String): String = "https://fake.chromiumapp.org/$path"
     override suspend fun launchWebAuthFlow(authUrl: String, interactive: Boolean): String = webAuthResult
+    override suspend fun launchLoopbackAuthFlow(authUrl: String, redirectPrefix: String): String {
+        loopbackAuthUrls += authUrl
+        return loopbackResponder(authUrl)
+    }
     override fun openFullTab(relativePath: String?) { openedTabs += relativePath }
     override fun openExternalUrl(url: String) { openedExternalUrls += url }
     override suspend fun copyToClipboard(text: String) { clipboard += text }

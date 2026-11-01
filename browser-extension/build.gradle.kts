@@ -47,6 +47,7 @@ kotlin {
         jsTest.dependencies {
             implementation(kotlin("test"))
             implementation(libs.coroutines.test)
+            implementation(libs.ktor.client.mock)
         }
     }
 }
