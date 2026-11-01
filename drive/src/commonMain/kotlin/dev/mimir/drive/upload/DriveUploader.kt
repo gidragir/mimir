@@ -10,7 +10,7 @@ import dev.mimir.drive.path.DrivePathResolver
 import io.ktor.client.call.body
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.forms.formData
-import io.ktor.client.request.forms.submitFormWithBinaryData
+import io.ktor.client.request.forms.MultiPartFormDataContent
 import io.ktor.client.request.header
 import io.ktor.client.request.patch
 import io.ktor.client.request.post
@@ -121,13 +121,13 @@ class DriveUploader(
             })
         }
 
+        // Обновление содержимого существующего файла в Drive v3 — только PATCH; POST на files/{id} даёт 404
         val response = client.executeWithRetry { token ->
-            client.httpClient.submitFormWithBinaryData(
-                url = url,
-                formData = parts,
-            ) {
+            val configure: HttpRequestBuilder.() -> Unit = {
                 header(HttpHeaders.Authorization, "Bearer $token")
+                setBody(MultiPartFormDataContent(parts))
             }
+            if (existingFile != null) client.httpClient.patch(url, configure) else client.httpClient.post(url, configure)
         }
 
         if (!response.status.isSuccess()) {
