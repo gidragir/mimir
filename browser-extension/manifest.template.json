@@ -2,9 +2,22 @@
   "manifest_version": 3,
   "name": "${appName} Quick View",
   "version": "${version}",
-  "description": "Quick view of encrypted Obsidian notes stored in Google Drive",
-  "action": { "default_popup": "popup.html" },
+  "description": "Быстрый просмотр зашифрованных заметок Obsidian из Google Drive",
+  "key": "${extensionPublicKey}",
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": { "128": "icon-128.png" }
+  },
+  "side_panel": { "default_path": "popup.html" },
   "icons": { "128": "icon-128.png" },
-  "permissions": ["identity"],
-  "host_permissions": ["https://drive.google.com/*", "https://www.googleapis.com/*"]
+  "permissions": ["identity", "storage", "sidePanel"],
+  "host_permissions": [
+    "https://accounts.google.com/*",
+    "https://oauth2.googleapis.com/*",
+    "https://www.googleapis.com/*",
+    "https://drive.google.com/*"
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self';"
+  }
 }

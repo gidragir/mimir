@@ -72,6 +72,7 @@ val assembleExtension by tasks.registering(Sync::class) {
         include("popup.html")
         expand(props)
     }
+    from("src/jsMain/resources") { include("popup.css") }
     from("src/jsMain/resources") { include("icon-128.png") }
 }
 
