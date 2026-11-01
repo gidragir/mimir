@@ -247,7 +247,10 @@ class ExtensionController(
             ActiveNoteState.Error(file, e.message ?: "Не удалось прочитать заметку")
         }
         if (cipher !== c) return
-        (_state.value as? ExtensionUiState.VaultReady)?.let { _state.value = it.copy(activeNote = note) }
+        // «Назад» или другая заметка, нажатые пока эта грузилась, не должны отменяться её поздним ответом
+        val current = _state.value as? ExtensionUiState.VaultReady ?: return
+        val stillWanted = (current.activeNote as? ActiveNoteState.Loading)?.file?.relativePath == file.relativePath
+        if (stillWanted) _state.value = current.copy(activeNote = note)
     }
 
     suspend fun openWikilink(target: String) {
