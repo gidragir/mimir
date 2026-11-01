@@ -17,14 +17,15 @@ import kotlinx.io.buffered
  */
 class RcloneCipher internal constructor(
     private val dataKey: ByteArray,
-    private val nameEme: Eme,
+    private val nameKey: ByteArray,
     private val nameTweak: ByteArray,
     private val nonceSource: () -> ByteArray = ::randomNonce,
 ) : Cipher {
+    private val nameEme: Eme = Eme(nameKey)
 
     private constructor(keys: ByteArray, nonceSource: () -> ByteArray) : this(
         dataKey = keys.copyOfRange(0, 32),
-        nameEme = Eme(keys.copyOfRange(32, 64)),
+        nameKey = keys.copyOfRange(32, 64),
         nameTweak = keys.copyOfRange(64, 80),
         nonceSource = nonceSource,
     )
@@ -92,10 +93,16 @@ class RcloneCipher internal constructor(
 
     override fun decrypt(encrypted: Source): Source = DecryptingSource(encrypted, dataKey).buffered()
 
+    /** 80 байт производного ключа (data 32 + name 32 + tweak 16): позволяет восстановить шифр без повторного scrypt. */
+    fun exportKeyBytes(): ByteArray = dataKey + nameKey + nameTweak
+
+    fun exportKeyHex(): String = exportKeyBytes().toHex()
+
     override fun toString(): String = "RcloneCipher"
 
     companion object {
         const val NONCE_SIZE = 24
+        const val KEY_SIZE = 80
         val DEFAULT_SALT = byteArrayOf(
             0xA8.toByte(), 0x0D, 0xF4.toByte(), 0x3A, 0x8F.toByte(), 0xBD.toByte(), 0x03, 0x08,
             0xA7.toByte(), 0xCA.toByte(), 0xB8.toByte(), 0x3E, 0x58, 0x1F, 0x86.toByte(), 0xB1.toByte(),
@@ -117,10 +124,22 @@ class RcloneCipher internal constructor(
             val keys = deriveKeys(password, password2) { context.ensureActive() }
             RcloneCipher(
                 dataKey = keys.copyOfRange(0, 32),
-                nameEme = Eme(keys.copyOfRange(32, 64)),
+                nameKey = keys.copyOfRange(32, 64),
                 nameTweak = keys.copyOfRange(64, 80),
                 nonceSource = nonceSource,
             )
+        }
+
+        fun fromKeyBytes(keys: ByteArray, nonceSource: () -> ByteArray = ::randomNonce): RcloneCipher {
+            require(keys.size == KEY_SIZE) { "key must be $KEY_SIZE bytes" }
+            return RcloneCipher(keys, nonceSource)
+        }
+
+        fun fromKeyHex(hex: String, nonceSource: () -> ByteArray = ::randomNonce): RcloneCipher {
+            require(hex.length == KEY_SIZE * 2) { "key hex must be ${KEY_SIZE * 2} characters" }
+            require(hex.all { it in '0'..'9' || it in 'a'..'f' || it in 'A'..'F' }) { "key hex contains non-hex characters" }
+            val keys = ByteArray(KEY_SIZE) { hex.substring(it * 2, it * 2 + 2).toInt(16).toByte() }
+            return fromKeyBytes(keys, nonceSource)
         }
     }
 }
