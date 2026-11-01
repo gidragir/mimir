@@ -19,7 +19,7 @@ const popup = read("popup.html");
 if (manifest.manifest_version !== 3) fail("manifest_version must be 3");
 if (manifest.action?.default_popup !== "popup.html") fail('action.default_popup must be "popup.html"');
 if (manifest.side_panel?.default_path !== "popup.html") fail('side_panel.default_path must be "popup.html"');
-for (const permission of ["identity", "storage", "sidePanel"]) {
+for (const permission of ["identity", "storage", "sidePanel", "clipboardWrite"]) {
   if (!manifest.permissions?.includes(permission)) fail(`permissions must include "${permission}"`);
 }
 if (!manifest.key || /[$]\{/.test(manifest.key)) fail("manifest.key must be a substituted public key");

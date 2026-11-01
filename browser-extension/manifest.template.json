@@ -11,7 +11,7 @@
   "background": { "service_worker": "background.js" },
   "side_panel": { "default_path": "popup.html" },
   "icons": { "128": "icon-128.png" },
-  "permissions": ["identity", "storage", "sidePanel"],
+  "permissions": ["identity", "storage", "sidePanel", "clipboardWrite"],
   "host_permissions": [
     "https://accounts.google.com/*",
     "https://oauth2.googleapis.com/*",

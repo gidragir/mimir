@@ -3,6 +3,8 @@ package dev.mimir.extension.ui
 import dev.mimir.extension.markdown.SafeMarkdownRenderer
 import dev.mimir.extension.platform.ExtensionPlatform
 import dev.mimir.extension.vault.VaultTreeNode
+import kotlinx.browser.window
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
@@ -127,6 +129,27 @@ class PopupDomView(
         return row
     }
 
+    /** Кнопка копирования сама сообщает итог: «✓ Скопировано» или причину сбоя в подсказке. */
+    private fun copyButton(label: String, testId: String, title: String, text: String): HTMLElement {
+        lateinit var button: HTMLElement
+        button = dom.button(label, "btn", testId, title) {
+            scope.launch {
+                val failure = try {
+                    platform.copyToClipboard(text)
+                    null
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Throwable) {
+                    e.message ?: "ошибка"
+                }
+                button.textContent = if (failure == null) "✓ Скопировано" else "✗ Не удалось"
+                button.title = failure ?: title
+                window.setTimeout({ button.textContent = label }, 1500)
+            }
+        }
+        return button
+    }
+
     private fun readerPane(state: ExtensionUiState.VaultReady): HTMLElement {
         val pane = dom.el("main", "pane reader-pane", testId = "note-reader-pane")
         val note = state.activeNote
@@ -136,8 +159,8 @@ class PopupDomView(
         }
         bar.appendChild(dom.el("span", "crumbs", note?.file?.relativePath ?: "", "breadcrumbs"))
         if (note is ActiveNoteState.Loaded) {
-            bar.appendChild(dom.button("📋 MD", "btn", "copy-md-btn", "Скопировать Markdown") { scope.launch { platform.copyToClipboard(note.rawMarkdown) } })
-            bar.appendChild(dom.button("📄 Текст", "btn", "copy-text-btn", "Скопировать текст") { scope.launch { platform.copyToClipboard(note.plainText) } })
+            bar.appendChild(copyButton("📋 MD", "copy-md-btn", "Скопировать Markdown", note.rawMarkdown))
+            bar.appendChild(copyButton("📄 Текст", "copy-text-btn", "Скопировать текст", note.plainText))
         }
         if (isFullTabMode) {
             bar.appendChild(dom.button("🔒", "btn icon", "lock-btn", "Заблокировать") { scope.launch { controller.lock() } })

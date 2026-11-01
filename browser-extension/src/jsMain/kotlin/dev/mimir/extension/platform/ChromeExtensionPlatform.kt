@@ -1,6 +1,8 @@
 package dev.mimir.extension.platform
 
+import kotlinx.browser.document
 import kotlinx.browser.window
+import org.w3c.dom.HTMLTextAreaElement
 import kotlinx.coroutines.await
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
@@ -90,7 +92,29 @@ class ChromeExtensionPlatform : ExtensionPlatform {
     }
 
     override suspend fun copyToClipboard(text: String) {
-        (window.navigator.asDynamic().clipboard.writeText(text) as Promise<dynamic>).await()
+        try {
+            awaitVoid(window.navigator.asDynamic().clipboard.writeText(text))
+        } catch (e: Throwable) {
+            // Clipboard API в боковой панели бывает недоступен (фокус, политика): копируем через выделение
+            if (!copyViaSelection(text)) throw e
+        }
+    }
+
+    private fun copyViaSelection(text: String): Boolean {
+        val area = document.createElement("textarea") as HTMLTextAreaElement
+        area.value = text
+        area.setAttribute("readonly", "")
+        area.style.position = "fixed"
+        area.style.opacity = "0"
+        document.body!!.appendChild(area)
+        area.select()
+        val copied = try {
+            document.asDynamic().execCommand("copy") as Boolean
+        } catch (e: Throwable) {
+            false
+        }
+        area.remove()
+        return copied
     }
 
     /** `await()` над `Promise<dynamic>` возвращает dynamic: вызывать на нём `.let` нельзя, поэтому результат отбрасываем здесь. */
