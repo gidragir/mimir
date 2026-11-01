@@ -27,13 +27,21 @@ class ChromeExtensionPlatform : ExtensionPlatform {
 
     override suspend fun getSessionString(key: String): String? = readString(session, key)
     override suspend fun setSessionString(key: String, value: String) = writeString(session, key, value)
-    override suspend fun removeSessionKey(key: String) = (session.remove(key) as Promise<dynamic>).await().let { }
-    override suspend fun clearSession() = (session.clear() as Promise<dynamic>).await().let { }
+    override suspend fun removeSessionKey(key: String) {
+        awaitVoid(session.remove(key))
+    }
+    override suspend fun clearSession() {
+        awaitVoid(session.clear())
+    }
 
     override suspend fun getLocalString(key: String): String? = readString(local, key)
     override suspend fun setLocalString(key: String, value: String) = writeString(local, key, value)
-    override suspend fun removeLocalKey(key: String) = (local.remove(key) as Promise<dynamic>).await().let { }
-    override suspend fun clearLocal() = (local.clear() as Promise<dynamic>).await().let { }
+    override suspend fun removeLocalKey(key: String) {
+        awaitVoid(local.remove(key))
+    }
+    override suspend fun clearLocal() {
+        awaitVoid(local.clear())
+    }
 
     override fun getRedirectUrl(path: String): String = chrome.identity.getRedirectURL(path) as String
 
@@ -83,6 +91,11 @@ class ChromeExtensionPlatform : ExtensionPlatform {
 
     override suspend fun copyToClipboard(text: String) {
         (window.navigator.asDynamic().clipboard.writeText(text) as Promise<dynamic>).await()
+    }
+
+    /** `await()` над `Promise<dynamic>` возвращает dynamic: вызывать на нём `.let` нельзя, поэтому результат отбрасываем здесь. */
+    private suspend fun awaitVoid(promise: dynamic) {
+        (promise as Promise<dynamic>).await()
     }
 
     private suspend fun readString(area: dynamic, key: String): String? {
