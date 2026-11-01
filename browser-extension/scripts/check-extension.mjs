@@ -25,6 +25,8 @@ for (const permission of ["identity", "storage", "sidePanel"]) {
 if (!manifest.key || /[$]\{/.test(manifest.key)) fail("manifest.key must be a substituted public key");
 if (!manifest.content_security_policy?.extension_pages?.includes("script-src 'self'")) fail("CSP must restrict script-src to 'self'");
 read("popup.css");
+if (manifest.background?.service_worker !== "background.js") fail('background.service_worker must be "background.js"');
+if (!read("background.js").includes("setPanelBehavior")) fail("background.js must call sidePanel.setPanelBehavior");
 if (manifest.background?.scripts) fail("background.scripts is not allowed in MV3 Chromium; use service_worker");
 
 const scripts = [...popup.matchAll(/<script[^>]*\ssrc="([^"]+)"/g)].map((m) => m[1]);

@@ -7,9 +7,12 @@ import dev.mimir.core.RcloneCipher
 import dev.mimir.core.RemoteEntry
 import dev.mimir.core.RemotePath
 import dev.mimir.core.RemoteStorage
+import dev.mimir.drive.client.AuthRevokedException
+import dev.mimir.drive.client.DriveAuthException
 import dev.mimir.extension.platform.ExtensionPlatform
 import dev.mimir.extension.vault.VaultTreeBuilder
 import dev.mimir.extension.vault.VaultTreeNode
+import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -75,6 +78,11 @@ class ExtensionController(
     private var cipher: RcloneCipher? = null
     private var rawStorage: RemoteStorage? = null
 
+    init {
+        // Блокировка в другой панели/вкладке расширения стирает ключ из session: гасим и этот контекст
+        platform.observeSessionKey(SESSION_KEY) { value -> if (value == null) lockLocally() }
+    }
+
     suspend fun initialize(initialPath: String? = null) {
         val acc = authHandler.currentAccount()
         if (acc == null) {
@@ -137,12 +145,15 @@ class ExtensionController(
         }
         _state.value = ExtensionUiState.UnlockRequired(acc, isVerifying = true)
         val candidate = RcloneCipher.create(password)
+        val knownHash = platform.getLocalString(LOCAL_CANARY_HASH)
         val result = try {
-            CanaryVerifier.verifyReadOnly(raw(), candidate, platform.getLocalString(LOCAL_CANARY_HASH))
+            CanaryVerifier.verifyReadOnly(raw(), candidate, knownHash)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            _state.value = ExtensionUiState.UnlockRequired(acc, error = "Не удалось проверить пароль: ${e.message}")
+            if (!handleAuthFailure(e)) {
+                _state.value = ExtensionUiState.UnlockRequired(acc, error = "Не удалось проверить пароль: ${e.message}")
+            }
             return
         }
         when (result) {
@@ -150,18 +161,38 @@ class ExtensionController(
                 _state.value = ExtensionUiState.UnlockRequired(acc, error = result.reason)
             is CanaryVerifier.CanaryVerifyResult.Valid -> {
                 platform.setSessionString(SESSION_KEY, candidate.exportKeyHex())
-                platform.setLocalString(LOCAL_CANARY_HASH, result.canaryHash)
                 cipher = candidate
                 enterVault(null)
+                // Пустое хранилище подтверждает любой пароль: хеш закрепляем, только увидев расшифровавшиеся заметки
+                val hasNotes = (_state.value as? ExtensionUiState.VaultReady)?.flatNotes?.isNotEmpty() == true
+                if (knownHash != null || hasNotes) platform.setLocalString(LOCAL_CANARY_HASH, result.canaryHash)
             }
         }
     }
 
     /** Очищает ключ и открытую заметку; токен обновления и зашифрованный кэш дерева остаются. */
     suspend fun lock() {
+        lockLocally()
         platform.clearSession()
+    }
+
+    private fun lockLocally() {
+        if (cipher == null) return
         cipher = null
         _state.value = account?.let { ExtensionUiState.UnlockRequired(it) } ?: ExtensionUiState.AuthRequired()
+    }
+
+    /** Отозванный или просроченный refresh-токен: возвращаем к входу, а не показываем «нет сети». */
+    private suspend fun handleAuthFailure(e: Exception): Boolean {
+        val revoked = e is AuthRevokedException || (e is DriveAuthException && e.statusCode == HttpStatusCode.Unauthorized)
+        if (!revoked) return false
+        runCatching { authHandler.signOut() }
+        platform.clearSession()
+        cipher = null
+        rawStorage = null
+        account = null
+        _state.value = ExtensionUiState.AuthRequired(error = "Доступ к Google отозван или истёк. Войдите снова")
+        return true
     }
 
     suspend fun refreshVault() {
@@ -178,6 +209,8 @@ class ExtensionController(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            if (cipher !== c) return
+            if (handleAuthFailure(e)) return
             val message = e.message ?: "Нет связи с Google Drive"
             val cached = loadCache()
             _state.value = when {
@@ -188,6 +221,7 @@ class ExtensionController(
             }
             return
         }
+        if (cipher !== c) return
         val now = clock.now().epochSeconds
         saveCache(entries, now)
         _state.value = readyFrom(acc, c, entries, now, previous)
@@ -209,8 +243,10 @@ class ExtensionController(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            if (cipher === c && handleAuthFailure(e)) return
             ActiveNoteState.Error(file, e.message ?: "Не удалось прочитать заметку")
         }
+        if (cipher !== c) return
         (_state.value as? ExtensionUiState.VaultReady)?.let { _state.value = it.copy(activeNote = note) }
     }
 
@@ -286,6 +322,7 @@ class ExtensionController(
         val text = platform.getLocalString(LOCAL_ENTRIES) ?: return null
         val cached = runCatching { json.decodeFromString(ListSerializer(CachedRemoteEntry.serializer()), text) }.getOrNull()
             ?: return null
+        if (cached.isEmpty()) return null
         val entries = cached.map {
             RemoteEntry(RemotePath(it.path), it.size, Instant.fromEpochSeconds(it.modifiedEpochSec), it.revision, it.isDirectory)
         }

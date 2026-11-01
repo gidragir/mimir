@@ -6,6 +6,9 @@ import dev.mimir.drive.auth.TokenStorage
 
 /** Порт побочных эффектов браузера: хранилища chrome.storage, OAuth-окно, вкладки, буфер обмена. */
 interface ExtensionPlatform {
+    /** Уведомляет, когда [key] в session-хранилище изменён любым контекстом расширения (`null` — ключ удалён). */
+    fun observeSessionKey(key: String, onChanged: (String?) -> Unit)
+
     suspend fun getSessionString(key: String): String?
     suspend fun setSessionString(key: String, value: String)
     suspend fun removeSessionKey(key: String)

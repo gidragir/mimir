@@ -16,6 +16,12 @@ class ChromeExtensionPlatform : ExtensionPlatform {
     private val session: dynamic get() = chrome.storage.session
     private val local: dynamic get() = chrome.storage.local
 
+    override fun observeSessionKey(key: String, onChanged: (String?) -> Unit) {
+        chrome.storage.onChanged.addListener { changes: dynamic, area: String ->
+            if (area == "session" && changes[key] != undefined) onChanged(changes[key].newValue as? String)
+        }
+    }
+
     override suspend fun getSessionString(key: String): String? = readString(session, key)
     override suspend fun setSessionString(key: String, value: String) = writeString(session, key, value)
     override suspend fun removeSessionKey(key: String) = (session.remove(key) as Promise<dynamic>).await().let { }
@@ -35,8 +41,7 @@ class ChromeExtensionPlatform : ExtensionPlatform {
     }
 
     override fun openFullTab(relativePath: String?) {
-        val query = relativePath?.let { "&path=${js("encodeURIComponent")(it)}" }.orEmpty()
-        val url = chrome.runtime.getURL("popup.html?mode=tab$query") as String
+        val url = chrome.runtime.getURL(fullTabPageUrl(relativePath)) as String
         chrome.tabs.create(json("url" to url))
     }
 
@@ -69,3 +74,10 @@ class ChromeExtensionPlatform : ExtensionPlatform {
         }
     }
 }
+
+/**
+ * Расшифрованный путь заметки не кладём в URL: адрес вкладки попадает в историю и файлы восстановления
+ * сессии на диске. Открытая заметка передаётся через `session.selectedPath` (`chrome.storage.session`).
+ */
+@Suppress("UNUSED_PARAMETER")
+internal fun fullTabPageUrl(relativePath: String?): String = "popup.html?mode=tab"

@@ -8,6 +8,7 @@
     "default_popup": "popup.html",
     "default_icon": { "128": "icon-128.png" }
   },
+  "background": { "service_worker": "background.js" },
   "side_panel": { "default_path": "popup.html" },
   "icons": { "128": "icon-128.png" },
   "permissions": ["identity", "storage", "sidePanel"],

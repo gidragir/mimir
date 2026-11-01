@@ -18,10 +18,20 @@ class FakeExtensionPlatform : ExtensionPlatform {
         local["auth.account"] = AccountCodec.encode(account)
     }
 
+    private val observers = mutableListOf<Pair<String, (String?) -> Unit>>()
+
+    private fun notifyObservers(key: String) = observers.filter { it.first == key }.forEach { it.second(session[key]) }
+
+    override fun observeSessionKey(key: String, onChanged: (String?) -> Unit) { observers += key to onChanged }
+
     override suspend fun getSessionString(key: String): String? = session[key]
-    override suspend fun setSessionString(key: String, value: String) { session[key] = value }
-    override suspend fun removeSessionKey(key: String) { session.remove(key) }
-    override suspend fun clearSession() = session.clear()
+    override suspend fun setSessionString(key: String, value: String) { session[key] = value; notifyObservers(key) }
+    override suspend fun removeSessionKey(key: String) { session.remove(key); notifyObservers(key) }
+    override suspend fun clearSession() {
+        val keys = session.keys.toList()
+        session.clear()
+        keys.forEach(::notifyObservers)
+    }
 
     override suspend fun getLocalString(key: String): String? = local[key]
     override suspend fun setLocalString(key: String, value: String) { local[key] = value }
