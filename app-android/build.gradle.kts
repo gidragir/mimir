@@ -22,8 +22,14 @@ android {
         versionName = appVersion
         resValue("string", "app_name", appName)
 
-        val desktopClientId = providers.environmentVariable("MIMIR_BUILD_GOOGLE_DESKTOP_CLIENT_ID").orElse("").get()
-        val desktopClientSecret = providers.environmentVariable("MIMIR_BUILD_GOOGLE_DESKTOP_CLIENT_SECRET").orElse("").get()
+        val desktopClientId = providers.environmentVariable("MIMIR_BUILD_GOOGLE_DESKTOP_CLIENT_ID")
+            .orElse(providers.environmentVariable("MIMIR_GOOGLE_DESKTOP_CLIENT_ID"))
+            .orElse("")
+            .get()
+        val desktopClientSecret = providers.environmentVariable("MIMIR_BUILD_GOOGLE_DESKTOP_CLIENT_SECRET")
+            .orElse(providers.environmentVariable("MIMIR_GOOGLE_DESKTOP_CLIENT_SECRET"))
+            .orElse("")
+            .get()
         buildConfigField("String", "GOOGLE_DESKTOP_CLIENT_ID", "\"$desktopClientId\"")
         buildConfigField("String", "GOOGLE_DESKTOP_CLIENT_SECRET", "\"$desktopClientSecret\"")
     }

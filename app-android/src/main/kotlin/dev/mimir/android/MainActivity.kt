@@ -14,6 +14,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.lifecycle.ViewModelProvider
 import dev.mimir.android.platform.AndroidFolderPicker
+import dev.mimir.android.platform.rememberAndroidFolderPicker
 import dev.mimir.android.platform.AndroidStorageAccess
 import dev.mimir.android.platform.FileSystemVaultDiscovery
 import dev.mimir.ui.Destination
@@ -36,7 +37,7 @@ class MainActivity : ComponentActivity() {
             val accountPrefs = remember { getSharedPreferences("mimir_gis", Context.MODE_PRIVATE) }
             val systemAccountLogin = rememberActivitySystemAccountLogin(this, accountPrefs)
             val storageAccess = remember { AndroidStorageAccess(this) }
-            val folderPicker = remember { AndroidFolderPicker(this) }
+            val folderPicker = rememberAndroidFolderPicker(this)
             val vaultDiscovery = remember {
                 val roots = listOfNotNull(
                     Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS),

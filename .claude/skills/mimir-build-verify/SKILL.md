@@ -20,6 +20,7 @@ description: Use when you need to build, test or verify a change in the Mimir re
 | ui | `./gradlew :ui:desktopTest`, `./gradlew :ui:compileKotlinWasmJs` |
 | desktop | `./gradlew :app-desktop:test`, `:app-desktop:packageUberJarForCurrentOS` |
 | daemon | `./gradlew :daemon:test`, затем `mise run daemon` и `curl -s 127.0.0.1:47821/health` |
+| android | `./gradlew :app-android:testDebugUnitTest`, `:app-android:assembleDebug` |
 | plugin / extension | `./gradlew :obsidian-plugin:checkPlugin`, `:browser-extension:checkExtension` |
 
 Первый запуск на новой машине: `gradlew` создаётся командой `mise x gradle@9.8 -- gradle wrapper --gradle-version <9.x ≥ 9.8>`.
@@ -32,6 +33,13 @@ description: Use when you need to build, test or verify a change in the Mimir re
 4. **Все цели изменённого модуля**, а не только JVM: `allTests` для `core`/`drive`, `:ui:compileKotlinWasmJs`, Android при наличии SDK. Ветвления по ОС покрыты юнит-тестами с подставленными `osName`/`env`; Windows и macOS проверяет CI-матрица — в отчёте сказать, что руками не проверено (`mimir-cross-platform`).
 5. **Изменён UI** — визуальная проверка по `mimir-ui-ux` (скриншоты обеих тем и минимального размера окна).
 6. Падение любого из пунктов — дефект, а не «особенность окружения».
+
+### Проверка на Android эмуляторе
+
+- **Сборка и установка**: `./gradlew :app-android:assembleDebug && adb install -r app-android/build/outputs/apk/debug/app-android-debug.apk`
+- **Запуск Activity**: `adb shell am start -n dev.mimir.app/dev.mimir.android.MainActivity` (appId = `dev.mimir.app`)
+- **Запуск эмулятора под Wayland (Niri / Sway)**: встроенный Qt SDK не имеет плагина wayland, запуск требует Xwayland:
+  `QT_QPA_PLATFORM=xcb emulator -avd <avd_name> -netdelay none -netspeed full`
 
 ## TDD
 

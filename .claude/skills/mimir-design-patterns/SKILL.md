@@ -21,7 +21,7 @@ Mimir — многоплатформенный продукт с одним дв
 | Состояния и результаты | `sealed` + исчерпывающий `when` | `SyncStatus`, `SyncPhase`, `SyncAction`, `UiBrowserPoll` |
 | Наблюдаемое состояние | `StateFlow`, однонаправленный поток данных: экран читает состояние, события — `suspend`-методы модели | `SyncEngine.progress`, `MimirUiModel` |
 | Один бэкенд — много клиентов | Фасад + удалённый заместитель + адаптер к UI в общем KMP-модуле `:client` | `DaemonService` ← `DaemonRuntime` / `HttpDaemonClient`; DTO и HTTP-клиент не изолируются в десктопном модуле; `DaemonServiceUiModel` → `MimirUiModel` |
-| Платформенный сервис в Compose | CompositionLocal + фабрика | `LocalFolderPicker` + `defaultFolderPicker()` |
+| Платформенный сервис в Compose | CompositionLocal + фабрика. На Android при наличии Activity Result: composable-хелпер `remember<Service>(activity)` на базе `rememberLauncherForActivityResult` + `CompletableDeferred` | `LocalFolderPicker` + `defaultFolderPicker()` (desktop); `rememberAndroidFolderPicker`, `rememberActivitySystemAccountLogin` (Android) |
 | Сборка графа объектов | Composition root, внедрение через конструктор | `DaemonRuntime`, `app-desktop/Main.kt`, `DaemonServiceFactory` |
 | Тестируемые побочные эффекты | Параметры-функции со значениями по умолчанию | `SystemBrowserOpener(osName, launch, browse)` |
 | Хранение состояния | Репозиторий + атомарная запись | `SyncStateStore` → `JsonSyncStateStore`, `writeFileAtomically` (`AtomicFiles.kt`) |

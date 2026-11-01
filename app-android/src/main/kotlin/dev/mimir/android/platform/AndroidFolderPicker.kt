@@ -2,9 +2,13 @@ package dev.mimir.android.platform
 
 import android.content.Context
 import android.net.Uri
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.ActivityResultRegistry
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import dev.mimir.ui.picker.PlatformFolderPicker
 import kotlinx.coroutines.CompletableDeferred
 
@@ -43,3 +47,26 @@ class AndroidFolderPicker(
         return path
     }
 }
+
+@Composable
+fun rememberAndroidFolderPicker(activity: ComponentActivity): AndroidFolderPicker {
+    val pendingRef = remember { arrayOf<CompletableDeferred<Uri?>?>(null) }
+    val launcher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree(),
+    ) { uri ->
+        pendingRef[0]?.complete(uri)
+    }
+
+    return remember(activity) {
+        AndroidFolderPicker(
+            context = activity,
+            launchPicker = { initialUri ->
+                val deferred = CompletableDeferred<Uri?>()
+                pendingRef[0] = deferred
+                launcher.launch(initialUri)
+                deferred.await()
+            },
+        )
+    }
+}
+

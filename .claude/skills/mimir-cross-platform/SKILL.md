@@ -13,9 +13,9 @@ Arch + niri — машина разработчика, а не продукт. �
 
 | Цель | Среда | О чём помнить |
 |---|---|---|
-| Linux desktop | Arch, системная Java ≥ 27; niri/Sway, KDE, GNOME; Wayland и X11 | AWT-трей не работает без SNI (`DbusStatusNotifierTray`); портал XDG есть не везде; `xdg-open` может отсутствовать |
+| Linux desktop | Arch, системная Java ≥ 27; niri/Sway, KDE, GNOME; Wayland и X11 | AWT-трей не работает без SNI (`DbusStatusNotifierTray`); портал XDG есть не везде; `xdg-open` может отсутствовать; эмулятор Android SDK под Wayland требует `QT_QPA_PLATFORM=xcb` (встроенный Qt не имеет плагина wayland) |
 | Windows desktop | MSI per-user, вшитая JRE, без админа | AWT-трей и `Desktop.browse`; `%APPDATA%`; пути `C:\…`; ФС без учёта регистра (`Note.md` = `note.md`); `<>:"\|?*`, `CON`/`NUL`, MAX_PATH; файл, открытый Obsidian, может быть заблокирован |
-| Android (Android 16 / API 36) | APK, `MANAGE_EXTERNAL_STORAGE`, `WorkManager` | нет AWT/Swing и внешних команд; Activity пересоздаётся; Java NIO `WatchService` не поддерживается (только `android.os.FileObserver`); `FOREGROUND_SERVICE_DATA_SYNC` ограничен 6 часами (синхронизация через `WorkManager`); обязательный edge-to-edge (`safeDrawingPadding()`); сенсорные мишени ≥ 48dp; межпроцессный loopback HTTP (`127.0.0.1`) к Obsidian заблокирован политиками WebView/Doze |
+| Android (Android 16 / API 36) | APK, `MANAGE_EXTERNAL_STORAGE`, `WorkManager` | нет AWT/Swing и внешних команд; Activity пересоздаётся; платформенные сервисы с Activity Result (SAF `OpenDocumentTree`, GIS `IntentSender`) требуют composable-обёртку на базе `rememberLauncherForActivityResult` + `CompletableDeferred`; при получении `Activity.RESULT_CANCELED` от Play Services GIS обязательно проверять `intent.data` через `Identity.getAuthorizationClient(context).getAuthorizationResultFromIntent(intent)` и транслировать `ApiException` в `SystemLoginResult.Unavailable`, не маскируя ошибку под отмену пользователем; Java NIO `WatchService` не поддерживается (только `android.os.FileObserver`); `FOREGROUND_SERVICE_DATA_SYNC` ограничен 6 часами (синхронизация через `WorkManager`); обязательный edge-to-edge (`safeDrawingPadding()`); сенсорные мишени ≥ 48dp; межпроцессный loopback HTTP (`127.0.0.1`) к Obsidian заблокирован политиками WebView/Doze |
 | Docker-демон | Linux glibc, без дисплея | нет окна, браузера, трея; настройка только env-переменными; вход — Device Code; UI — web-ui по HTTP API |
 | JS-клиенты | плагин Obsidian (desktop RPC), Chromium MV3, web-ui (wasm) | нет `java.*` и прямой ФС; плагин ходит в локальный HTTP API демона (на сервере обязателен CORS); расширение Chromium работает напрямую с Drive через `chrome.identity` и KMP-криптографию |
 
@@ -43,4 +43,6 @@ Arch + niri — машина разработчика, а не продукт. �
 - Функция, которой нет на платформе, но кнопка для неё видна.
 - «На Windows пока no-op», когда есть AWT/JDK API.
 - Java NIO `WatchService` в Android-коде.
+- Инициализация платформенных Android-сервисов с Activity Result через `remember { Service(this) }` без лаунчера.
+- Трактовка любого `RESULT_CANCELED` в Google Play Services как отмены пользователем без проверки `ApiException` в `intent.data`.
 - Сенсорные мишени < 48 dp на мобильных экранах; отсутствие `safeDrawingPadding()`.

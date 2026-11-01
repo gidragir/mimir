@@ -20,6 +20,7 @@ import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
 import com.google.android.gms.common.api.ApiException
+import com.google.android.gms.common.api.CommonStatusCodes
 import com.google.android.gms.common.api.ResolvableApiException
 import com.google.android.gms.common.api.Scope
 import dev.mimir.android.auth.PlayServicesGisAuthorizer
@@ -120,7 +121,22 @@ class ActivitySystemAccountLogin(
                 }
                 SystemLoginResult.Granted
             }
-            Activity.RESULT_CANCELED -> SystemLoginResult.Cancelled
+            Activity.RESULT_CANCELED -> {
+                val intent = activityResult.data
+                val authError = try {
+                    intent?.let { Identity.getAuthorizationClient(context).getAuthorizationResultFromIntent(it) }
+                    null
+                } catch (e: ApiException) {
+                    e
+                } catch (_: Exception) {
+                    null
+                }
+                if (authError != null && authError.statusCode != CommonStatusCodes.CANCELED) {
+                    SystemLoginResult.Unavailable("Play Services: ${authError.status.statusMessage ?: authError.message ?: "код ${authError.statusCode}"}")
+                } else {
+                    SystemLoginResult.Cancelled
+                }
+            }
             else -> SystemLoginResult.Cancelled
         }
     }
