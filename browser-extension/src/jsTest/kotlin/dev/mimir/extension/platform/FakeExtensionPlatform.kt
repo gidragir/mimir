@@ -1,5 +1,8 @@
 package dev.mimir.extension.platform
 
+import dev.mimir.core.Account
+import dev.mimir.extension.ui.AccountCodec
+
 /** In-memory двойник [ExtensionPlatform]: session/local хранилища живут в картах, побочные эффекты записываются. */
 class FakeExtensionPlatform : ExtensionPlatform {
     private val session = mutableMapOf<String, String>()
@@ -9,6 +12,11 @@ class FakeExtensionPlatform : ExtensionPlatform {
     val openedExternalUrls = mutableListOf<String>()
     val clipboard = mutableListOf<String>()
     var webAuthResult: String = ""
+
+    /** Профиль «пользователь уже вошёл в Google»: сохранённый аккаунт в local-хранилище. */
+    fun seedAuthenticatedAccount(account: Account) {
+        local["auth.account"] = AccountCodec.encode(account)
+    }
 
     override suspend fun getSessionString(key: String): String? = session[key]
     override suspend fun setSessionString(key: String, value: String) { session[key] = value }
