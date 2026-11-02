@@ -1,16 +1,14 @@
 package dev.mimir.ui.screens.setup
 
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
-import dev.mimir.ui.ObsidianStyle
-import dev.mimir.ui.ObsidianStyle.compactButton
+import dev.mimir.ui.components.MimirButton
+import dev.mimir.ui.components.MimirButtonVariant
 import dev.mimir.ui.platform.LocalStorageAccess
 
 @Composable
@@ -41,14 +39,10 @@ fun AccessStep(onNext: () -> Unit) {
             style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.Center,
         )
-        Button(
-            shape = MaterialTheme.shapes.extraSmall,
-            colors = ObsidianStyle.buttonColors(),
-            contentPadding = ObsidianStyle.buttonPadding,
-            modifier = Modifier.compactButton(),
+        MimirButton(
+            text = "Предоставить доступ",
             onClick = { access.requestAllFiles() },
-        ) {
-            Text("Предоставить доступ")
-        }
+            variant = MimirButtonVariant.Primary,
+        )
     }
 }

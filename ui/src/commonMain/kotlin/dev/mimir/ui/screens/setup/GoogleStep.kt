@@ -1,9 +1,7 @@
 package dev.mimir.ui.screens.setup
 
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -13,6 +11,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.AnnotatedString
+import dev.mimir.ui.MimirTokens
+import dev.mimir.ui.components.MimirButton
+import dev.mimir.ui.components.MimirButtonVariant
 import dev.mimir.ui.model.MimirUiModel
 import dev.mimir.ui.model.UiDeviceCode
 import dev.mimir.ui.model.UiLoginMethod
@@ -22,7 +23,6 @@ import dev.mimir.ui.platform.LocalSystemAccountLogin
 import dev.mimir.ui.platform.SystemLoginResult
 import dev.mimir.ui.screens.SyncTexts
 import kotlinx.coroutines.CancellationException
-
 import kotlinx.coroutines.delay
 
 @Composable
@@ -49,8 +49,12 @@ fun GoogleStep(model: MimirUiModel, pollIntervalMillis: Long, onNext: () -> Unit
     when {
         methodsError != null -> {
             Text("Вход через Google", style = MaterialTheme.typography.headlineSmall)
-            Text(methodsError.orEmpty(), color = MaterialTheme.colorScheme.error)
-            Button(onClick = { attempt++ }) { Text("Повторить") }
+            Text(methodsError.orEmpty(), color = MimirTokens.StatusError)
+            MimirButton(
+                text = "Повторить",
+                onClick = { attempt++ },
+                variant = MimirButtonVariant.Primary,
+            )
         }
         available == null -> {
             Text("Вход через Google", style = MaterialTheme.typography.headlineSmall)
@@ -149,27 +153,48 @@ private fun InteractiveLoginStep(
         }
     }
 
-
     Text("Вход через Google", style = MaterialTheme.typography.headlineSmall)
     if (!started) {
-        Button(onClick = { started = true; attempt++ }) { Text("Войти через Google") }
-        onUseCode?.let { TextButton(onClick = it) { Text("Войти с помощью кода на другом устройстве") } }
+        MimirButton(
+            text = "Войти через Google",
+            onClick = { started = true; attempt++ },
+            variant = MimirButtonVariant.Primary,
+        )
+        onUseCode?.let {
+            MimirButton(
+                text = "Войти с помощью кода на другом устройстве",
+                onClick = it,
+                variant = MimirButtonVariant.Ghost,
+            )
+        }
     } else {
         val failure = error
         if (failure != null) {
-            Text(failure, color = MaterialTheme.colorScheme.error)
-            Button(onClick = { attempt++ }) { Text("Попробовать снова") }
+            Text(failure, color = MimirTokens.StatusError)
+            MimirButton(
+                text = "Попробовать снова",
+                onClick = { attempt++ },
+                variant = MimirButtonVariant.Primary,
+            )
         } else {
             Text(if (inBrowser) "Ждём подтверждения в браузере…" else "Ждём подтверждения входа…")
             openFailedUrl?.let { url ->
                 Text(url)
-                Button(onClick = {
-                    @Suppress("DEPRECATION")
-                    clipboard.setText(AnnotatedString(url))
-                }) { Text("Скопировать ссылку") }
+                MimirButton(
+                    text = "Скопировать ссылку",
+                    onClick = {
+                        @Suppress("DEPRECATION")
+                        clipboard.setText(AnnotatedString(url))
+                    },
+                    variant = MimirButtonVariant.Secondary,
+                )
             }
         }
-        TextButton(onClick = { started = false; error = null; openFailedUrl = null }) { Text("Отмена") }
+        MimirButton(
+            text = "Отмена",
+            onClick = { started = false; error = null; openFailedUrl = null },
+            variant = MimirButtonVariant.Ghost,
+        )
     }
 }
 
@@ -207,19 +232,37 @@ private fun DeviceCodeStep(model: MimirUiModel, pollIntervalMillis: Long, onNext
     val issued = code
     if (issued != null) {
         Text("Откройте ${issued.verificationUrl} и введите код:")
-        Text(issued.userCode, style = MaterialTheme.typography.displaySmall)
-        Button(onClick = {
-            @Suppress("DEPRECATION")
-            clipboard.setText(AnnotatedString(issued.userCode))
-            runCatching { uriHandler.openUri(issued.verificationUrl) }
-        }) { Text("Скопировать код и открыть ссылку") }
+        Text(
+            issued.userCode,
+            style = MaterialTheme.typography.displaySmall,
+            color = MimirTokens.Accent,
+        )
+        MimirButton(
+            text = "Скопировать код и открыть ссылку",
+            onClick = {
+                @Suppress("DEPRECATION")
+                clipboard.setText(AnnotatedString(issued.userCode))
+                runCatching { uriHandler.openUri(issued.verificationUrl) }
+            },
+            variant = MimirButtonVariant.Primary,
+        )
         if (error == null) Text("Ожидание подтверждения…")
     } else if (error == null) {
         Text("Запрашиваем код…")
     }
     error?.let {
-        Text(it, color = MaterialTheme.colorScheme.error)
-        Button(onClick = { attempt++ }) { Text("Попробовать снова") }
+        Text(it, color = MimirTokens.StatusError)
+        MimirButton(
+            text = "Попробовать снова",
+            onClick = { attempt++ },
+            variant = MimirButtonVariant.Primary,
+        )
     }
-    onBack?.let { TextButton(onClick = it) { Text("Назад") } }
+    onBack?.let {
+        MimirButton(
+            text = "Назад",
+            onClick = it,
+            variant = MimirButtonVariant.Ghost,
+        )
+    }
 }

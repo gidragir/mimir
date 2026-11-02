@@ -5,8 +5,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -18,8 +16,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import dev.mimir.ui.ObsidianStyle
-import dev.mimir.ui.ObsidianStyle.compactButton
+import dev.mimir.ui.MimirTokens
+import dev.mimir.ui.components.MimirButton
+import dev.mimir.ui.components.MimirButtonVariant
+import dev.mimir.ui.components.MimirCard
 import dev.mimir.ui.model.MimirUiModel
 import dev.mimir.ui.model.UiVaultInspection
 import kotlinx.coroutines.CancellationException
@@ -63,27 +63,26 @@ fun InitialResolutionStep(model: MimirUiModel, onComplete: () -> Unit) {
     Text("Первая синхронизация", style = MaterialTheme.typography.headlineSmall)
     val found = inspection
     if (error != null) {
-        Text(error.orEmpty(), color = MaterialTheme.colorScheme.error)
-        Button(
-            shape = MaterialTheme.shapes.extraSmall,
-            colors = ObsidianStyle.buttonColors(),
-            contentPadding = ObsidianStyle.buttonPadding,
-            modifier = Modifier.compactButton(),
+        Text(error.orEmpty(), color = MimirTokens.StatusError)
+        MimirButton(
+            text = "Повторить",
             onClick = { if (found == null) attempt++ else scope.launch { finish() } },
-        ) { Text("Повторить") }
+            variant = MimirButtonVariant.Primary,
+        )
     } else if (found == null) {
         Text("Сравниваем папку и Google Drive…")
     } else {
-        Card(
-            colors = ObsidianStyle.panelColors(),
-            border = ObsidianStyle.panelBorder(),
-            shape = MaterialTheme.shapes.small,
+        MimirCard(
             modifier = Modifier.widthIn(max = 480.dp).fillMaxWidth(),
         ) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(
+                modifier = Modifier.padding(MimirTokens.Space16),
+                verticalArrangement = Arrangement.spacedBy(MimirTokens.Space8),
+            ) {
                 Text(
                     "Обнаружено существующее хранилище в Google Drive (${found.remoteFileCount} файлов) " +
                         "и локальные заметки (${found.localFileCount} файлов).",
+                    style = MaterialTheme.typography.bodyMedium,
                 )
                 Text("Двустороннее слияние с защитой от потерь", style = MaterialTheme.typography.titleSmall)
                 Text(
@@ -94,13 +93,12 @@ fun InitialResolutionStep(model: MimirUiModel, onComplete: () -> Unit) {
                 )
             }
         }
-        Button(
-            enabled = !busy,
-            shape = MaterialTheme.shapes.extraSmall,
-            colors = ObsidianStyle.buttonColors(),
-            contentPadding = ObsidianStyle.buttonPadding,
-            modifier = Modifier.compactButton(),
+        MimirButton(
+            text = "Завершить настройку и синхронизировать",
             onClick = { scope.launch { finish() } },
-        ) { Text("Завершить настройку и синхронизировать") }
+            enabled = !busy,
+            loading = busy,
+            variant = MimirButtonVariant.Primary,
+        )
     }
 }

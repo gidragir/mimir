@@ -3,6 +3,7 @@ package dev.mimir.ui
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.waitUntilExactlyOneExists
 import androidx.compose.ui.test.performClick
@@ -390,5 +391,14 @@ class SetupWizardScreenTest {
 
         onNodeWithText("📁 Обзор…").performClick()
         waitUntilExactlyOneExists(hasText("Эта папка не на телефоне. Выберите папку во внутренней памяти или на карте памяти"))
+    }
+
+    @Test
+    fun `password field toggle has accessibility content description`() = runComposeUiTest {
+        toGoogleStep(FakeMimirUiModel(loginPoll = { UiLoginPoll.Authorized("test@example.com") }))
+        waitUntilExactlyOneExists(hasText("Мастер-пароль шифрования"))
+        onNodeWithContentDescription("Показать пароль").assertIsDisplayed().performClick()
+        onNodeWithContentDescription("Скрыть пароль").assertIsDisplayed().performClick()
+        onNodeWithContentDescription("Показать пароль").assertIsDisplayed()
     }
 }

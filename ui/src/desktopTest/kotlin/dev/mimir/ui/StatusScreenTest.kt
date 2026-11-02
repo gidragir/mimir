@@ -4,6 +4,7 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
@@ -220,5 +221,31 @@ class StatusScreenTest {
         onNodeWithText("Войти через Google").assertIsEnabled().performClick()
         waitForIdle()
         assertTrue(setupOpened)
+    }
+
+    @Test
+    fun `status screen displays status badge in header`() = runComposeUiTest {
+        setContent {
+            MimirTheme {
+                StatusScreen(FakeMimirUiModel(status = SyncStatus.Idle))
+            }
+        }
+        onNodeWithTag("mimir_status_badge").assertIsDisplayed()
+        onNodeWithText("Mimir: up to date").assertIsDisplayed()
+    }
+
+    @Test
+    fun `status screen displays progress bar during sync`() = runComposeUiTest {
+        val progress = SyncProgress(
+            phase = SyncPhase.Scanning,
+            startedAt = Clock.System.now(),
+            scanned = 10,
+        )
+        setContent {
+            MimirTheme {
+                StatusScreen(FakeMimirUiModel(status = SyncStatus.Syncing, progress = progressOf(progress)))
+            }
+        }
+        onNodeWithTag("mimir_progress_bar").assertIsDisplayed()
     }
 }

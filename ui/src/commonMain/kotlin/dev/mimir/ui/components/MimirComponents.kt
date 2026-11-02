@@ -31,6 +31,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
@@ -170,7 +172,11 @@ fun MimirTextField(
             {
                 IconButton(
                     onClick = { passwordVisible = !passwordVisible },
-                    modifier = Modifier.testTag("password_toggle"),
+                    modifier = Modifier
+                        .testTag("password_toggle")
+                        .semantics {
+                            contentDescription = if (passwordVisible) "Скрыть пароль" else "Показать пароль"
+                        },
                 ) {
                     Text(
                         text = if (passwordVisible) "👁" else "🙈",

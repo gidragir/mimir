@@ -2,20 +2,15 @@ package dev.mimir.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -24,19 +19,23 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.testTag
 import dev.mimir.core.BuildConfig
 import dev.mimir.core.SyncErrorKind
 import dev.mimir.core.SyncPhase
-
 import dev.mimir.core.SyncProblem
 import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncStatus
 import dev.mimir.core.label
 import dev.mimir.ui.MimirTheme
-import dev.mimir.ui.ObsidianStyle
-import dev.mimir.ui.ObsidianStyle.compactButton
+import dev.mimir.ui.MimirTokens
+import dev.mimir.ui.components.MimirButton
+import dev.mimir.ui.components.MimirButtonVariant
+import dev.mimir.ui.components.MimirCard
+import dev.mimir.ui.components.MimirProgressBar
+import dev.mimir.ui.components.MimirStatusBadge
 import dev.mimir.ui.model.FakeMimirUiModel
 import dev.mimir.ui.model.MimirUiModel
 import kotlinx.coroutines.delay
@@ -72,98 +71,156 @@ fun StatusScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(MimirTokens.Space24),
+        verticalArrangement = Arrangement.spacedBy(MimirTokens.Space16),
     ) {
-        Text(BuildConfig.APP_NAME, style = MaterialTheme.typography.headlineMedium)
+        // Заголовок приложения и бейдж статуса
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(BuildConfig.APP_NAME, style = MaterialTheme.typography.headlineMedium)
+            MimirStatusBadge(status = status, modifier = Modifier.testTag("mimir_status_badge"))
+        }
+
         StatusBanners(model, onOpenSetup)
 
         val needsSignIn = status is SyncStatus.Error && email == null
-
         val title = SyncTexts.phaseTitle(status, progress, needsSignIn = needsSignIn)
-        Text(title ?: status.label(), style = MaterialTheme.typography.titleLarge)
 
-        when (val s = status) {
-            SyncStatus.Offline -> Text(SyncTexts.OFFLINE_HINT)
-            is SyncStatus.Error -> {
-                // Вход предлагается при любой ошибке: после отзыва/истечения refresh-токена
-                // email остаётся в account.json, и иначе вернуться ко входу было бы нельзя.
-                Details(s.message)
-                if (s.kind != SyncErrorKind.SignInRequired) {
-                    Button(
-                        onClick = onOpenSetup,
-                        shape = MaterialTheme.shapes.extraSmall,
-                        colors = ObsidianStyle.buttonColors(),
-                        contentPadding = ObsidianStyle.buttonPadding,
-                        modifier = Modifier.compactButton(),
-                    ) { Text(SyncTexts.SIGN_IN) }
+        // Основная карточка статуса синхронизации
+        MimirCard(
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(
+                modifier = Modifier.padding(MimirTokens.Space16),
+                verticalArrangement = Arrangement.spacedBy(MimirTokens.Space12),
+            ) {
+                if (title != null) {
+                    Text(title, style = MaterialTheme.typography.titleLarge)
                 }
-            }
 
-            else -> {}
+                when (val s = status) {
+                    SyncStatus.Offline -> {
+                        Text(
+                            text = SyncTexts.OFFLINE_HINT,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    is SyncStatus.Error -> {
+                        // Вход предлагается при любой ошибке: после отзыва/истечения refresh-токена
+                        // email остаётся в account.json, и иначе вернуться ко входу было бы нельзя.
+                        Details(s.message)
+                        if (s.kind != SyncErrorKind.SignInRequired) {
+                            MimirButton(
+                                text = SyncTexts.SIGN_IN,
+                                onClick = onOpenSetup,
+                                variant = MimirButtonVariant.Primary,
+                            )
+                        }
+                    }
+                    else -> {}
+                }
+
+                val p = progress
+                if (p != null && syncing && p.phase != SyncPhase.Finished) {
+                    ProgressBlock(p, now)
+                }
+                if (p != null && status == SyncStatus.Idle && p.phase == SyncPhase.Finished) {
+                    val finishedAt = p.finishedAt ?: now
+                    Text(
+                        "${SyncTexts.whenFinished(finishedAt, now)} · " +
+                            SyncTexts.finishedSummary(p.done, (finishedAt - p.startedAt).inWholeSeconds),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else if (p == null) {
+                    lastSync?.let {
+                        Text(
+                            "Последняя синхронизация: ${SyncTexts.whenFinished(it, now)}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+
+                if (p != null && syncing && p.phase == SyncPhase.Applying) {
+                    p.current?.let {
+                        Text(SyncTexts.NOW, style = MaterialTheme.typography.labelLarge)
+                        Text(SyncTexts.actionNow(it), style = MaterialTheme.typography.bodyMedium)
+                    }
+                    if (p.upcoming.isNotEmpty()) {
+                        val more = p.total - p.done - (if (p.current != null) 1 else 0) - p.upcoming.size
+                        Text(SyncTexts.upcomingTitle(more), style = MaterialTheme.typography.labelLarge)
+                        p.upcoming.take(SyncProgress.UPCOMING_LIMIT).forEach {
+                            Text(SyncTexts.actionNow(it), style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                }
+
+                if (p != null && p.completed.isNotEmpty()) {
+                    CompletedBlock(p)
+                }
+
+                MimirButton(
+                    text = SyncTexts.SYNC_NOW,
+                    onClick = { scope.launch { model.triggerSync() } },
+                    enabled = status == SyncStatus.Idle,
+                    variant = MimirButtonVariant.Primary,
+                )
+            }
         }
 
         val p = progress
-        if (p != null && syncing && p.phase != SyncPhase.Finished) {
-            ProgressBlock(p, now)
-        }
-        if (p != null && status == SyncStatus.Idle && p.phase == SyncPhase.Finished) {
-            val finishedAt = p.finishedAt ?: now
-            Text(
-                "${SyncTexts.whenFinished(finishedAt, now)} · " +
-                    SyncTexts.finishedSummary(p.done, (finishedAt - p.startedAt).inWholeSeconds),
-            )
-        } else if (p == null) {
-            lastSync?.let { Text("Последняя синхронизация: ${SyncTexts.whenFinished(it, now)}") }
-        }
-
-        if (p != null && p.problems.isNotEmpty()) ProblemsBlock(p.problems)
-
-        if (p != null && syncing && p.phase == SyncPhase.Applying) {
-            p.current?.let {
-                Text(SyncTexts.NOW, style = MaterialTheme.typography.labelLarge)
-                Text(SyncTexts.actionNow(it))
-            }
-            if (p.upcoming.isNotEmpty()) {
-                val more = p.total - p.done - (if (p.current != null) 1 else 0) - p.upcoming.size
-                Text(SyncTexts.upcomingTitle(more), style = MaterialTheme.typography.labelLarge)
-                p.upcoming.take(SyncProgress.UPCOMING_LIMIT).forEach { Text(SyncTexts.actionNow(it)) }
-            }
-        }
-
-        if (p != null && p.completed.isNotEmpty()) CompletedBlock(p)
-
-        Button(
-            onClick = { scope.launch { model.triggerSync() } },
-            enabled = status == SyncStatus.Idle,
-            shape = MaterialTheme.shapes.extraSmall,
-            colors = ObsidianStyle.buttonColors(),
-            contentPadding = ObsidianStyle.buttonPadding,
-            modifier = Modifier.compactButton(),
-        ) {
-            Text(SyncTexts.SYNC_NOW)
+        if (p != null && p.problems.isNotEmpty()) {
+            ProblemsBlock(p.problems)
         }
 
         HorizontalDivider()
-        val bgSync by model.backgroundSync.collectAsState()
-        bgSync?.let { Text(SyncTexts.backgroundSyncText(it)) }
-        email?.let { Text("Аккаунт: $it") }
 
-        if (conflicts.isNotEmpty()) {
-            OutlinedButton(
-                onClick = onOpenConflicts,
-                shape = MaterialTheme.shapes.extraSmall,
-                contentPadding = ObsidianStyle.buttonPadding,
-                modifier = Modifier.compactButton(),
-            ) { Text("Конфликты: ${conflicts.size}") }
+        // Информация об учетной записи и фоновой синхронизации
+        Column(verticalArrangement = Arrangement.spacedBy(MimirTokens.Space8)) {
+            val bgSync by model.backgroundSync.collectAsState()
+            bgSync?.let {
+                Text(
+                    text = SyncTexts.backgroundSyncText(it),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            email?.let {
+                Text(
+                    text = "Аккаунт: $it",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
-        if (vaultPath == null || email == null || isLocked) {
-            OutlinedButton(
-                onClick = onOpenSetup,
-                shape = MaterialTheme.shapes.extraSmall,
-                contentPadding = ObsidianStyle.buttonPadding,
-                modifier = Modifier.compactButton(),
-            ) { Text("Настроить Mimir") }
+
+        // Второстепенные действия (конфликты, повторная настройка)
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(MimirTokens.Space8),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (conflicts.isNotEmpty()) {
+                MimirButton(
+                    text = "Конфликты: ${conflicts.size}",
+                    onClick = onOpenConflicts,
+                    variant = MimirButtonVariant.Secondary,
+                )
+            }
+            if (vaultPath == null || email == null || isLocked) {
+                MimirButton(
+                    text = "Настроить Mimir",
+                    onClick = onOpenSetup,
+                    variant = MimirButtonVariant.Secondary,
+                )
+            }
         }
     }
 }
@@ -173,25 +230,26 @@ private fun ProgressBlock(p: SyncProgress, now: Instant) {
     val elapsed = SyncTexts.elapsed((now - p.startedAt).inWholeSeconds)
     when (p.phase) {
         SyncPhase.Scanning, SyncPhase.Comparing -> {
-            LinearProgressIndicator(
-                modifier = Modifier.fillMaxWidth(),
-                color = MaterialTheme.colorScheme.primary,
-                trackColor = MaterialTheme.colorScheme.surfaceVariant,
+            MimirProgressBar(
+                progress = null,
+                modifier = Modifier.fillMaxWidth().testTag("mimir_progress_bar"),
             )
-            Text(SyncTexts.scanned(p.scanned, p.foldersScanned))
-            Text(elapsed)
+            Text(SyncTexts.scanned(p.scanned, p.foldersScanned), style = MaterialTheme.typography.bodyMedium)
+            Text(elapsed, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         SyncPhase.Applying -> {
             val fraction = if (p.total > 0) p.done.toFloat() / p.total else 0f
-            LinearProgressIndicator(
-                progress = { fraction },
-                modifier = Modifier.fillMaxWidth(),
-                color = MaterialTheme.colorScheme.primary,
-                trackColor = MaterialTheme.colorScheme.surfaceVariant,
+            MimirProgressBar(
+                progress = fraction,
+                modifier = Modifier.fillMaxWidth().testTag("mimir_progress_bar"),
             )
-            Text(SyncTexts.counter(p.done, p.total))
+            Text(SyncTexts.counter(p.done, p.total), style = MaterialTheme.typography.bodyMedium)
             val eta = p.etaSeconds(now)
-            Text(if (eta != null) "$elapsed · ${SyncTexts.remaining(eta)}" else elapsed)
+            Text(
+                if (eta != null) "$elapsed · ${SyncTexts.remaining(eta)}" else elapsed,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
         SyncPhase.Finished -> {}
     }
@@ -199,19 +257,27 @@ private fun ProgressBlock(p: SyncProgress, now: Instant) {
 
 @Composable
 private fun ProblemsBlock(problems: List<SyncProblem>) {
-    Card(
+    MimirCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.small,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-        border = ObsidianStyle.panelBorder(),
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(SyncTexts.problemsTitle(problems.size), style = MaterialTheme.typography.titleMedium)
+        Column(
+            modifier = Modifier.padding(MimirTokens.Space16),
+            verticalArrangement = Arrangement.spacedBy(MimirTokens.Space8),
+        ) {
+            Text(
+                SyncTexts.problemsTitle(problems.size),
+                style = MaterialTheme.typography.titleMedium,
+                color = MimirTokens.StatusError,
+            )
             problems.forEach { problem ->
-                Column {
+                Column(verticalArrangement = Arrangement.spacedBy(MimirTokens.Space4)) {
                     Text(problem.path, style = MaterialTheme.typography.bodyLarge)
-                    Text(SyncTexts.problemHint(problem.kind))
-                    Text(SyncTexts.RETRY_HINT, style = MaterialTheme.typography.bodySmall)
+                    Text(SyncTexts.problemHint(problem.kind), style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        SyncTexts.RETRY_HINT,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                     Details(problem.detail)
                 }
             }
@@ -223,14 +289,24 @@ private fun ProblemsBlock(problems: List<SyncProblem>) {
 @Composable
 private fun Details(detail: String) {
     var expanded by remember { mutableStateOf(false) }
-    TextButton(onClick = { expanded = !expanded }) { Text(SyncTexts.DETAILS) }
-    if (expanded) Text(detail, style = MaterialTheme.typography.bodySmall)
+    MimirButton(
+        text = SyncTexts.DETAILS,
+        onClick = { expanded = !expanded },
+        variant = MimirButtonVariant.Ghost,
+    )
+    if (expanded) {
+        Text(detail, style = MaterialTheme.typography.bodySmall)
+    }
 }
 
 @Composable
 private fun CompletedBlock(p: SyncProgress) {
     var expanded by remember { mutableStateOf(false) }
-    TextButton(onClick = { expanded = !expanded }) { Text(SyncTexts.completedTitle(p.completed.size, expanded)) }
+    MimirButton(
+        text = SyncTexts.completedTitle(p.completed.size, expanded),
+        onClick = { expanded = !expanded },
+        variant = MimirButtonVariant.Ghost,
+    )
     if (expanded) {
         p.completed.takeLast(SyncProgress.COMPLETED_LIMIT).asReversed().forEach { Text("✓ ${it.path}") }
     }

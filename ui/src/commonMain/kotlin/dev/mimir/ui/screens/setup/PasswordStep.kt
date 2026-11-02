@@ -1,10 +1,10 @@
 package dev.mimir.ui.screens.setup
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
-import androidx.compose.material3.Button
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -14,9 +14,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import dev.mimir.ui.ObsidianStyle
-import dev.mimir.ui.ObsidianStyle.compactButton
+import androidx.compose.ui.unit.dp
+import dev.mimir.ui.MimirTokens
+import dev.mimir.ui.components.MimirButton
+import dev.mimir.ui.components.MimirButtonVariant
+import dev.mimir.ui.components.MimirTextField
 import dev.mimir.ui.model.MimirUiModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -30,27 +32,27 @@ fun PasswordStep(model: MimirUiModel, onNext: () -> Unit) {
     val scope = rememberCoroutineScope()
 
     Text("Мастер-пароль шифрования", style = MaterialTheme.typography.headlineSmall)
-    OutlinedTextField(
+    MimirTextField(
         value = password,
         onValueChange = { password = it; error = null },
-        label = { Text("Пароль") },
+        label = "Пароль",
+        isPassword = true,
+        error = error,
         singleLine = true,
-        visualTransformation = PasswordVisualTransformation(),
-        isError = error != null,
-        supportingText = error?.let { { Text(it) } },
-        colors = ObsidianStyle.fieldColors(),
-        shape = MaterialTheme.shapes.extraSmall,
+        modifier = Modifier.widthIn(min = 320.dp),
     )
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(MimirTokens.Space8),
+    ) {
         Checkbox(checked = remember, onCheckedChange = { remember = it })
-        Text("Запомнить на этом устройстве")
+        Text("Запомнить на этом устройстве", style = MaterialTheme.typography.bodyMedium)
     }
-    Button(
+    MimirButton(
+        text = "Разблокировать",
         enabled = !busy && password.isNotEmpty(),
-        shape = MaterialTheme.shapes.extraSmall,
-        colors = ObsidianStyle.buttonColors(),
-        contentPadding = ObsidianStyle.buttonPadding,
-        modifier = Modifier.compactButton(),
+        loading = busy,
+        variant = MimirButtonVariant.Primary,
         onClick = {
             busy = true
             scope.launch {
@@ -66,5 +68,5 @@ fun PasswordStep(model: MimirUiModel, onNext: () -> Unit) {
                 }
             }
         },
-    ) { Text("Разблокировать") }
+    )
 }

@@ -3,7 +3,11 @@ package dev.mimir.ui.screens
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -13,11 +17,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import dev.mimir.ui.MimirTheme
+import dev.mimir.ui.MimirTokens
+import dev.mimir.ui.components.MimirCard
 import dev.mimir.ui.model.FakeMimirUiModel
 import dev.mimir.ui.model.MimirUiModel
 import dev.mimir.ui.platform.LocalBackHandler
 import dev.mimir.ui.platform.LocalStorageAccess
-
 import dev.mimir.ui.screens.setup.AccessStep
 import dev.mimir.ui.screens.setup.GoogleStep
 import dev.mimir.ui.screens.setup.InitialResolutionStep
@@ -54,16 +59,31 @@ fun SetupWizardScreen(model: MimirUiModel, onComplete: () -> Unit, pollIntervalM
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(MimirTokens.Space24),
+        verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        when (step) {
-            Step.Access -> AccessStep(onNext = { step = Step.Vault })
-            Step.Vault -> VaultStep(model, onNext = { step = Step.Google })
-            Step.Google -> GoogleStep(model, pollIntervalMillis, onNext = { step = Step.Password })
-            Step.Password -> PasswordStep(model, onNext = { step = Step.InitialResolution })
-            Step.InitialResolution -> InitialResolutionStep(model, onComplete)
+        MimirCard(
+            modifier = Modifier.widthIn(max = 520.dp).fillMaxWidth(),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(MimirTokens.Space24),
+                verticalArrangement = Arrangement.spacedBy(MimirTokens.Space16),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                when (step) {
+                    Step.Access -> AccessStep(onNext = { step = Step.Vault })
+                    Step.Vault -> VaultStep(model, onNext = { step = Step.Google })
+                    Step.Google -> GoogleStep(model, pollIntervalMillis, onNext = { step = Step.Password })
+                    Step.Password -> PasswordStep(model, onNext = { step = Step.InitialResolution })
+                    Step.InitialResolution -> InitialResolutionStep(model, onComplete)
+                }
+            }
         }
     }
 }
