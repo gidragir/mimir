@@ -9,40 +9,41 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
-
-private val ObsidianAccent = Color(0xFF705DCF)
 
 val ObsidianDarkColors: ColorScheme = darkColorScheme(
-    primary = ObsidianAccent,
+    primary = MimirTokens.Accent,
     onPrimary = Color(0xFFFFFFFF),
-    background = Color(0xFF1E1E1E),
-    onBackground = Color(0xFFDCDDDE),
-    surface = Color(0xFF252525),
-    onSurface = Color(0xFFDCDDDE),
+    background = MimirTokens.DarkBase,
+    onBackground = MimirTokens.DarkText,
+    surface = MimirTokens.DarkSurface,
+    onSurface = MimirTokens.DarkText,
     surfaceVariant = Color(0xFF2E2E2E),
-    onSurfaceVariant = Color(0xFF8A8A8A),
-    outline = Color(0xFF363636),
-    outlineVariant = Color(0xFF363636),
+    onSurfaceVariant = MimirTokens.DarkTextMuted,
+    outline = MimirTokens.DarkBorder,
+    outlineVariant = MimirTokens.DarkBorder,
+    error = MimirTokens.StatusError,
+    onError = Color(0xFFFFFFFF),
 )
 
 val ObsidianLightColors: ColorScheme = lightColorScheme(
-    primary = ObsidianAccent,
+    primary = MimirTokens.Accent,
     onPrimary = Color(0xFFFFFFFF),
-    background = Color(0xFFFFFFFF),
-    onBackground = Color(0xFF2E2E2E),
-    surface = Color(0xFFF6F6F6),
-    onSurface = Color(0xFF2E2E2E),
+    background = MimirTokens.LightBase,
+    onBackground = MimirTokens.LightText,
+    surface = MimirTokens.LightSurface,
+    onSurface = MimirTokens.LightText,
     surfaceVariant = Color(0xFFEEEEEE),
-    onSurfaceVariant = Color(0xFF757575),
-    outline = Color(0xFFD4D4D4),
-    outlineVariant = Color(0xFFD4D4D4),
+    onSurfaceVariant = MimirTokens.LightTextMuted,
+    outline = MimirTokens.LightBorder,
+    outlineVariant = MimirTokens.LightBorder,
+    error = MimirTokens.StatusError,
+    onError = Color(0xFFFFFFFF),
 )
 
 val ObsidianShapes: Shapes = Shapes(
-    extraSmall = RoundedCornerShape(4.dp),
-    small = RoundedCornerShape(6.dp),
-    medium = RoundedCornerShape(8.dp),
+    extraSmall = RoundedCornerShape(MimirTokens.RadiusXs),
+    small = RoundedCornerShape(MimirTokens.RadiusSm),
+    medium = RoundedCornerShape(MimirTokens.RadiusMd),
 )
 
 @Composable

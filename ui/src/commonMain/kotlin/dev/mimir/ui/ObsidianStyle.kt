@@ -14,15 +14,11 @@ import androidx.compose.material3.TextFieldColors
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
 /** Мелкие помощники оформления в духе Obsidian: тонкие границы, компактные кнопки, тёмные поля ввода. */
 object ObsidianStyle {
-    private val InputDark = Color(0xFF141414)
-    private val InputLight = Color(0xFFF0F0F0)
-
-    val buttonPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+    val buttonPadding = PaddingValues(horizontal = MimirTokens.Space12, vertical = MimirTokens.Space4)
     val minTouchTarget = 48.dp
     val compactButtonHeight = 32.dp
 
@@ -45,12 +41,16 @@ object ObsidianStyle {
 
     @Composable
     fun fieldColors(): TextFieldColors {
-        val container = if (isSystemInDarkTheme()) InputDark else InputLight
+        val container = if (isSystemInDarkTheme()) MimirTokens.DarkInput else MimirTokens.LightInput
         return OutlinedTextFieldDefaults.colors(
             focusedContainerColor = container,
             unfocusedContainerColor = container,
+            disabledContainerColor = container,
             focusedBorderColor = MaterialTheme.colorScheme.primary,
             unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+            errorContainerColor = container,
+            errorBorderColor = MimirTokens.StatusError,
+            errorSupportingTextColor = MimirTokens.StatusError,
         )
     }
 }
