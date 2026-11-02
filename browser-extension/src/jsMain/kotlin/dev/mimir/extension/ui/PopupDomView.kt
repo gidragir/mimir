@@ -3,8 +3,6 @@ package dev.mimir.extension.ui
 import dev.mimir.extension.markdown.SafeMarkdownRenderer
 import dev.mimir.extension.platform.ExtensionPlatform
 import dev.mimir.extension.vault.VaultTreeNode
-import kotlinx.browser.window
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
@@ -91,9 +89,16 @@ class PopupDomView(
         pane.appendChild(list)
 
         val status = dom.el("div", "statusbar")
+        val dotClass = when {
+            state.statusError != null -> "status-dot error"
+            state.isOffline -> "status-dot offline"
+            state.isRefreshing -> "status-dot syncing"
+            else -> "status-dot success"
+        }
+        status.appendChild(dom.el("span", dotClass, testId = "status-dot"))
         val updated = state.cachedAtEpochSec?.takeIf { it > 0 }?.let { " · обновлено ${Date(it * 1000.0).toLocaleTimeString("ru", js("({hour:'2-digit',minute:'2-digit'})"))}" }.orEmpty()
-        status.appendChild(dom.el("span", null, "${state.flatNotes.size} заметок$updated${if (state.isRefreshing) " · обновление…" else ""}", "status-text"))
-        status.appendChild(dom.el("span", "muted", state.account.email))
+        status.appendChild(dom.el("span", "status-text", "${state.flatNotes.size} заметок$updated${if (state.isRefreshing) " · обновление…" else ""}", "status-text"))
+        status.appendChild(dom.el("span", "muted status-email", state.account.email, "status-email"))
         status.appendChild(dom.button("Выйти", "btn link", "sign-out-btn") { scope.launch { controller.signOut() } })
         pane.appendChild(status)
         return pane
@@ -129,27 +134,6 @@ class PopupDomView(
         return row
     }
 
-    /** Кнопка копирования сама сообщает итог: «✓ Скопировано» или причину сбоя в подсказке. */
-    private fun copyButton(label: String, testId: String, title: String, text: String): HTMLElement {
-        lateinit var button: HTMLElement
-        button = dom.button(label, "btn", testId, title) {
-            scope.launch {
-                val failure = try {
-                    platform.copyToClipboard(text)
-                    null
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Throwable) {
-                    e.message ?: "ошибка"
-                }
-                button.textContent = if (failure == null) "✓ Скопировано" else "✗ Не удалось"
-                button.title = failure ?: title
-                window.setTimeout({ button.textContent = label }, 1500)
-            }
-        }
-        return button
-    }
-
     private fun readerPane(state: ExtensionUiState.VaultReady): HTMLElement {
         val pane = dom.el("main", "pane reader-pane", testId = "note-reader-pane")
         val note = state.activeNote
@@ -159,8 +143,15 @@ class PopupDomView(
         }
         bar.appendChild(dom.el("span", "crumbs", note?.file?.relativePath ?: "", "breadcrumbs"))
         if (note is ActiveNoteState.Loaded) {
-            bar.appendChild(copyButton("📋 MD", "copy-md-btn", "Скопировать Markdown", note.rawMarkdown))
-            bar.appendChild(copyButton("📄 Текст", "copy-text-btn", "Скопировать текст", note.plainText))
+            val (icon, title) = when (note.viewMode) {
+                NoteViewMode.RENDERED -> "📖" to "Режим чтения. Нажмите для показа Markdown"
+                NoteViewMode.SOURCE -> "📝" to "Режим Markdown. Нажмите для показа разметки"
+            }
+            bar.appendChild(
+                dom.button(icon, "btn icon", "note-view-toggle-btn", title) {
+                    controller.toggleNoteViewMode()
+                },
+            )
         }
         if (isFullTabMode) {
             bar.appendChild(dom.button("🔒", "btn icon", "lock-btn", "Заблокировать") { scope.launch { controller.lock() } })
@@ -178,14 +169,22 @@ class PopupDomView(
                 body.appendChild(dom.el("p", "error", note.message, "note-error"))
                 body.appendChild(dom.button("Повторить", "btn primary") { scope.launch { controller.openNote(note.file) } })
             }
-            is ActiveNoteState.Loaded -> body.appendChild(
-                SafeMarkdownRenderer.render(
-                    root.ownerDocument!!,
-                    note.rawMarkdown,
-                    onWikilinkClick = { target -> scope.launch { controller.openWikilink(target) } },
-                    onCopyCode = { code -> scope.launch { platform.copyToClipboard(code) } },
-                ),
-            )
+            is ActiveNoteState.Loaded -> when (note.viewMode) {
+                NoteViewMode.RENDERED -> body.appendChild(
+                    SafeMarkdownRenderer.render(
+                        root.ownerDocument!!,
+                        note.rawMarkdown,
+                        onWikilinkClick = { target -> scope.launch { controller.openWikilink(target) } },
+                        onCopyCode = { code -> scope.launch { platform.copyToClipboard(code) } },
+                    ),
+                )
+                NoteViewMode.SOURCE -> {
+                    val pre = dom.el("pre", "raw-markdown-body", testId = "raw-markdown-view")
+                    val code = dom.el("code", null, note.rawMarkdown, "raw-markdown-content")
+                    pre.appendChild(code)
+                    body.appendChild(pre)
+                }
+            }
         }
         pane.appendChild(body)
         return pane

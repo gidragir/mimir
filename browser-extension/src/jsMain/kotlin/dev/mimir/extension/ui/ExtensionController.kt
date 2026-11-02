@@ -283,6 +283,16 @@ class ExtensionController(
         _state.value = current.copy(collapsedFolders = collapsed)
     }
 
+    fun toggleNoteViewMode() {
+        val current = _state.value as? ExtensionUiState.VaultReady ?: return
+        val loaded = current.activeNote as? ActiveNoteState.Loaded ?: return
+        val newMode = when (loaded.viewMode) {
+            NoteViewMode.RENDERED -> NoteViewMode.SOURCE
+            NoteViewMode.SOURCE -> NoteViewMode.RENDERED
+        }
+        _state.value = current.copy(activeNote = loaded.copy(viewMode = newMode))
+    }
+
     private suspend fun raw(): RemoteStorage = rawStorage ?: remoteStorageFactory().also { rawStorage = it }
 
     /** Дерево из кэша без сети; без кэша — первичная загрузка. */

@@ -46,6 +46,11 @@ sealed interface ExtensionUiState {
     ) : ExtensionUiState
 }
 
+enum class NoteViewMode {
+    RENDERED,
+    SOURCE,
+}
+
 sealed interface ActiveNoteState {
     val file: VaultTreeNode.File
 
@@ -54,6 +59,7 @@ sealed interface ActiveNoteState {
         override val file: VaultTreeNode.File,
         val rawMarkdown: String,
         val plainText: String,
+        val viewMode: NoteViewMode = NoteViewMode.RENDERED,
     ) : ActiveNoteState
     data class Error(override val file: VaultTreeNode.File, val message: String) : ActiveNoteState
 }

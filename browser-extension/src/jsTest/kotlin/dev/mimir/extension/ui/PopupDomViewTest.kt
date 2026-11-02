@@ -88,4 +88,73 @@ class PopupDomViewTest {
         assertTrue(container.textContent?.contains("Неверный мастер-пароль") == true)
         assertNotNull(container.querySelector("input[type='password']"))
     }
+
+    @Test
+    fun statusDotReflectsVaultReadyStates() = runTest {
+        val platform = FakeExtensionPlatform()
+        val controller = ExtensionController(
+            platform = platform,
+            remoteStorageFactory = { InMemoryRemoteStorage() },
+            authHandler = FakeExtensionAuthHandler(platform),
+        )
+        val container = document.createElement("div") as HTMLElement
+        val view = PopupDomView(container, controller, platform, isFullTabMode = false)
+
+        val baseState = ExtensionUiState.VaultReady(
+            account = Account("user@test.org", null),
+            tree = emptyList(),
+            flatNotes = emptyList(),
+        )
+
+        // Idle / success
+        view.render(baseState)
+        val idleDot = container.querySelector("[data-testid='status-dot']") as? HTMLElement
+        assertNotNull(idleDot)
+        assertTrue(idleDot.className.contains("status-dot"))
+        assertTrue(idleDot.className.contains("success"))
+
+        // Syncing / refreshing
+        view.render(baseState.copy(isRefreshing = true))
+        val syncingDot = container.querySelector("[data-testid='status-dot']") as? HTMLElement
+        assertNotNull(syncingDot)
+        assertTrue(syncingDot.className.contains("syncing"))
+
+        // Offline
+        view.render(baseState.copy(isOffline = true))
+        val offlineDot = container.querySelector("[data-testid='status-dot']") as? HTMLElement
+        assertNotNull(offlineDot)
+        assertTrue(offlineDot.className.contains("offline"))
+
+        // Error
+        view.render(baseState.copy(statusError = "Ошибка подключения"))
+        val errorDot = container.querySelector("[data-testid='status-dot']") as? HTMLElement
+        assertNotNull(errorDot)
+        assertTrue(errorDot.className.contains("error"))
+    }
+
+    @Test
+    fun activeNoteRowHasActiveClassInTree() = runTest {
+        val fileA = dev.mimir.extension.vault.VaultTreeNode.File("a.md", "a.md", RemotePath("encA"), 100L, 1L)
+        val fileB = dev.mimir.extension.vault.VaultTreeNode.File("b.md", "b.md", RemotePath("encB"), 200L, 2L)
+        val platform = FakeExtensionPlatform()
+        val controller = ExtensionController(
+            platform = platform,
+            remoteStorageFactory = { InMemoryRemoteStorage() },
+            authHandler = FakeExtensionAuthHandler(platform),
+        )
+        val container = document.createElement("div") as HTMLElement
+        val view = PopupDomView(container, controller, platform, isFullTabMode = true)
+
+        val state = ExtensionUiState.VaultReady(
+            account = Account("user@test.org", null),
+            tree = listOf(fileA, fileB),
+            flatNotes = listOf(fileA, fileB),
+            activeNote = ActiveNoteState.Loaded(fileA, "# A", "A"),
+        )
+        view.render(state)
+
+        val activeRow = container.querySelector(".tree-row.active") as? HTMLElement
+        assertNotNull(activeRow)
+        assertTrue(activeRow.textContent?.contains("a.md") == true)
+    }
 }
