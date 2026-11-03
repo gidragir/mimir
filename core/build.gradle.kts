@@ -19,6 +19,7 @@ kotlin {
             api(libs.coroutines.core)
             api(libs.kotlinx.io.core)
             api(libs.kotlinx.datetime)
+            implementation(libs.serialization.json)
         }
         commonTest.dependencies {
             implementation(libs.coroutines.test)
