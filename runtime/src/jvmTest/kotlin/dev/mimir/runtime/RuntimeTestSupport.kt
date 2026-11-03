@@ -1,5 +1,7 @@
 package dev.mimir.runtime
 
+import dev.mimir.core.update.UpdateManager
+import dev.mimir.runtime.update.UpdateScheduler
 import dev.mimir.client.DaemonLoginMethod
 import dev.mimir.client.DaemonLoginPoll
 import dev.mimir.client.DaemonLoginStart
@@ -98,8 +100,8 @@ internal fun testRuntime(
     conflictScanInterval: Duration = 5.seconds,
     providers: List<LoginProvider>? = null,
     localVaultFactory: (Path) -> LocalVault = { FileSystemLocalVault(it, ioDispatcher = Dispatchers.IO) },
-    updateManager: dev.mimir.core.update.UpdateManager? = null,
-    updateSchedulerFactory: ((dev.mimir.core.update.UpdateManager, () -> Boolean) -> dev.mimir.runtime.update.UpdateScheduler)? = null,
+    updateManager: UpdateManager? = null,
+    updateSchedulerFactory: ((UpdateManager, () -> Boolean) -> UpdateScheduler)? = null,
 ): MimirRuntime {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val tokenStorage = FileTokenStorage(dataDir.resolve("tokens.json"))

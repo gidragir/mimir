@@ -138,4 +138,33 @@ class UpdateSchedulerTest {
             assertEquals(0, m.checks)
         }
     }
+
+    @Test
+    fun secondStartDoesNotRestartTimer() = runTest {
+        val m = FakeManager()
+        withScheduler(m) { s ->
+            s.start()
+            advance(20.seconds)
+            s.start() // не должен сбросить 30 с
+            advance(11.seconds)
+            assertEquals(1, m.checks)
+            s.start()
+            advance(23.hours)
+            assertEquals(1, m.checks)
+            advance(2.hours)
+            assertEquals(2, m.checks)
+        }
+    }
+
+    @Test
+    fun startAfterStopRestartsSchedule() = runTest {
+        val m = FakeManager()
+        withScheduler(m) { s ->
+            s.start()
+            s.stop()
+            s.start()
+            advance(31.seconds)
+            assertEquals(1, m.checks)
+        }
+    }
 }

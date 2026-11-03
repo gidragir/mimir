@@ -30,6 +30,7 @@ class KtorUpdateHttpClient(
         )
     }
 
+    /** Массив, переданный в `onChunk`, принадлежит получателю (это копия, буфер не переиспользуется). */
     override suspend fun downloadStream(
         url: String,
         headers: Map<String, String>,

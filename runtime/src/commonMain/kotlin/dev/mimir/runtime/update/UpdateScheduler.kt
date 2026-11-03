@@ -29,8 +29,9 @@ class UpdateScheduler(
 ) {
     private var job: Job? = null
 
+    /** Идемпотентен: повторный вызов при работающем цикле не сбрасывает расписание (возврат Android в foreground). */
     fun start() {
-        stop()
+        if (job?.isActive == true) return
         job = scope.launch {
             delay(initialDelay)
             while (true) {
