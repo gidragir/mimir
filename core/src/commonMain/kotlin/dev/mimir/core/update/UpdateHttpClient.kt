@@ -10,7 +10,10 @@ data class UpdateHttpResponse(
 interface UpdateHttpClient {
     suspend fun get(url: String, headers: Map<String, String> = emptyMap()): UpdateHttpResponse
 
-    /** [onChunk] получает (чанк, загружено байт, всего байт или -1 если неизвестно). */
+    /**
+     * [onChunk] получает (чанк, загружено байт, всего байт или -1 если неизвестно).
+     * Массив чанка принадлежит получателю: реализация не переиспользует его после вызова.
+     */
     suspend fun downloadStream(
         url: String,
         headers: Map<String, String> = emptyMap(),

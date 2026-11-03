@@ -1,9 +1,9 @@
 package dev.mimir.runtime.update
 
+import dev.mimir.core.ChangeFeedStorage
 import dev.mimir.core.InMemoryRemoteStorage
 import dev.mimir.core.RemoteEntry
 import dev.mimir.core.RemotePath
-import dev.mimir.core.ChangeFeedStorage
 import dev.mimir.core.SyncStatus
 import dev.mimir.core.update.DownloadedAsset
 import dev.mimir.core.update.SemVer
@@ -30,6 +30,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
 
@@ -57,7 +58,7 @@ class RuntimeUpdateIntegrationTest {
     private fun runtime(
         manager: UpdateManager?,
         remote: ChangeFeedStorage? = null,
-        interval: kotlin.time.Duration = 40.milliseconds,
+        interval: Duration = 40.milliseconds,
     ): MimirRuntime = testRuntime(
         dataDir,
         vaultPath = vaultDir.toString().takeIf { remote != null },
@@ -150,11 +151,12 @@ class RuntimeUpdateIntegrationTest {
                 rt.initialize()
                 eventually { rt.status.value == SyncStatus.Syncing }
                 assertTrue(probe!!.invoke())
+                val baseline = manager.checks.get() // тик мог пройти до начала Syncing
                 delay(150.milliseconds) // initialDelay 20 мс прошёл, но синхронизация идёт
-                assertEquals(0, manager.checks.get())
+                assertEquals(baseline, manager.checks.get())
                 gate.complete(Unit)
                 eventually { !probe!!.invoke() }
-                eventually { manager.checks.get() >= 1 }
+                eventually { manager.checks.get() > baseline }
             } finally {
                 gate.complete(Unit) // иначе close() зависнет на заблокированном прогоне
             }

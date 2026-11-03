@@ -20,7 +20,9 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Instant
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class UpdateSchedulerTest {
@@ -48,10 +50,14 @@ class UpdateSchedulerTest {
     ) {
         val scope = CoroutineScope(StandardTestDispatcher(testScheduler))
         try {
-            block(UpdateScheduler(manager, scope, isSyncBusy = busy))
+            block(UpdateScheduler(manager, scope, isSyncBusy = busy, clock = virtualClock()))
         } finally {
             scope.cancel()
         }
+    }
+
+    private fun TestScope.virtualClock() = object : Clock {
+        override fun now(): Instant = Instant.fromEpochMilliseconds(testScheduler.currentTime)
     }
 
     private suspend fun TestScope.advance(by: kotlin.time.Duration) {
@@ -165,6 +171,52 @@ class UpdateSchedulerTest {
             s.start()
             advance(31.seconds)
             assertEquals(1, m.checks)
+        }
+    }
+
+    @Test
+    fun stopStartKeepsOriginalDeadline() = runTest {
+        val m = FakeManager()
+        withScheduler(m) { s ->
+            s.start()
+            advance(10.seconds)
+            s.stop()
+            advance(5.seconds)
+            s.start() // t=15 с, срок остаётся 30 с
+            advance(14.seconds)
+            assertEquals(0, m.checks)
+            advance(2.seconds)
+            assertEquals(1, m.checks)
+        }
+    }
+
+    @Test
+    fun stopStartAfterCheckKeepsIntervalDeadline() = runTest {
+        val m = FakeManager()
+        withScheduler(m) { s ->
+            s.start()
+            advance(31.seconds) // проверка в 30 с, следующая в 24 ч 30 с
+            s.stop()
+            advance(1.hours)
+            s.start()
+            advance(22.hours)
+            assertEquals(1, m.checks)
+            advance(2.hours)
+            assertEquals(2, m.checks)
+        }
+    }
+
+    @Test
+    fun startLongAfterDeadlineFiresImmediately() = runTest {
+        val m = FakeManager()
+        withScheduler(m) { s ->
+            s.start()
+            advance(31.seconds)
+            s.stop()
+            advance(25.hours)
+            s.start()
+            runCurrent()
+            assertEquals(2, m.checks)
         }
     }
 }

@@ -19,8 +19,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
- * Аппликер по умолчанию: ничего не качает и не ставит; `apply` лишь возвращает ссылку на ассет в
- * [UpdateApplyResult.NotificationDispatched], показ уведомления — дело вызывающего. Платформы подставляют свой [UpdateApplier].
+ * Аппликер по умолчанию: ничего не качает и не ставит (скачивание виртуальное); `apply` лишь возвращает ссылку на
+ * ассет в [UpdateApplyResult.NotificationDispatched]. Показом этой ссылки занимается вызывающий (UI платформы).
+ * Платформы подставляют свой [UpdateApplier].
  */
 object NoopUpdateApplier : UpdateApplier {
     override val capability: ApplierCapability = ApplierCapability.NOTIFY_ONLY

@@ -5,12 +5,15 @@ import dev.mimir.core.update.UpdateManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Instant
 
 /**
  * Фоновая проверка обновлений (спека §6.2): первая через [initialDelay] после старта, далее каждые [interval].
@@ -26,23 +29,44 @@ class UpdateScheduler(
     private val interval: Duration = DEFAULT_INTERVAL,
     private val busyRecheck: Duration = DEFAULT_BUSY_RECHECK,
     private val errorRetry: Duration = DEFAULT_ERROR_RETRY,
+    /** Настенные часы (не монотонные): срок переживает сон устройства; в тестах — виртуальное время. */
+    private val clock: Clock = Clock.System,
 ) {
+    private val lock = Any()
     private var job: Job? = null
 
-    /** Идемпотентен: повторный вызов при работающем цикле не сбрасывает расписание (возврат Android в foreground). */
+    /** Когда сработает следующая проверка; `null` — планировщик ещё не запускали. Переживает stop()/start(). */
+    private var nextFireAt: Instant? = null
+
+    /**
+     * Идемпотентен и потокобезопасен. После [stop] продолжает прежнее расписание: ждёт остаток до сохранённого срока
+     * (не меньше нуля), а не начинает с [initialDelay]; первый запуск использует [initialDelay].
+     */
     fun start() {
-        if (job?.isActive == true) return
-        job = scope.launch {
-            delay(initialDelay)
-            while (true) {
-                delay(tick())
+        synchronized(lock) {
+            if (job?.isActive == true) return
+            val wait = nextFireAt?.let { (it - clock.now()).coerceAtLeast(Duration.ZERO) } ?: initialDelay
+            nextFireAt = clock.now() + wait
+            job = scope.launch {
+                delay(wait)
+                while (true) {
+                    val pause = tick()
+                    val self = currentCoroutineContext()[Job]
+                    synchronized(lock) {
+                        if (job === self) nextFireAt = clock.now() + pause
+                    }
+                    delay(pause)
+                }
             }
         }
     }
 
+    /** Останавливает цикл, сохраняя срок следующей проверки для [start]. */
     fun stop() {
-        job?.cancel()
-        job = null
+        synchronized(lock) {
+            job?.cancel()
+            job = null
+        }
     }
 
     /** Одна итерация; возвращает паузу до следующей. */
