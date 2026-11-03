@@ -7,6 +7,9 @@ import dev.mimir.daemon.mimirRoutes
 import dev.mimir.core.update.TargetPlatform
 import dev.mimir.core.update.UpdateApplier
 import dev.mimir.desktop.update.DesktopApplierFactory
+import dev.mimir.desktop.update.HostLifecycle
+import dev.mimir.desktop.update.sweepStaleUpdateFiles
+import dev.mimir.runtime.MimirRuntime
 import dev.mimir.desktop.update.detectTargetPlatform
 import dev.mimir.runtime.update.KtorUpdateHttpClient
 import io.ktor.client.HttpClient
@@ -33,7 +36,13 @@ import java.util.concurrent.atomic.AtomicReference
 import java.util.logging.Logger
 
 /** То, с чем работает окно: сервис демона и способ его остановить. */
-class DesktopBackend(val service: DaemonService, val mode: Mode, private val onClose: () -> Unit) : AutoCloseable {
+class DesktopBackend(
+    val service: DaemonService,
+    val mode: Mode,
+    /** Аппликер встроенного демона; `null` для удалённого (он решает сам). */
+    val updateApplier: UpdateApplier? = null,
+    private val onClose: () -> Unit,
+) : AutoCloseable {
     enum class Mode {
         /** Демон внутри процесса вместе с HTTP API для плагина Obsidian. */
         InProcess,
@@ -58,7 +67,7 @@ object DaemonServiceFactory {
     suspend fun create(
         config: DaemonConfig,
         platform: TargetPlatform = detectTargetPlatform(System.getProperty("os.name").orEmpty(), System.getProperty("os.arch").orEmpty()),
-        applierFor: ((TargetPlatform, shutdownHook: suspend () -> Unit, httpClient: HttpClient) -> UpdateApplier)? = null,
+        updateTempDir: Path = Path.of(System.getProperty("java.io.tmpdir"), "mimir-updates"),
     ): DesktopBackend {
         if (isMimirDaemon(config)) {
             logger.info("Mimir daemon found on ${config.bind}:${config.port}; using its HTTP API")
@@ -72,17 +81,30 @@ object DaemonServiceFactory {
 
         val serveApi = isPortFree(config)
         if (!serveApi) logger.warning("Port ${config.port} on ${config.bind} is used by another program; the local HTTP API is disabled")
+        val runtimeRef = AtomicReference<MimirRuntime?>()
         val closer = AtomicReference<() -> Unit>({})
         val updateHttp = HttpClient(CIO)
-        val shutdownHook: suspend () -> Unit = { withContext(Dispatchers.IO) { closer.get()() } }
-        val applier = applierFor?.invoke(platform, shutdownHook, updateHttp) ?: DesktopApplierFactory.create(
+        val host = object : HostLifecycle {
+            override suspend fun quiesce() = runtimeRef.get()?.quiesceForUpdate() ?: false
+            override suspend fun resume() {
+                runtimeRef.get()?.resumeAfterQuiesce()
+            }
+
+            // Не в корутине запроса: stop() сервера не должен ждать обработчик, который его и вызвал.
+            override suspend fun shutdown() {
+                Thread({ closer.get()() }, "mimir-update-shutdown").apply { isDaemon = true }.start()
+            }
+        }
+        val applier = DesktopApplierFactory.create(
             platform = platform,
             httpClient = { KtorUpdateHttpClient(updateHttp) },
-            tempDir = Path.of(System.getProperty("java.io.tmpdir"), "mimir-updates"),
-            shutdownHook = shutdownHook,
+            tempDir = updateTempDir,
+            host = host,
             browserOpener = SystemBrowserOpener()::openUri,
         )
+        withContext(Dispatchers.IO) { runCatching { sweepStaleUpdateFiles(updateTempDir) } }
         val runtime = createRuntime(config, updateApplier = applier, targetPlatform = platform)
+        runtimeRef.set(runtime)
         withContext(Dispatchers.IO) { runtime.initialize() }
         val server = if (serveApi) {
             embeddedServer(ServerCIO, port = config.port, host = config.bind) { mimirRoutes(runtime, config, runtime.updateManager) }.start(wait = false)
@@ -99,7 +121,7 @@ object DaemonServiceFactory {
             }
         }
         closer.set(close)
-        return DesktopBackend(runtime, mode, close)
+        return DesktopBackend(runtime, mode, updateApplier = applier, onClose = close)
     }
 
     private fun probeUrl(config: DaemonConfig): String {

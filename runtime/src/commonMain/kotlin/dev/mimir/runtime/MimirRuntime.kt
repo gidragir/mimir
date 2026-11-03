@@ -146,6 +146,38 @@ class MimirRuntime(
         }
     }
 
+    @Volatile
+    private var quiescedScheduler: SyncScheduler? = null
+
+    /**
+     * Подготовка к установке обновления: останавливает проверки обновлений, планировщик и наблюдатели, ждёт конец
+     * идущего прогона (индекс сбрасывается движком в конце прогона) и удерживает новые прогоны до [resumeAfterQuiesce].
+     * `false` — прогон не закончился за [timeout]; рантайм уже возобновлён, ничего не изменилось.
+     */
+    suspend fun quiesceForUpdate(timeout: Duration = 60.seconds): Boolean {
+        val engine = assembled
+        updateScheduler?.stop()
+        engine?.scheduler?.stop(cancelRunner = false)
+        engine?.watcher?.stop()
+        if (engine != null && !engine.scheduler.pause(timeout)) {
+            resumeAfterQuiesce(null)
+            return false
+        }
+        quiescedScheduler = engine?.scheduler
+        return true
+    }
+
+    /** Отменяет [quiesceForUpdate]: рантайм снова синхронизируется и проверяет обновления. */
+    suspend fun resumeAfterQuiesce() = resumeAfterQuiesce(quiescedScheduler.also { quiescedScheduler = null })
+
+    private suspend fun resumeAfterQuiesce(paused: SyncScheduler?) = buildMutex.withLock {
+        if (interactive) {
+            if (!holdInitialSync) assembled?.scheduler?.start()
+            updateScheduler?.start()
+        }
+        paused?.resume()
+    }
+
     /** Один прогон до конца; `false` — синхронизация не настроена или ждёт подтверждения первого слияния. */
     suspend fun syncOnce(): Boolean {
         val scheduler = assembled?.scheduler ?: return false

@@ -76,13 +76,21 @@ class WindowsMsiApplierTest {
 
     private fun chunked() = content.toList().chunked(1500).map { it.toByteArray() }
 
+    private var quiesceResult = true
+
+    private val host = object : HostLifecycle {
+        override suspend fun quiesce(): Boolean { events += "quiesce"; return quiesceResult }
+        override suspend fun resume() { events += "resume" }
+        override suspend fun shutdown() { events += "shutdown" }
+    }
+
     private fun applier(
         client: UpdateHttpClient = FakeUpdateHttpClient(chunked()),
         launcher: (List<String>) -> Unit = { events += "launch"; launched = it },
     ) = WindowsMsiApplier(
         httpClient = client,
         tempDir = tempDir,
-        shutdownHook = { events += "shutdown" },
+        host = host,
         processLauncher = launcher,
         exit = { events += "exit"; exitCode = it },
     )
@@ -104,7 +112,7 @@ class WindowsMsiApplierTest {
         assertIs<UpdateApplyResult.LaunchedInstaller>(result)
         assertEquals(listOf("msiexec", "/i", local.localPath, "/passive"), launched)
         assertTrue(local.localPath.contains(' '), "path with spaces expected")
-        assertEquals(listOf("shutdown", "launch", "exit"), events)
+        assertEquals(listOf("quiesce", "launch", "shutdown", "exit"), events)
         assertEquals(0, exitCode)
     }
 
@@ -155,7 +163,7 @@ class WindowsMsiApplierTest {
         val result = a.apply(local)
         assertIs<UpdateApplyResult.Failed>(result)
         assertNull(launched)
-        assertTrue(events.isEmpty(), "daemon must not be stopped for a bad installer: $events")
+        assertEquals(listOf("quiesce", "resume"), events, "bad installer: quiesce undone, daemon never shut down")
         assertTrue(leftovers().isEmpty())
     }
 
@@ -166,6 +174,20 @@ class WindowsMsiApplierTest {
         Files.delete(Path.of(local.localPath))
         assertIs<UpdateApplyResult.Failed>(a.apply(local))
         assertNull(launched)
+        assertEquals(listOf("quiesce", "resume"), events)
+    }
+
+    @Test
+    fun `quiesce timeout fails without hashing launching or shutting down`() = runBlocking<Unit> {
+        val a = applier()
+        val local = a.download(asset(), release) { _, _, _ -> }.getOrThrow() as DownloadedAsset.LocalFile
+        quiesceResult = false
+        val result = a.apply(local)
+        assertEquals("A sync is still running, try again later", assertIs<UpdateApplyResult.Failed>(result).error)
+        assertNull(launched)
+        assertNull(exitCode)
+        assertEquals(listOf("quiesce"), events) // quiesce сам возобновляет рантайм при таймауте
+        assertTrue(Files.exists(Path.of(local.localPath)), "installer is kept for a retry")
     }
 
     @Test
@@ -175,7 +197,7 @@ class WindowsMsiApplierTest {
         val result = a.apply(local)
         assertIs<UpdateApplyResult.Failed>(result)
         assertNull(exitCode)
-        assertEquals(listOf("shutdown"), events)
+        assertEquals(listOf("quiesce", "resume"), events, "launch failure resumes the daemon; no shutdown")
     }
 
     @Test

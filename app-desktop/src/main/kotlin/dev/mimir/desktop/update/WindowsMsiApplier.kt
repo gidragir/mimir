@@ -17,6 +17,18 @@ import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.system.exitProcess
 
+/** Жизненный цикл встроенного демона вокруг установки. */
+interface HostLifecycle {
+    /** Останавливает фоновую работу и ждёт конец синхронизации; `false` — синхронизация не закончилась, всё осталось как было. */
+    suspend fun quiesce(): Boolean
+
+    /** Отменяет [quiesce]. */
+    suspend fun resume()
+
+    /** Окончательно закрывает демон (после успешного запуска установщика). Не должен блокировать вызывающего. */
+    suspend fun shutdown()
+}
+
 /**
  * Windows: скачивает MSI во временный каталог, проверяет SHA-256 (обязательно) и запускает `msiexec /i <msi> /passive`.
  *
@@ -25,13 +37,16 @@ import kotlin.system.exitProcess
  * не запускается никогда.
  *
  * @param processLauncher запускает процесс (аргументы списком, не строкой оболочки); бросает [IOException] при неудаче.
- * @param shutdownHook останавливает демон перед установкой (MSI заменяет файлы приложения).
+ * Порядок применения: [HostLifecycle.quiesce] -> проверка хэша -> запуск -> [HostLifecycle.shutdown] -> exit.
+ * Любой сбой до успешного запуска вызывает [HostLifecycle.resume]: демон остаётся рабочим.
+ *
+ * @param host остановка/возобновление встроенного демона вокруг установки (MSI заменяет файлы приложения).
  * @param exit завершает процесс после успешного запуска установщика.
  */
 class WindowsMsiApplier(
     private val httpClient: UpdateHttpClient,
     private val tempDir: Path,
-    private val shutdownHook: suspend () -> Unit,
+    private val host: HostLifecycle,
     private val processLauncher: (List<String>) -> Unit = ::startProcess,
     private val exit: (Int) -> Unit = { exitProcess(it) },
 ) : UpdateApplier {
@@ -86,21 +101,30 @@ class WindowsMsiApplier(
         }
         // Остановка демона отменяет корутины рантайма, а установщик обязан стартовать в любом случае.
         return withContext(NonCancellable) {
-            val actual = try {
-                withContext(Dispatchers.IO) { sha256Of(path) }
-            } catch (e: IOException) {
-                return@withContext UpdateApplyResult.Failed("Installer file is unavailable", e)
+            if (!host.quiesce()) {
+                return@withContext UpdateApplyResult.Failed("A sync is still running, try again later")
             }
-            if (!actual.equals(expected, ignoreCase = true)) {
-                deleteQuietly(path)
-                return@withContext UpdateApplyResult.Failed("Installer checksum changed after download; update cancelled")
-            }
+            var launched = false
             try {
-                shutdownHook()
-                processLauncher(listOf("msiexec", "/i", path.toString(), "/passive"))
-            } catch (e: Exception) {
-                return@withContext UpdateApplyResult.Failed("Could not start the installer: ${e.message}", e)
+                val actual = try {
+                    withContext(Dispatchers.IO) { sha256Of(path) }
+                } catch (e: IOException) {
+                    return@withContext UpdateApplyResult.Failed("Installer file is unavailable", e)
+                }
+                if (!actual.equals(expected, ignoreCase = true)) {
+                    deleteQuietly(path)
+                    return@withContext UpdateApplyResult.Failed("Installer checksum changed after download; update cancelled")
+                }
+                try {
+                    processLauncher(listOf("msiexec", "/i", path.toString(), "/passive"))
+                    launched = true
+                } catch (e: Exception) {
+                    return@withContext UpdateApplyResult.Failed("Could not start the installer: ${e.message}", e)
+                }
+            } finally {
+                if (!launched) host.resume()
             }
+            host.shutdown()
             exit(0)
             UpdateApplyResult.LaunchedInstaller("Installer started for ${local.asset.name}")
         }

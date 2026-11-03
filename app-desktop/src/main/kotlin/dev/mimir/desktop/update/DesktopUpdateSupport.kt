@@ -26,11 +26,43 @@ object DesktopApplierFactory {
         platform: TargetPlatform,
         httpClient: () -> UpdateHttpClient,
         tempDir: Path,
-        shutdownHook: suspend () -> Unit,
+        host: HostLifecycle,
         browserOpener: (String) -> Unit,
+        exit: (Int) -> Unit = ::delayedExit,
     ): UpdateApplier =
         when (platform) {
-            TargetPlatform.WINDOWS_X64 -> WindowsMsiApplier(httpClient(), tempDir, shutdownHook)
+            TargetPlatform.WINDOWS_X64 -> WindowsMsiApplier(httpClient(), tempDir, host, exit = exit)
             else -> DesktopNotifyApplier(browserOpener)
         }
+}
+
+/**
+ * Выход из процесса вне корутины запроса: короткая пауза даёт HTTP-ответу (если вызов пришёл через API) уйти клиенту,
+ * а обработчику — завершиться, прежде чем процесс остановится.
+ */
+fun delayedExit(code: Int, graceMillis: Long = 500) {
+    Thread({
+        Thread.sleep(graceMillis)
+        kotlin.system.exitProcess(code)
+    }, "mimir-update-exit").apply { isDaemon = false }.start()
+}
+
+/** Удаляет брошенные загрузки `mimir-update-*.msi` старше [maxAge]: остаются после падения процесса. */
+fun sweepStaleUpdateFiles(
+    tempDir: Path,
+    maxAge: java.time.Duration = java.time.Duration.ofDays(1),
+    now: java.time.Instant = java.time.Instant.now(),
+): Int {
+    if (!java.nio.file.Files.isDirectory(tempDir)) return 0
+    var deleted = 0
+    java.nio.file.Files.newDirectoryStream(tempDir, "mimir-update-*.msi").use { files ->
+        for (f in files) {
+            try {
+                val modified = java.nio.file.Files.getLastModifiedTime(f).toInstant()
+                if (modified.plus(maxAge).isBefore(now) && java.nio.file.Files.deleteIfExists(f)) deleted++
+            } catch (_: java.io.IOException) {
+            }
+        }
+    }
+    return deleted
 }

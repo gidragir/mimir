@@ -20,6 +20,31 @@ class DesktopUpdateSupportTest {
     private val placeholder = UpdateAsset("release page", "https://github.com/o/r/releases/tag/v1", 0, null, TargetPlatform.LINUX_X64, AssetKind.GENERIC)
     private val release = UpdateRelease(SemVer.parse("1.0.0"), "", Instant.fromEpochSeconds(0), "https://github.com/o/r/releases/tag/v1", emptyList())
 
+    private val noopHost = object : HostLifecycle {
+        override suspend fun quiesce() = true
+        override suspend fun resume() = Unit
+        override suspend fun shutdown() = Unit
+    }
+
+    @Test
+    fun `sweep deletes only stale update installers`() {
+        val dir = Files.createTempDirectory("mimir-sweep")
+        val old = Files.createFile(dir.resolve("mimir-update-old.msi"))
+        val fresh = Files.createFile(dir.resolve("mimir-update-fresh.msi"))
+        val other = Files.createFile(dir.resolve("keep.txt"))
+        val twoDaysAgo = java.nio.file.attribute.FileTime.from(java.time.Instant.now().minus(java.time.Duration.ofDays(2)))
+        Files.setLastModifiedTime(old, twoDaysAgo)
+        Files.setLastModifiedTime(other, twoDaysAgo)
+
+        assertEquals(1, sweepStaleUpdateFiles(dir))
+
+        assertTrue(!Files.exists(old))
+        assertTrue(Files.exists(fresh))
+        assertTrue(Files.exists(other))
+        assertEquals(0, sweepStaleUpdateFiles(dir.resolve("missing")))
+        dir.toFile().deleteRecursively()
+    }
+
     @Test
     fun `platform detection table`() {
         val table = listOf(
@@ -39,7 +64,7 @@ class DesktopUpdateSupportTest {
     @Test
     fun `factory picks the MSI applier only for Windows x64`() {
         val tmp = Files.createTempDirectory("mimir-fac")
-        fun pick(p: TargetPlatform) = DesktopApplierFactory.create(p, { FakeUpdateHttpClient() }, tmp, {}, {})
+        fun pick(p: TargetPlatform) = DesktopApplierFactory.create(p, { FakeUpdateHttpClient() }, tmp, noopHost, {}, {})
         assertIs<WindowsMsiApplier>(pick(TargetPlatform.WINDOWS_X64))
         TargetPlatform.entries.filter { it != TargetPlatform.WINDOWS_X64 }.forEach {
             val a = pick(it)

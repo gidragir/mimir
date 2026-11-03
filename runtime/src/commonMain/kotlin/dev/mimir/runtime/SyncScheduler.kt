@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.atomic.AtomicBoolean
@@ -66,7 +67,7 @@ class SyncScheduler(
         private set
 
     fun start() {
-        stop()
+        stop(cancelRunner = false) // перезапуск не должен обрывать идущий прогон
         jobs = listOf(
             scope.launch {
                 while (true) {
@@ -116,6 +117,28 @@ class SyncScheduler(
         }
         if (rerunRequested.get() && syncMutex.tryLock()) launchRunner()
         return true
+    }
+
+    @Volatile
+    private var paused = false
+
+    /**
+     * Ждёт окончания идущего прогона (не дольше [timeout]) и удерживает мьютекс, пока не вызван [resume]: новые
+     * прогоны (таймер, триггеры, [runNow]) не стартуют. `false` — прогон не закончился, ничего не удерживается.
+     */
+    suspend fun pause(timeout: Duration): Boolean {
+        if (paused) return true
+        val locked = withTimeoutOrNull(timeout) { syncMutex.lock(); true } ?: false
+        if (locked) paused = true
+        return locked
+    }
+
+    /** Снимает [pause]; запрос, пришедший во время паузы, запускает один повторный прогон. */
+    fun resume() {
+        if (!paused) return
+        paused = false
+        syncMutex.unlock()
+        if (rerunRequested.get() && syncMutex.tryLock()) launchRunner()
     }
 
     private fun requestSync() {

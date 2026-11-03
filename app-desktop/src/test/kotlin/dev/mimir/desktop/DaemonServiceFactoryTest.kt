@@ -46,15 +46,23 @@ class DaemonServiceFactoryTest {
     }
 
     @Test
-    fun `embedded daemon gets the applier chosen for the detected platform`() = runBlocking<Unit> {
-        var seen: dev.mimir.core.update.TargetPlatform? = null
-        val backend = DaemonServiceFactory.create(
-            config(freePort()),
-            platform = dev.mimir.core.update.TargetPlatform.LINUX_ARM64,
-            applierFor = { p, _, _ -> seen = p; dev.mimir.desktop.update.DesktopNotifyApplier { } },
-        ).also { closers += it::close }
-        assertEquals(DesktopBackend.Mode.InProcess, backend.mode)
-        assertEquals(dev.mimir.core.update.TargetPlatform.LINUX_ARM64, seen)
+    fun `embedded daemon is wired with the MSI applier on Windows x64 and the notify applier elsewhere`() = runBlocking<Unit> {
+        val tmp = Files.createTempDirectory("mimir-fac-updates")
+        closers += { tmp.toFile().deleteRecursively() }
+        val expected = mapOf(
+            dev.mimir.core.update.TargetPlatform.WINDOWS_X64 to dev.mimir.desktop.update.WindowsMsiApplier::class,
+            dev.mimir.core.update.TargetPlatform.WINDOWS_ARM64 to dev.mimir.desktop.update.DesktopNotifyApplier::class,
+            dev.mimir.core.update.TargetPlatform.LINUX_X64 to dev.mimir.desktop.update.DesktopNotifyApplier::class,
+        )
+        for ((platform, type) in expected) {
+            val backend = DaemonServiceFactory.create(config(freePort()), platform = platform, updateTempDir = tmp)
+            try {
+                assertEquals(DesktopBackend.Mode.InProcess, backend.mode)
+                assertEquals(type, backend.updateApplier!!::class, "$platform")
+            } finally {
+                backend.close()
+            }
+        }
     }
 
     @Test
