@@ -229,7 +229,7 @@ class SetupWizardScreenTest {
         }
         setContent { CompositionLocalProvider(LocalFolderPicker provides picker) { SetupWizardScreen(model, onComplete = {}) } }
 
-        onNodeWithText("📁 Обзор…").performClick()
+        onNodeWithText("Обзор…").performClick()
         waitUntilExactlyOneExists(hasText("✓ Найдено заметок: 42"))
         onNodeWithText("/notes/vault").assertIsDisplayed()
     }
@@ -244,7 +244,7 @@ class SetupWizardScreenTest {
         setContent { CompositionLocalProvider(LocalFolderPicker provides picker) { SetupWizardScreen(model, onComplete = {}) } }
 
         onNodeWithText("Введите путь к папке").performTextInput("/typed")
-        onNodeWithText("📁 Обзор…").performClick()
+        onNodeWithText("Обзор…").performClick()
         waitForIdle()
         onNodeWithText("/typed").assertIsDisplayed()
         assertTrue(!configured)
@@ -253,7 +253,7 @@ class SetupWizardScreenTest {
     @Test
     fun `browse button is hidden when the platform has no folder picker`() = runComposeUiTest {
         setContent { SetupWizardScreen(FakeMimirUiModel(), onComplete = {}) }
-        onNodeWithText("📁 Обзор…").assertDoesNotExist()
+        onNodeWithText("Обзор…").assertDoesNotExist()
     }
 
     private fun androidx.compose.ui.test.ComposeUiTest.throughPassword(model: FakeMimirUiModel, onComplete: () -> Unit) {
@@ -369,8 +369,8 @@ class SetupWizardScreenTest {
             }
         }
 
-        waitUntilExactlyOneExists(hasText("📁 Notes (/sdcard/Documents/Notes)"))
-        onNodeWithText("📁 Notes (/sdcard/Documents/Notes)").performClick()
+        waitUntilExactlyOneExists(hasText("Notes (/sdcard/Documents/Notes)"))
+        onNodeWithText("Notes (/sdcard/Documents/Notes)").performClick()
         waitUntilExactlyOneExists(hasText("✓ Найдено заметок: 15"))
         assertEquals("/sdcard/Documents/Notes", configuredPath)
     }
@@ -389,7 +389,7 @@ class SetupWizardScreenTest {
             }
         }
 
-        onNodeWithText("📁 Обзор…").performClick()
+        onNodeWithText("Обзор…").performClick()
         waitUntilExactlyOneExists(hasText("Эта папка не на телефоне. Выберите папку во внутренней памяти или на карте памяти"))
     }
 

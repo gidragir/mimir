@@ -22,6 +22,7 @@ description: Use when you need to build, test or verify a change in the Mimir re
 | daemon | `./gradlew :daemon:test`, затем `mise run daemon` и `curl -s 127.0.0.1:47821/health` |
 | android | `./gradlew :app-android:testDebugUnitTest`, `:app-android:assembleDebug` |
 | plugin / extension | `./gradlew :obsidian-plugin:checkPlugin`, `:browser-extension:checkExtension` |
+| Скриншоты UI (desktop + extension) | `mise run screenshots` (headless-рендеринг в `build/reports/screenshots/`) |
 
 Первый запуск на новой машине: `gradlew` создаётся командой `mise x gradle@9.8 -- gradle wrapper --gradle-version <9.x ≥ 9.8>`.
 

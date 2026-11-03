@@ -16,6 +16,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -100,8 +101,8 @@ fun MimirButton(
         onClick = onClick,
         modifier = Modifier
             .testTag("mimir_button")
-            .then(modifier)
-            .compactButton(),
+            .compactButton()
+            .then(modifier),
         enabled = isInteractive,
         shape = RoundedCornerShape(MimirTokens.Radius6),
         colors = colors,
@@ -178,9 +179,11 @@ fun MimirTextField(
                             contentDescription = if (passwordVisible) "Скрыть пароль" else "Показать пароль"
                         },
                 ) {
-                    Text(
-                        text = if (passwordVisible) "👁" else "🙈",
-                        style = MaterialTheme.typography.bodyMedium,
+                    Icon(
+                        imageVector = if (passwordVisible) MimirIcons.EyeOff else MimirIcons.Eye,
+                        contentDescription = if (passwordVisible) "Скрыть пароль" else "Показать пароль",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp),
                     )
                 }
             }

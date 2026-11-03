@@ -42,6 +42,21 @@ description = "Собрать расширение браузера"
 run = "./gradlew :browser-extension:assembleExtension"
 run_windows = "gradlew.bat :browser-extension:assembleExtension"
 
+[tasks."build:extension"]
+description = "Собрать расширение браузера (алиас)"
+run = "./gradlew :browser-extension:assembleExtension"
+run_windows = "gradlew.bat :browser-extension:assembleExtension"
+
+[tasks.screenshots]
+description = "Сгенерировать скриншоты UI desktop и расширения браузера"
+run = "./gradlew :ui:desktopTest --rerun --tests 'dev.mimir.ui.screenshots.*' && ./gradlew :browser-extension:assembleExtension && node browser-extension/scripts/capture-screenshots.mjs"
+run_windows = "gradlew.bat :ui:desktopTest --rerun --tests dev.mimir.ui.screenshots.* && gradlew.bat :browser-extension:assembleExtension && node browser-extension/scripts/capture-screenshots.mjs"
+
+[tasks."package:extension"]
+description = "Упаковать расширение в zip для релиза"
+run = "./gradlew :browser-extension:zipExtension"
+run_windows = "gradlew.bat :browser-extension:zipExtension"
+
 [tasks."package:msi"]
 description = "Собрать MSI (только Windows)"
 run = "./gradlew :app-desktop:packageMsi"

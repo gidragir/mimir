@@ -1,8 +1,10 @@
 package dev.mimir.ui.screens.setup
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -31,7 +33,18 @@ fun PasswordStep(model: MimirUiModel, onNext: () -> Unit) {
     var busy by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
-    Text("Мастер-пароль шифрования", style = MaterialTheme.typography.headlineSmall)
+    Column(
+        verticalArrangement = Arrangement.spacedBy(MimirTokens.Space4),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text("Мастер-пароль шифрования", style = MaterialTheme.typography.headlineSmall)
+        Text(
+            "Шифрует ваши заметки локально перед отправкой в облако (rclone crypt)",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+
     MimirTextField(
         value = password,
         onValueChange = { password = it; error = null },
@@ -39,9 +52,10 @@ fun PasswordStep(model: MimirUiModel, onNext: () -> Unit) {
         isPassword = true,
         error = error,
         singleLine = true,
-        modifier = Modifier.widthIn(min = 320.dp),
+        modifier = Modifier.fillMaxWidth(),
     )
     Row(
+        modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(MimirTokens.Space8),
     ) {
@@ -53,6 +67,7 @@ fun PasswordStep(model: MimirUiModel, onNext: () -> Unit) {
         enabled = !busy && password.isNotEmpty(),
         loading = busy,
         variant = MimirButtonVariant.Primary,
+        modifier = Modifier.fillMaxWidth().height(44.dp),
         onClick = {
             busy = true
             scope.launch {

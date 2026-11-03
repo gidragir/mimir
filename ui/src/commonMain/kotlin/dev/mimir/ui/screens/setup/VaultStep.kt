@@ -1,9 +1,17 @@
 package dev.mimir.ui.screens.setup
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -16,10 +24,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import dev.mimir.ui.MimirTokens
 import dev.mimir.ui.components.MimirButton
 import dev.mimir.ui.components.MimirButtonVariant
+import dev.mimir.ui.components.MimirIcons
 import dev.mimir.ui.components.MimirTextField
 import dev.mimir.ui.model.MimirUiModel
 import dev.mimir.ui.picker.LocalFolderPicker
@@ -67,22 +77,44 @@ fun VaultStep(model: MimirUiModel, onNext: () -> Unit) {
         }
     }
 
-    Text("Путь к хранилищу Obsidian", style = MaterialTheme.typography.headlineSmall)
-
-    if (discoveredVaults.isNotEmpty()) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(MimirTokens.Space4),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
         Text(
-            "Найденные хранилища:",
-            style = MaterialTheme.typography.titleSmall,
+            text = "Путь к хранилищу Obsidian",
+            style = MaterialTheme.typography.headlineSmall,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Text(
+            text = "Укажите локальную папку с заметками Obsidian для синхронизации",
+            style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+
+    if (discoveredVaults.isNotEmpty()) {
         Column(
+            modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(MimirTokens.Space8),
-            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            Text(
+                "Обнаруженные хранилища:",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             for (vault in discoveredVaults) {
                 val label = vault.trimEnd('/').substringAfterLast('/').ifEmpty { vault }
                 MimirButton(
-                    text = "📁 $label ($vault)",
+                    text = "$label ($vault)",
+                    icon = {
+                        Icon(
+                            imageVector = MimirIcons.Folder,
+                            contentDescription = null,
+                            tint = MimirTokens.Accent,
+                            modifier = Modifier.size(16.dp),
+                        )
+                    },
                     onClick = {
                         path = vault
                         error = null
@@ -90,27 +122,37 @@ fun VaultStep(model: MimirUiModel, onNext: () -> Unit) {
                     },
                     enabled = !busy,
                     variant = MimirButtonVariant.Secondary,
+                    modifier = Modifier.fillMaxWidth().height(42.dp),
                 )
             }
         }
     }
 
     Row(
+        modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(MimirTokens.Space8),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment = Alignment.Top,
     ) {
         MimirTextField(
             value = path,
             onValueChange = { path = it; error = null; noteCount = null },
-            label = "Введите путь к папке",
+            placeholder = "Введите путь к папке",
             error = error,
             singleLine = true,
-            modifier = Modifier.widthIn(min = 320.dp),
+            modifier = Modifier.weight(1f).height(56.dp),
         )
         if (picker != null) {
-            val pickerButtonText = if (discoveredVaults.isNotEmpty()) "📁 Выбрать другую папку…" else "📁 Обзор…"
+            val pickerButtonText = if (discoveredVaults.isNotEmpty()) "Выбрать другую папку…" else "Обзор…"
             MimirButton(
                 text = pickerButtonText,
+                icon = {
+                    Icon(
+                        imageVector = MimirIcons.Folder,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(18.dp),
+                    )
+                },
                 onClick = {
                     scope.launch {
                         try {
@@ -128,16 +170,37 @@ fun VaultStep(model: MimirUiModel, onNext: () -> Unit) {
                 },
                 enabled = !busy,
                 variant = MimirButtonVariant.Secondary,
+                modifier = Modifier.height(56.dp),
             )
         }
     }
 
     noteCount?.let {
-        Text(
-            "✓ Найдено заметок: $it",
-            color = MimirTokens.StatusSuccess,
-            style = MaterialTheme.typography.bodySmall,
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(MimirTokens.Radius6))
+                .background(MimirTokens.StatusSuccess.copy(alpha = 0.12f))
+                .border(
+                    BorderStroke(1.dp, MimirTokens.StatusSuccess.copy(alpha = 0.35f)),
+                    RoundedCornerShape(MimirTokens.Radius6),
+                )
+                .padding(horizontal = MimirTokens.Space12, vertical = MimirTokens.Space8),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(MimirTokens.Space8),
+        ) {
+            Icon(
+                imageVector = MimirIcons.Check,
+                contentDescription = null,
+                tint = MimirTokens.StatusSuccess,
+                modifier = Modifier.size(16.dp),
+            )
+            Text(
+                "✓ Найдено заметок: $it",
+                color = MimirTokens.StatusSuccess,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
     }
 
     MimirButton(
@@ -152,5 +215,6 @@ fun VaultStep(model: MimirUiModel, onNext: () -> Unit) {
         enabled = !busy,
         loading = busy,
         variant = MimirButtonVariant.Primary,
+        modifier = Modifier.fillMaxWidth().height(44.dp),
     )
 }

@@ -1,5 +1,7 @@
 package dev.mimir.ui.screens.setup
 
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -8,9 +10,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.unit.dp
 import dev.mimir.ui.MimirTokens
 import dev.mimir.ui.components.MimirButton
 import dev.mimir.ui.components.MimirButtonVariant
@@ -159,12 +163,14 @@ private fun InteractiveLoginStep(
             text = "Войти через Google",
             onClick = { started = true; attempt++ },
             variant = MimirButtonVariant.Primary,
+            modifier = Modifier.fillMaxWidth().height(44.dp),
         )
         onUseCode?.let {
             MimirButton(
                 text = "Войти с помощью кода на другом устройстве",
                 onClick = it,
                 variant = MimirButtonVariant.Ghost,
+                modifier = Modifier.fillMaxWidth(),
             )
         }
     } else {
@@ -175,6 +181,7 @@ private fun InteractiveLoginStep(
                 text = "Попробовать снова",
                 onClick = { attempt++ },
                 variant = MimirButtonVariant.Primary,
+                modifier = Modifier.fillMaxWidth().height(44.dp),
             )
         } else {
             Text(if (inBrowser) "Ждём подтверждения в браузере…" else "Ждём подтверждения входа…")
@@ -187,6 +194,7 @@ private fun InteractiveLoginStep(
                         clipboard.setText(AnnotatedString(url))
                     },
                     variant = MimirButtonVariant.Secondary,
+                    modifier = Modifier.fillMaxWidth().height(44.dp),
                 )
             }
         }
@@ -194,6 +202,7 @@ private fun InteractiveLoginStep(
             text = "Отмена",
             onClick = { started = false; error = null; openFailedUrl = null },
             variant = MimirButtonVariant.Ghost,
+            modifier = Modifier.fillMaxWidth(),
         )
     }
 }
@@ -245,6 +254,7 @@ private fun DeviceCodeStep(model: MimirUiModel, pollIntervalMillis: Long, onNext
                 runCatching { uriHandler.openUri(issued.verificationUrl) }
             },
             variant = MimirButtonVariant.Primary,
+            modifier = Modifier.fillMaxWidth().height(44.dp),
         )
         if (error == null) Text("Ожидание подтверждения…")
     } else if (error == null) {
@@ -256,6 +266,7 @@ private fun DeviceCodeStep(model: MimirUiModel, pollIntervalMillis: Long, onNext
             text = "Попробовать снова",
             onClick = { attempt++ },
             variant = MimirButtonVariant.Primary,
+            modifier = Modifier.fillMaxWidth().height(44.dp),
         )
     }
     onBack?.let {
@@ -263,6 +274,7 @@ private fun DeviceCodeStep(model: MimirUiModel, pollIntervalMillis: Long, onNext
             text = "Назад",
             onClick = it,
             variant = MimirButtonVariant.Ghost,
+            modifier = Modifier.fillMaxWidth(),
         )
     }
 }

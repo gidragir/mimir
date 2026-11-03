@@ -41,7 +41,8 @@ object ObsidianStyle {
 
     @Composable
     fun fieldColors(): TextFieldColors {
-        val container = if (isSystemInDarkTheme()) MimirTokens.DarkInput else MimirTokens.LightInput
+        val isDark = MaterialTheme.colorScheme.surface == MimirTokens.DarkSurface
+        val container = if (isDark) MimirTokens.DarkInput else MimirTokens.LightInput
         return OutlinedTextFieldDefaults.colors(
             focusedContainerColor = container,
             unfocusedContainerColor = container,

@@ -1,12 +1,16 @@
 package dev.mimir.ui.screens.setup
 
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import dev.mimir.ui.components.MimirButton
 import dev.mimir.ui.components.MimirButtonVariant
 import dev.mimir.ui.platform.LocalStorageAccess
@@ -43,6 +47,7 @@ fun AccessStep(onNext: () -> Unit) {
             text = "Предоставить доступ",
             onClick = { access.requestAllFiles() },
             variant = MimirButtonVariant.Primary,
+            modifier = Modifier.fillMaxWidth().height(44.dp),
         )
     }
 }

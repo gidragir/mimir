@@ -50,7 +50,8 @@ Mimir — клиент синхронизации Obsidian-хранилища с
 | Google Drive | `drive/`: порт — `GoogleDriveStorage`; токены, retry, ошибки сети — `client/DriveHttpClient`; OAuth/PKCE — `auth/`; путь→id и кэш — `path/DrivePathResolver`; загрузка (resumable) — `upload/DriveUploader` |
 | Runtime | `runtime/`: фасад — `MimirRuntime`; сборка движка — `EngineAssembler`; вход — `login/`; настройки — `JsonRuntimeSettingsStore` |
 | Демон | composition root — `DaemonRuntime`; API — `Routes` + `ProgressDto`; конфиг, env и каталоги ОС — `DaemonConfig`; расписание — `SyncScheduler`; вход через браузер — `BrowserLoginReceiver`; индекс — `JsonSyncStateStore`, атомарная запись — `AtomicFiles.kt` |
-| UI | контракт — `ui/model/MimirUiModel`; экраны — `ui/screens/`; тексты — `SyncTexts`; тема — `MimirTheme`, `ObsidianStyle`; платформенные сервисы (CompositionLocal) — `ui/picker/`, `ui/platform/` |
+| UI и дизайн-система | контракт — `ui/model/MimirUiModel`; экраны — `ui/screens/`; крафтовые компоненты — `ui/components/MimirComponents.kt`; токен-константы — `ui/MimirTokens.kt`; темы — `MimirTheme`, `ObsidianStyle`; тексты — `SyncTexts`; сервисы (CompositionLocal) — `ui/picker/`, `ui/platform/` |
+| Дизайн-токены (Single Source of Truth) | `design/tokens.json`; генератор — `scripts/generate-tokens.mjs` (`pnpm run tokens:generate` / `tokens:check`); артефакты — `ui/MimirTokens.kt`, `browser-extension/.../tokens.css` |
 | Desktop | composition root — `app-desktop/Main.kt`; встроенный/удалённый демон — `DaemonServiceFactory`; HTTP-клиент — `HttpDaemonClient`; трей — `tray/`; выбор папки — `picker/`; браузер — `SystemBrowserOpener` |
 | Сборка | convention-плагины — `build-logic/src/main/kotlin/`; версии — `gradle/libs.versions.toml`; идентификаторы — `gradle.properties` |
 
@@ -73,6 +74,7 @@ Mimir — клиент синхронизации Obsidian-хранилища с
 - Строка статуса до подключения — ровно `Mimir: not connected` (`SyncStatus.label()`).
 - Локальный HTTP API: `127.0.0.1:47821`, адрес/порт настраиваются; занятый порт → сообщение `Port <port> on <bind> is already in use`, код 2, без стектрейса.
 - Часы — `kotlin.time.Clock`; отдельного порта `Clock` нет.
+- **Kotlinx Serialization DTO и обратная совместимость**: При добавлении опциональных полей со значением по умолчанию (особенно в разделяемые DTO ответов ошибок вроде `DaemonErrorBody`) обязательно использовать аннотацию `@EncodeDefault(EncodeDefault.Mode.NEVER)`. Ktor по умолчанию использует `explicitNulls = true`, и без аннотации поле `val code: String? = null` сериализуется как `"code": null`, что ломает точные строковые проверки в существующих тестах и сторонних клиентах.
 - Платформы: Linux — Arch + системная Java (`java-runtime>=27`); Windows — MSI per-user с вшитой JRE; Android — APK вне Play, `MANAGE_EXTERNAL_STORAGE`; браузер — только Chromium, MV3; плагин Obsidian не `isDesktopOnly` и не использует ничего, кроме модуля `obsidian`.
 - **Браузерное расширение (`:browser-extension`, Chromium MV3)**: работает автономно (без локального демона) поверх `:core` и `:drive` (Kotlin/JS). Основной интерфейс — `chrome.sidePanel` (пошаговый переход Список → Заметка) и полноэкранная двухколоночная вкладка (`popup.html?mode=tab`) с fallback в Popup; встраивание в DOM `drive.google.com` не используется. Деривированный 80-байтный ключ `RcloneCipher` живёт только в RAM (`chrome.storage.session`), а в `chrome.storage.local` кэшируются исключительно зашифрованные `RemoteEntry` и `.canary_hash`. Для стабильного extension ID в `gradle.properties` задаётся `mimir.extensionPublicKey`; вход — PKCE через Desktop-клиент с loopback-redirect `http://127.0.0.1:47999/callback` (страница входа открывается во вкладке, переход перехватывается `chrome.tabs.onUpdated`, регистрировать redirect в Google Cloud не нужно) и резервный Device Code Flow; корневая папка Drive берётся из `MIMIR_ROOT_FOLDER` при сборке.
 - **Тестирование корутин и фоновых компонентов**: При тестировании классов с долгоживущими корутинами или периодическими тикерами (`MimirRuntime`, `SyncScheduler`, бесконечные `flow.collect`) категорически запрещено вызывать `testScheduler.advanceUntilIdle()` в `runTest` — это приводит к бесконечному циклу прокрутки виртуального времени. Использовать явный сдвиг на фиксированное время (`advanceTimeBy`), изолированные фейки контрактов (`SyncRunner`) вместо полного рантайма или завершать `scope.cancel()` перед окончанием теста.
@@ -84,6 +86,10 @@ Mimir — клиент синхронизации Obsidian-хранилища с
 - Коммиты — conventional-стиль, как в плане (`feat(core): …`, `chore: …`, `ci: …`).
 - Прогресс выполнения плана ведётся в `.superpowers/sdd/<план>/progress.md` (git-ignored); отклонения от плана записываются как `Ruling:`.
 - **Лаконичность промптов для сессий и субагентов:** Не дублировать описание проекта, стек, ОС, правила хоста (`rtk`) и инструкции по окружению — всё это уже зафиксировано в `AGENTS.md` и правилах хоста. Промпт обязан содержать строго целевую команду/скилл, саму задачу и ссылки на спецификацию/план.
+- **Делегирование в Claude Code CLI и работа с Worktrees**:
+  - Запуск фонового агента: `claude --model claude-sonnet-5-5 --effort medium --bg "<prompt>"`.
+  - При остановке агента из-за квоты (`HTTP 429 rate_limit`) или сбое контекста: другой агент может продолжить работу непосредственно в изолированном ворктри (`.claude/worktrees/<name>` на ветке `worktree-<name>`).
+  - После завершения всех задач и прогона тестов ветка вливается в `main` (fast-forward merge), ворктри освобождается (`rtk git worktree unlock <path> && rtk git worktree remove <path>`), а сессия удаляется (`rtk claude rm <id>`).
 
 ## Релизы
 
@@ -98,7 +104,44 @@ Mimir — клиент синхронизации Obsidian-хранилища с
 - `mimir-design-patterns` — каталог паттернов проекта и куда класть новый код.
 - `mimir-sync-io` — стоимость обращений к Drive и чтения файлов, асинхронность, параллелизм.
 - `mimir-ui-ux` — экраны, состояния, тексты, оформление и визуальная проверка.
+- `mimir-ui-test` — автоматизированное headless-тестирование и скриншоты UI десктопа и веб-расширения.
 - `mimir-build-verify` — как собрать и проверить изменения на Arch, что делать без Android SDK.
 - `mimir-add-module` — добавить новый Gradle-модуль по конвенциям проекта.
 - `mimir-storage-adapter` — добавить адаптер облачного хранилища (порт `RemoteStorageProvider`).
 - `mimir-identifiers` — добавить/изменить долгоживущий идентификатор без дублирования.
+
+## 🗺 Архитектурная карта и навигация (OpenViking L0-L2)
+
+Проект `mimir` описан трехуровневой базой знаний context-init (L0-L2), которая лежит в `.context-init/knowledge/` и коммитится вместе с кодом. Людям можно читать её напрямую; агентам — предпочитать MCP/`pack` ниже: это компактнее и учитывает бюджет токенов. После структурных изменений запустите `context-init update` и закоммитьте изменения базы в том же PR.
+
+### ⚡ MCP-First Protocol (context-init)
+
+1. `context_get_subsystems` — карта подсистем проекта (L0).
+2. `context_get_subsystem(subsystem_id)` — компактная L1-карточка подсистемы.
+3. `context_pack(subsystem_id, compress=true)` — AST-сжатый код подсистемы.
+4. `context_check` — проверка архитектурного дрейфа перед сдачей задачи.
+
+Без доступа к MCP (субагенты, скрипты): `rtk context-init pack <subsystem_id> --compress` и `rtk context-init check --compact`.
+
+### 📦 Доступные подсистемы:
+- `app-android` (App Android) — Подсистема `app-android` с ключевыми точками входа: app-android/package.json
+- `app-desktop` (App Desktop) — Подсистема `app-desktop` с ключевыми точками входа: app-desktop/package.json
+- `browser-extension` (Browser Extension) — Подсистема `browser-extension` с ключевыми точками входа: browser-extension/package.json
+- `build-logic` (Build Logic) — Модуль и компоненты директории `build-logic` (5 файлов)
+- `client` (Client) — Подсистема `client` с ключевыми точками входа: client/package.json
+- `core` (Core) — Подсистема `core` с ключевыми точками входа: core/package.json
+- `core_commonmain_kotlin_dev_mimir_core` (Core CommonMain Kotlin Dev Mimir Core) — Модуль и компоненты директории `core/src/commonMain/kotlin/dev/mimir/core` (15 файлов)
+- `core_commonmain_kotlin_dev_mimir_core_crypto` (Core CommonMain Kotlin Dev Mimir Core Crypto) — Модуль и компоненты директории `core/src/commonMain/kotlin/dev/mimir/core/crypto` (15 файлов)
+- `daemon` (Daemon) — Подсистема `daemon` с ключевыми точками входа: daemon/package.json
+- `design` (Design) — Модуль и компоненты директории `design` (1 файлов)
+- `docs` (Docs) — Модуль и компоненты директории `docs` (15 файлов)
+- `drive` (Drive) — Подсистема `drive` с ключевыми точками входа: drive/package.json
+- `gradle` (Gradle) — Модуль и компоненты директории `gradle` (1 файлов)
+- `obsidian-plugin` (Obsidian Plugin) — Подсистема `obsidian-plugin` с ключевыми точками входа: obsidian-plugin/package.json
+- `packaging` (Packaging) — Модуль и компоненты директории `packaging` (1 файлов)
+- `runtime` (Runtime) — Подсистема `runtime` с ключевыми точками входа: runtime/package.json
+- `scripts` (Scripts) — Модуль и компоненты директории `scripts` (4 файлов)
+- `ui` (Ui) — Подсистема `ui` с ключевыми точками входа: ui/package.json
+- `ui_commonmain_kotlin_dev_mimir_ui` (Ui CommonMain Kotlin Dev Mimir Ui) — Модуль и компоненты директории `ui/src/commonMain/kotlin/dev/mimir/ui` (15 файлов)
+- `ui_commonmain_kotlin_dev_mimir_ui_screens` (Ui CommonMain Kotlin Dev Mimir Ui Screens) — Модуль и компоненты директории `ui/src/commonMain/kotlin/dev/mimir/ui/screens` (12 файлов)
+- `web-ui` (Web Ui) — Подсистема `web-ui` с ключевыми точками входа: web-ui/package.json
