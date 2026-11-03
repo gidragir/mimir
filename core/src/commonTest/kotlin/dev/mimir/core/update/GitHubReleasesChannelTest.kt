@@ -94,7 +94,7 @@ class GitHubReleasesChannelTest {
         assertIs<UpdateCheckResult.UpdateAvailable>(first)
         assertIs<UpdateCheckResult.UpdateAvailable>(second)
         assertEquals(first.matchedAsset, assertNotNull(second.matchedAsset))
-        assertEquals(AssetKind.DOCKER_TAG, second.matchedAsset?.kind)
+        assertEquals(AssetKind.DOCKER_TAG, second.matchedAsset.kind)
     }
 
     @Test

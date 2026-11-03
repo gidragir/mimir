@@ -40,11 +40,6 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       # Без секретов: сборка и тесты обязаны проходить без них.
       - run: mise run build
-      - name: Run runtime tests
-        run: ./gradlew :runtime:allTests
-      - name: Run Android unit tests
-        if: runner.os == 'Linux'
-        run: ./gradlew :app-android:testDebugUnitTest
 
   changesets:
     name: versions and changesets

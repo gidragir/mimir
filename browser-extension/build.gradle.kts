@@ -22,6 +22,11 @@ buildConfig {
 }
 
 kotlin {
+    compilerOptions {
+        optIn.addAll(
+            "kotlinx.coroutines.ExperimentalCoroutinesApi",
+        )
+    }
     js {
         browser {
             webpackTask { mainOutputFileName = "popup.js" }
@@ -55,7 +60,7 @@ kotlin {
 
 val extensionDir = layout.buildDirectory.dir("extension")
 
-val assembleExtension by tasks.registering(Sync::class) {
+val assembleExtension = tasks.register<Sync>("assembleExtension") {
     group = "build"
     description = "Собрать расширение Chromium (MV3)"
     dependsOn("jsBrowserProductionWebpack")
@@ -78,7 +83,7 @@ val assembleExtension by tasks.registering(Sync::class) {
     from("src/jsMain/resources") { include("icon-128.png") }
 }
 
-val zipExtension by tasks.registering(Zip::class) {
+val zipExtension = tasks.register<Zip>("zipExtension") {
     group = "build"
     description = "Упаковать расширение в zip для релиза"
     from(assembleExtension)
@@ -86,7 +91,7 @@ val zipExtension by tasks.registering(Zip::class) {
     destinationDirectory = layout.buildDirectory.dir("distributions")
 }
 
-val checkExtension by tasks.registering(Exec::class) {
+val checkExtension = tasks.register<Exec>("checkExtension") {
     group = "verification"
     description = "Проверить манифест MV3 и popup"
     dependsOn(assembleExtension)

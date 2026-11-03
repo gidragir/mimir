@@ -163,8 +163,24 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
+          name: msi
           path: dist
-          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: apk
+          path: dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: obsidian-plugin
+          path: dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: browser-extension
+          path: dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: arch
+          path: dist
       - name: Generate Checksums
         run: |
           cd dist

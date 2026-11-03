@@ -2,8 +2,8 @@
 directory: client
 source:
   kind: git
-  blob_sha: 7215054c0fc023cb5a2d99c4db46739f96b876d0
-  commit_sha: 0015ea5942cd9570dd8e5f4a879cead20db73253
+  blob_sha: 5e6fc1cd8f48d61f9965d2b876f120883feb0ecb
+  commit_sha: 16e76cfbc4c783e4e90380d131b7b1bd19b1ae68
 generated_by:
   component: context-init
   role: update

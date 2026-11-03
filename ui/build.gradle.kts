@@ -24,9 +24,9 @@ kotlin {
             implementation(libs.compose.foundation)
             implementation(libs.compose.material3)
             implementation(libs.compose.ui)
-            implementation(compose.components.uiToolingPreview)
+            implementation(libs.compose.ui.tooling.preview)
         }
-        val desktopTest by getting {
+        getByName("desktopTest") {
             dependencies {
                 implementation(kotlin("test"))
                 implementation(libs.compose.ui.test)
@@ -39,6 +39,6 @@ kotlin {
 
 dependencies {
     if (dev.mimir.build.AndroidSdk.isAvailable(rootDir)) {
-        add("androidRuntimeClasspath", compose.uiTooling)
+        add("androidRuntimeClasspath", libs.compose.ui.tooling)
     }
 }

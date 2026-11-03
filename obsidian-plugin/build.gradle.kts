@@ -20,7 +20,7 @@ kotlin {
 
 val pluginDir = layout.buildDirectory.dir("plugin")
 
-val assemblePlugin by tasks.registering(Sync::class) {
+val assemblePlugin = tasks.register<Sync>("assemblePlugin") {
     group = "build"
     description = "Собрать плагин Obsidian: main.js + manifest.json"
     dependsOn("jsBrowserProductionWebpack")
@@ -38,7 +38,7 @@ val assemblePlugin by tasks.registering(Sync::class) {
     }
 }
 
-val zipPlugin by tasks.registering(Zip::class) {
+val zipPlugin = tasks.register<Zip>("zipPlugin") {
     group = "build"
     description = "Упаковать плагин в zip для релиза"
     from(assemblePlugin)
@@ -46,7 +46,7 @@ val zipPlugin by tasks.registering(Zip::class) {
     destinationDirectory = layout.buildDirectory.dir("distributions")
 }
 
-val checkPlugin by tasks.registering(Exec::class) {
+val checkPlugin = tasks.register<Exec>("checkPlugin") {
     group = "verification"
     description = "Проверить плагин на фейковом obsidian"
     dependsOn(assemblePlugin)

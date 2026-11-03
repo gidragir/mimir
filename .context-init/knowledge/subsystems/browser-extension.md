@@ -2,8 +2,8 @@
 directory: browser-extension
 source:
   kind: git
-  blob_sha: 31421361486afb487721aa6539bd751dbb034ac9
-  commit_sha: 0015ea5942cd9570dd8e5f4a879cead20db73253
+  blob_sha: 817544c3cec86eff698970454d31b1618fc7f292
+  commit_sha: 16e76cfbc4c783e4e90380d131b7b1bd19b1ae68
 generated_by:
   component: context-init
   role: update

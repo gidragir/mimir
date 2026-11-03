@@ -2,8 +2,8 @@
 directory: gradle/libs.versions.toml
 source:
   kind: git
-  blob_sha: cc0366eb9f660a701fe50a5b3d2747a28a89d90c
-  commit_sha: 59b2f01957ad853d3e73656dd4fdd3f849fcb7f6
+  blob_sha: b612019395c4bff1bc4c7339842d57d21b0423ad
+  commit_sha: 16e76cfbc4c783e4e90380d131b7b1bd19b1ae68
 generated_by:
   component: context-init
   role: update

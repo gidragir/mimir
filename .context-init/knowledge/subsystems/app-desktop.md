@@ -2,8 +2,8 @@
 directory: app-desktop
 source:
   kind: git
-  blob_sha: 0c5110801667e2bb182a81444ec2772e0b590344
-  commit_sha: 0015ea5942cd9570dd8e5f4a879cead20db73253
+  blob_sha: 49be5606dabd3e7b27a069110ac0e05dc517af96
+  commit_sha: 16e76cfbc4c783e4e90380d131b7b1bd19b1ae68
 generated_by:
   component: context-init
   role: update

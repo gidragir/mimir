@@ -10,6 +10,12 @@ group = providers.gradleProperty("mimir.group").get()
 version = providers.gradleProperty("mimir.version").get()
 
 kotlin {
+    compilerOptions {
+        optIn.addAll(
+            "kotlin.ExperimentalUnsignedTypes",
+            "kotlinx.coroutines.ExperimentalCoroutinesApi",
+        )
+    }
     jvm()
     js {
         browser {
