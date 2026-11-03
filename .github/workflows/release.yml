@@ -181,9 +181,18 @@ jobs:
         with:
           name: arch
           path: dist
-      - name: Generate Checksums
+      - name: Flatten artifacts and generate checksums
         run: |
           cd dist
+          shopt -s globstar nullglob
+          for f in **/*; do
+            if [ -f "$f" ] && [ "$(dirname "$f")" != "." ]; then
+              mv "$f" .
+            fi
+          done
+          for d in */; do
+            [ -d "$d" ] && rm -rf "$d"
+          done
           sha256sum * > sha256sums.txt
       - uses: softprops/action-gh-release@v2
         with:

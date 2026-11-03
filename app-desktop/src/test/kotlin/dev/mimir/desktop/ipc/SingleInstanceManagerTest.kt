@@ -24,8 +24,9 @@ class SingleInstanceManagerTest {
         val acquiredBySecondary = secondary.acquirePrimary(arrayOf("mimir://authorized"))
         assertFalse(acquiredBySecondary)
 
+        val expectedToken = System.getenv("XDG_ACTIVATION_TOKEN")?.ifEmpty { null }
         val action = withTimeout(5.seconds) { actionDeferred.await() }
-        assertEquals(IpcAction.OpenUri("mimir://authorized"), action)
+        assertEquals(IpcAction.OpenUri("mimir://authorized", activationToken = expectedToken), action)
 
         primary.close()
     }
@@ -70,8 +71,9 @@ class SingleInstanceManagerTest {
         val actionDeferred = CompletableDeferred<IpcAction>()
         primary.onActivationRequest = { actionDeferred.complete(it) }
 
+        val expectedToken = System.getenv("XDG_ACTIVATION_TOKEN")?.ifEmpty { null }
         val action = withTimeout(5.seconds) { actionDeferred.await() }
-        assertEquals(IpcAction.OpenUri("mimir://authorized"), action)
+        assertEquals(IpcAction.OpenUri("mimir://authorized", activationToken = expectedToken), action)
 
         primary.close()
     }

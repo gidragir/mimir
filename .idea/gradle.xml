@@ -25,10 +25,12 @@
             <option value="/data/projects/mimir/app-desktop" />
             <option value="/data/projects/mimir/browser-extension" />
             <option value="/data/projects/mimir/build-logic" />
+            <option value="/data/projects/mimir/client" />
             <option value="/data/projects/mimir/core" />
             <option value="/data/projects/mimir/daemon" />
             <option value="/data/projects/mimir/drive" />
             <option value="/data/projects/mimir/obsidian-plugin" />
+            <option value="/data/projects/mimir/runtime" />
             <option value="/data/projects/mimir/ui" />
             <option value="/data/projects/mimir/web-ui" />
           </set>

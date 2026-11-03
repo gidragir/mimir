@@ -15,5 +15,5 @@ tasks.test {
     useJUnitPlatform()
 }
 
-// Kotlin 2.4 таргетит JVM 26 при JDK 27, выравниваем javac по Kotlin
-tasks.withType<JavaCompile>().configureEach { options.release = 26 }
+// build-logic подключается к Gradle Daemon; поддерживаем JVM 21+ для совместимости с IDE и Gradle
+tasks.withType<JavaCompile>().configureEach { options.release = 21 }

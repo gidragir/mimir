@@ -37,7 +37,7 @@ class RoutesTest {
         serve()
         val response = client.get("/health")
         assertEquals(HttpStatusCode.OK, response.status)
-        assertEquals("""{"status":"ok","version":"0.1.0"}""", response.bodyAsText())
+        assertEquals("""{"status":"ok","version":"${dev.mimir.core.BuildConfig.VERSION}"}""", response.bodyAsText())
     }
 
     @Test

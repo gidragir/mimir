@@ -6,7 +6,7 @@
 
 **Architecture:** Из `daemon` выносится KMP-модуль `:runtime` (jvm + android) с фасадом `MimirRuntime : DaemonService`; платформенное — за портами (`VaultWatcherFactory`, `AccessTokenSource`, `LoginProvider`, `RuntimeSettingsStore`). `daemon`, `app-desktop`, `app-android` — composition root'ы. Android добавляет GIS-адаптеры, WorkManager-триггеры и уведомления.
 
-**Tech Stack:** Kotlin 2.4.21 KMP, AGP 9.4.1, Compose Multiplatform 1.12, Ktor 3.6 (client + server CIO), WorkManager 2.10, `play-services-auth` (AuthorizationClient), `androidx.browser`, Robolectric, `work-testing`.
+**Tech Stack:** Kotlin 2.4.21 KMP, AGP 9.5.0, Compose Multiplatform 1.12, Ktor 3.6 (client + server CIO), WorkManager 2.10, `play-services-auth` (AuthorizationClient), `androidx.browser`, Robolectric, `work-testing`.
 
 **Spec:** `docs/superpowers/specs/2026-10-27-mimir-android-design.md`
 
