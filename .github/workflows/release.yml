@@ -59,6 +59,11 @@ jobs:
           version=$(sed -n 's/^mimir.version=//p' gradle.properties)
           test "v$version" = "$TAG" || { echo "Tag $TAG != mimir.version $version"; exit 1; }
       - uses: jdx/mise-action@v2
+      - name: Configure Java environment from mise
+        run: |
+          java_home=$(mise where java | tr '\\' '/')
+          echo "JAVA_HOME=$java_home" >> "$GITHUB_ENV"
+          echo "$java_home/bin" >> "$GITHUB_PATH"
       - uses: android-actions/setup-android@v3
         if: matrix.android
         # По умолчанию ставится устаревший `tools`, которого нет в новых cmdline-tools; платформу и build-tools скачает AGP.

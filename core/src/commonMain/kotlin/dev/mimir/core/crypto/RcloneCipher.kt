@@ -41,7 +41,7 @@ class RcloneCipher internal constructor(
         if (hasUnpairedSurrogates(segment)) throw CryptException("invalid name encoding")
         val raw = try {
             segment.encodeToByteArray(throwOnInvalidSequence = true)
-        } catch (e: CharacterCodingException) {
+        } catch (e: Throwable) {
             throw CryptException("invalid name encoding", e)
         }
         val padLen = 16 - raw.size % 16
@@ -80,8 +80,8 @@ class RcloneCipher internal constructor(
         }
         return try {
             padded.decodeToString(0, padded.size - padLen, throwOnInvalidSequence = true)
-        } catch (e: CharacterCodingException) {
-            throw CryptException("invalid encrypted name contents")
+        } catch (e: Throwable) {
+            throw CryptException("invalid encrypted name contents", e)
         }
     }
 

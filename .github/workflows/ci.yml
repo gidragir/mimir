@@ -26,6 +26,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
+      - name: Configure Java environment from mise
+        run: |
+          java_home=$(mise where java | tr '\\' '/')
+          echo "JAVA_HOME=$java_home" >> "$GITHUB_ENV"
+          echo "$java_home/bin" >> "$GITHUB_PATH"
       # Android SDK ставим только на Linux; на остальных ОС Android-таргеты пропускаются с предупреждением.
       - uses: android-actions/setup-android@v3
         if: runner.os == 'Linux'
