@@ -39,7 +39,10 @@ jobs:
           - name: obsidian-plugin
             os: ubuntu-latest
             task: :obsidian-plugin:zipPlugin
-            paths: obsidian-plugin/build/distributions/*.zip
+            paths: |
+              obsidian-plugin/build/distributions/*.zip
+              obsidian-plugin/build/plugin/main.js
+              obsidian-plugin/build/plugin/manifest.json
           - name: browser-extension
             os: ubuntu-latest
             task: :browser-extension:zipExtension
@@ -157,6 +160,10 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+      - name: Generate Checksums
+        run: |
+          cd dist
+          sha256sum * > sha256sums.txt
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.TAG }}
