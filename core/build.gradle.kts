@@ -10,6 +10,8 @@ buildConfig {
     buildConfigField("VERSION", providers.gradleProperty("mimir.version"))
     buildConfigField("APP_ID", providers.gradleProperty("mimir.appId"))
     buildConfigField("OBSIDIAN_PLUGIN_ID", providers.gradleProperty("mimir.obsidianPluginId"))
+    buildConfigField("GITHUB_OWNER", providers.gradleProperty("mimir.githubOwner"))
+    buildConfigField("GITHUB_REPO", providers.gradleProperty("mimir.githubRepo"))
     buildConfigField("API_DEFAULT_PORT", providers.gradleProperty("mimir.apiDefaultPort").map { it.toInt() })
 }
 

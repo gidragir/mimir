@@ -13,9 +13,12 @@ import dev.mimir.core.SyncItemAction
 import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncStatus
 import dev.mimir.core.fs.FileSystemLocalVault
+import dev.mimir.core.update.UpdateManager
 import dev.mimir.runtime.login.LoginProvider
 import dev.mimir.runtime.login.LoginRegistry
 import dev.mimir.runtime.login.notConfiguredMessage
+import dev.mimir.runtime.update.DisabledUpdateManager
+import dev.mimir.runtime.update.UpdateScheduler
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -58,6 +61,10 @@ class MimirRuntime(
     conflictScanInterval: Duration = 5.seconds,
     /** Vault для разовых операций (конфликты, осмотр, подсчёт файлов); тесты подменяют его, чтобы считать обращения к диску. */
     localVaultFactory: (Path) -> LocalVault = { FileSystemLocalVault(it, ioDispatcher = ioDispatcher) },
+    /** Менеджер обновлений платформы (со своим `UpdateApplier`); `null` — обновления отключены, фоновая проверка не стартует. */
+    updateManager: UpdateManager? = null,
+    /** Подмена расписания проверок (тесты); по умолчанию — [UpdateScheduler] с задержками из спеки §6.2. */
+    updateSchedulerFactory: ((UpdateManager, () -> Boolean) -> UpdateScheduler)? = null,
 ) : DaemonService {
     @Volatile
     private var config: RuntimeConfig = settings.load()
@@ -91,6 +98,14 @@ class MimirRuntime(
     private var activeLogin: LoginProvider? = null
     private var loginCompleted = false
 
+    val updateManager: UpdateManager = updateManager ?: DisabledUpdateManager
+
+    /** Проверка обновлений не прерывает синхронизацию: тик пропускается, пока статус — Syncing. */
+    private val updateScheduler: UpdateScheduler? = updateManager?.let { manager ->
+        val isSyncing = { _status.value == SyncStatus.Syncing }
+        updateSchedulerFactory?.invoke(manager, isSyncing) ?: UpdateScheduler(manager, scope, isSyncing)
+    }
+
     override val status: StateFlow<SyncStatus> = _status.asStateFlow()
     override val progress: StateFlow<SyncProgress?> = _progress.asStateFlow()
     override val conflictsFlow: StateFlow<List<ConflictFileEntry>> get() = conflictTracker.conflicts
@@ -111,6 +126,7 @@ class MimirRuntime(
         conflictTracker.refresh()
         if (interactive) conflictTracker.watch()
         rebuildLenient()
+        if (interactive) updateScheduler?.start()
     }
 
     /** `false` — планировщик и наблюдатели остановлены (Android в фоне). */
@@ -121,7 +137,9 @@ class MimirRuntime(
         if (active) {
             conflictTracker.watch()
             if (!holdInitialSync) scheduler?.start()
+            updateScheduler?.start()
         } else {
+            updateScheduler?.stop()
             scheduler?.stop(cancelRunner = false)
             assembled?.watcher?.stop()
             conflictTracker.stop()
@@ -238,6 +256,7 @@ class MimirRuntime(
     }
 
     fun close() {
+        updateScheduler?.stop()
         logins.close()
         teardown()
         conflictTracker.stop()
