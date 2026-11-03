@@ -59,7 +59,7 @@ object DaemonServiceFactory {
         val runtime = createRuntime(config)
         withContext(Dispatchers.IO) { runtime.initialize() }
         val server = if (serveApi) {
-            embeddedServer(ServerCIO, port = config.port, host = config.bind) { mimirRoutes(runtime, config) }.start(wait = false)
+            embeddedServer(ServerCIO, port = config.port, host = config.bind) { mimirRoutes(runtime, config, runtime.updateManager) }.start(wait = false)
         } else {
             null
         }

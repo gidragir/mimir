@@ -3,6 +3,11 @@ package dev.mimir.daemon
 import dev.mimir.core.LocalVault
 import dev.mimir.core.fs.FileSystemLocalVault
 import dev.mimir.core.fs.NioWatchServiceVaultWatcher
+import dev.mimir.core.update.TargetPlatform
+import dev.mimir.core.update.UpdateApplier
+import dev.mimir.core.update.UpdateManager
+import dev.mimir.runtime.update.UpdateScheduler
+import dev.mimir.runtime.update.createGitHubUpdateManager
 import dev.mimir.drive.auth.RefreshingTokenSource
 import dev.mimir.runtime.CloudStorageFactory
 import dev.mimir.runtime.FileTokenStorage
@@ -45,8 +50,23 @@ val nioVaultWatchers = VaultWatcherFactory { root, rules, debounce ->
 }
 
 /**
+ * Менеджер обновлений по GitHub Releases или `null`, если проверка выключена ([DaemonConfig.updateCheck]):
+ * тогда runtime остаётся с `DisabledUpdateManager` и фоновая проверка не стартует.
+ */
+fun createDaemonUpdateManager(
+    config: DaemonConfig,
+    httpClient: HttpClient,
+    targetPlatform: TargetPlatform,
+    applier: UpdateApplier,
+): UpdateManager? =
+    if (config.updateCheck) createGitHubUpdateManager(httpClient, targetPlatform, applier) else null
+
+/**
  * Composition root JVM: [MimirRuntime] с настройками из [config], входом по настроенным клиентам Google
  * (оба способа пишут в один `tokens.json` и делят один источник токенов) и блокирующим IO на `Dispatchers.IO`.
+ *
+ * Обновления: по умолчанию демон только сообщает о новой версии ([DockerLogNotifyApplier], цель `DOCKER_ANY`);
+ * встроенный desktop передаёт [updateApplier] и [targetPlatform] своей платформы.
  */
 fun createRuntime(
     config: DaemonConfig,
@@ -55,6 +75,10 @@ fun createRuntime(
     conflictScanInterval: Duration = 5.seconds,
     browserLoginTimeout: Duration = 5.minutes,
     localVaultFactory: (Path) -> LocalVault = { FileSystemLocalVault(it, ioDispatcher = Dispatchers.IO) },
+    updateApplier: UpdateApplier = DockerLogNotifyApplier(),
+    targetPlatform: TargetPlatform = TargetPlatform.DOCKER_ANY,
+    updateManager: UpdateManager? = createDaemonUpdateManager(config, httpClient, targetPlatform, updateApplier),
+    updateSchedulerFactory: ((UpdateManager, () -> Boolean) -> UpdateScheduler)? = null,
 ): MimirRuntime {
     val settings = DaemonSettingsStore(config)
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -78,6 +102,8 @@ fun createRuntime(
         scope = scope,
         conflictScanInterval = conflictScanInterval,
         localVaultFactory = localVaultFactory,
+        updateManager = updateManager,
+        updateSchedulerFactory = updateSchedulerFactory,
     )
 }
 
@@ -90,16 +116,16 @@ private fun isPortFree(config: DaemonConfig): Boolean =
         false
     }
 
-fun runDaemon(config: DaemonConfig): Int {
+fun runDaemon(config: DaemonConfig, updateApplier: UpdateApplier = DockerLogNotifyApplier()): Int {
     if (!isPortFree(config)) {
         System.err.println("Port ${config.port} on ${config.bind} is already in use")
         return EXIT_PORT_IN_USE
     }
-    val runtime = createRuntime(config)
+    val runtime = createRuntime(config, updateApplier = updateApplier)
     try {
         runBlocking { runtime.initialize() }
         embeddedServer(CIO, port = config.port, host = config.bind) {
-            mimirRoutes(runtime, config)
+            mimirRoutes(runtime, config, runtime.updateManager)
         }.start(wait = true)
     } finally {
         runtime.close()

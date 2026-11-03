@@ -8,6 +8,7 @@ import dev.mimir.client.*
 import dev.mimir.core.BuildConfig
 import dev.mimir.core.SyncStatus
 import dev.mimir.core.label
+import dev.mimir.core.update.UpdateManager
 import dev.mimir.drive.client.DriveHttpException
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
@@ -73,10 +74,14 @@ private val MimirTokenAuth = createRouteScopedPlugin("MimirTokenAuth", ::TokenAu
     }
 }
 
-fun Application.mimirRoutes(service: DaemonService, config: DaemonConfig) {
+/**
+ * [updateManager] — менеджер обновлений (`MimirRuntime.updateManager`); `null` или `config.updateCheck == false` —
+ * маршруты `/api/v1/update` отвечают статусом `DISABLED`.
+ */
+fun Application.mimirRoutes(service: DaemonService, config: DaemonConfig, updateManager: UpdateManager? = null) {
     install(CORS) {
         // Только клиенты Mimir: расширение браузера и Obsidian. Произвольные сайты не должны управлять локальным API.
-        allowOrigins { it.startsWith("chrome-extension://") || it == "app://obsidian.md" }
+        allowOrigins { isMimirClientOrigin(it) }
         allowMethod(HttpMethod.Options)
         allowMethod(HttpMethod.Get)
         allowMethod(HttpMethod.Post)
@@ -91,6 +96,8 @@ fun Application.mimirRoutes(service: DaemonService, config: DaemonConfig) {
 
         route("/api/v1") {
             config.token?.let { install(MimirTokenAuth) { token = it } }
+
+            updateRoutes(service, config, updateManager)
 
             get("/status") {
                 val status = service.status.value

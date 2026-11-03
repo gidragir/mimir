@@ -237,4 +237,44 @@ class DaemonConfigTest {
 
         assertEquals(6, DaemonConfig.readFile(dir.toString()).syncParallelism)
     }
+
+    @Test
+    fun `update check is enabled by default`() {
+        assertTrue(DaemonConfig.fromEnv(emptyMap()).updateCheck)
+    }
+
+    @Test
+    fun `MIMIR_UPDATE_CHECK false 0 off no disable it case-insensitively`() {
+        for (value in listOf("false", "FALSE", "0", "off", "Off", "no", " false ")) {
+            assertFalse(DaemonConfig.fromEnv(mapOf("MIMIR_UPDATE_CHECK" to value)).updateCheck, value)
+        }
+    }
+
+    @Test
+    fun `MIMIR_UPDATE_CHECK true 1 on enables it and overrides config json`() {
+        val dir = createTempDirectory("mimir-config")
+        dir.resolve("config.json").writeText("""{"updateCheck": false}""")
+        assertFalse(DaemonConfig.load(dir.toString(), emptyMap()).updateCheck)
+        for (value in listOf("true", "1", "on", "yes")) {
+            assertTrue(DaemonConfig.load(dir.toString(), mapOf("MIMIR_UPDATE_CHECK" to value)).updateCheck, value)
+        }
+    }
+
+    @Test
+    fun `empty MIMIR_UPDATE_CHECK is treated as unset`() {
+        assertTrue(DaemonConfig.fromEnv(mapOf("MIMIR_UPDATE_CHECK" to "")).updateCheck)
+    }
+
+    @Test
+    fun `invalid MIMIR_UPDATE_CHECK fails mentioning the variable`() {
+        val e = assertFailsWith<IllegalArgumentException> { DaemonConfig.fromEnv(mapOf("MIMIR_UPDATE_CHECK" to "maybe")) }
+        assertTrue("MIMIR_UPDATE_CHECK" in e.message.orEmpty())
+    }
+
+    @Test
+    fun `update check round-trips through config json`() {
+        val dir = createTempDirectory("mimir-config")
+        DaemonConfig(updateCheck = false).save(dir.toString())
+        assertFalse(DaemonConfig.readFile(dir.toString()).updateCheck)
+    }
 }

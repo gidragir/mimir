@@ -111,6 +111,10 @@ curl -s 127.0.0.1:47821/health
 
 Старые `MIMIR_GOOGLE_CLIENT_ID` / `MIMIR_GOOGLE_CLIENT_SECRET` читаются как алиас Device-пары с предупреждением в логе. Демон в Docker не получает вшитых значений: он настраивается только этими переменными (вход по Device Code), например `-e MIMIR_GOOGLE_DEVICE_CLIENT_ID=... -e MIMIR_GOOGLE_DEVICE_CLIENT_SECRET=...`.
 
+### Проверка обновлений
+
+Демон раз в сутки (первый раз через 30 секунд после старта) смотрит релизы GitHub; состояние отдают `GET /api/v1/update` и `POST /api/v1/update/{check,download,apply}`. В Docker и других headless-запусках демон только пишет в лог `Update vX.Y.Z available: <ссылка>`, образ обновляет оператор. Отключить проверку: переменная `MIMIR_UPDATE_CHECK=false` (также `0`, `off`, `no`; по умолчанию включена) или ключ `"updateCheck": false` в `config.json`; тогда статус — `DISABLED`, в сеть демон не ходит.
+
 ## Совместимость с rclone
 
 `RcloneCipher` (модуль `core`, чистый Kotlin на jvm, android, js и wasmJs) бит-в-бит совместим с rclone crypt в режиме `filename_encryption = standard`, `directory_name_encryption = true`, `filename_encoding = base32`:

@@ -63,6 +63,7 @@ class DaemonFullCycleE2ETest {
             password = "secret",
             googleDeviceClientId = "cid",
             syncIntervalSeconds = 1,
+            updateCheck = false, // тест не ходит в GitHub
             configDir = configDir.toString(),
         )
         val runtime = createRuntime(config, cloudFactory = { _, _, _ -> remote }).also { runtime = it }

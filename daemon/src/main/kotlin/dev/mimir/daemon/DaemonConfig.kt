@@ -30,6 +30,8 @@ data class DaemonConfig(
     val syncIntervalSeconds: Long = 30L,
     val syncParallelism: Int = 4,
     val rootFolder: String = "MimirVault",
+    /** Фоновая проверка обновлений и маршруты `/api/v1/update`; `false` — статус `DISABLED`. Env: `MIMIR_UPDATE_CHECK`. */
+    val updateCheck: Boolean = true,
     val configDir: String? = null,
 ) {
     /** Пароль шифрования: `password`, иначе содержимое `passwordFile` (без пробелов по краям). */
@@ -61,7 +63,7 @@ data class DaemonConfig(
             "passwordFile=$passwordFile, googleDesktopClientId=$googleDesktopClientId, " +
             "googleDesktopClientSecret=${redact(googleDesktopClientSecret)}, googleDeviceClientId=$googleDeviceClientId, " +
             "googleDeviceClientSecret=${redact(googleDeviceClientSecret)}, " +
-            "syncIntervalSeconds=$syncIntervalSeconds, syncParallelism=$syncParallelism, rootFolder=$rootFolder, configDir=$configDir)"
+            "syncIntervalSeconds=$syncIntervalSeconds, syncParallelism=$syncParallelism, rootFolder=$rootFolder, updateCheck=$updateCheck, configDir=$configDir)"
 
     companion object {
         private const val CONFIG_FILE = "config.json"
@@ -114,6 +116,7 @@ private fun DaemonConfig.applyEnv(env: Map<String, String>): DaemonConfig {
         it.toIntOrNull()?.takeIf { n -> n in 1..16 }
             ?: throw IllegalArgumentException("MIMIR_SYNC_PARALLELISM must be a number from 1 to 16, got '$it'")
     } ?: syncParallelism
+    val updateCheck = env["MIMIR_UPDATE_CHECK"]?.let { parseBooleanEnv("MIMIR_UPDATE_CHECK", it) } ?: updateCheck
     val legacyId = deprecatedEnv(env, "MIMIR_GOOGLE_CLIENT_ID", "MIMIR_GOOGLE_DEVICE_CLIENT_ID")
     val legacySecret = deprecatedEnv(env, "MIMIR_GOOGLE_CLIENT_SECRET", "MIMIR_GOOGLE_DEVICE_CLIENT_SECRET")
     return copy(
@@ -130,7 +133,16 @@ private fun DaemonConfig.applyEnv(env: Map<String, String>): DaemonConfig {
         syncIntervalSeconds = interval,
         syncParallelism = parallelism,
         rootFolder = env["MIMIR_ROOT_FOLDER"] ?: rootFolder,
+        updateCheck = updateCheck,
     )
+}
+
+/** `true`/`1`/`on`/`yes` и `false`/`0`/`off`/`no` без учёта регистра; пустая строка — значение не задано. */
+private fun parseBooleanEnv(name: String, raw: String): Boolean? = when (raw.trim().lowercase()) {
+    "" -> null
+    "true", "1", "on", "yes" -> true
+    "false", "0", "off", "no" -> false
+    else -> throw IllegalArgumentException("$name must be true/false (or 1/0, on/off), got '$raw'")
 }
 
 private val configLogger = java.util.logging.Logger.getLogger(DaemonConfig::class.java.name)
