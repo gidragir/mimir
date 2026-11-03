@@ -13,6 +13,8 @@ class FakeUpdateApplier(
     var applyResult: UpdateApplyResult = UpdateApplyResult.LaunchedInstaller("launched"),
     /** Если задан, `download` ждёт его завершения после эмиссии прогресса. */
     var downloadGate: CompletableDeferred<Unit>? = null,
+    /** Если задан, `apply` ждёт его завершения. */
+    var applyGate: CompletableDeferred<Unit>? = null,
 ) : UpdateApplier {
     var downloadCalls: Int = 0
         private set
@@ -38,6 +40,7 @@ class FakeUpdateApplier(
 
     override suspend fun apply(downloadedAsset: DownloadedAsset): UpdateApplyResult {
         applied += downloadedAsset
+        applyGate?.await()
         return applyResult
     }
 }

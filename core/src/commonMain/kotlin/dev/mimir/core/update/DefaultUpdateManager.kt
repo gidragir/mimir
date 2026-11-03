@@ -8,8 +8,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.time.Clock
-import kotlin.time.Duration
-import kotlin.time.Duration.Companion.ZERO
 import kotlin.time.Instant
 
 /**
@@ -23,7 +21,6 @@ class DefaultUpdateManager(
     private val channel: UpdateChannel,
     private val applier: UpdateApplier,
     private val clock: Clock = Clock.System,
-    private val minCheckInterval: Duration = ZERO,
 ) : UpdateManager {
     private val mutex = Mutex()
     private val _state = MutableStateFlow<UpdateState>(UpdateState.Idle())
@@ -37,12 +34,6 @@ class DefaultUpdateManager(
         return mutex.withLock {
             busyResult()?.let { return@withLock it }
             val previous = _state.value
-            val last = lastCheckedAt
-            if (!force && minCheckInterval > ZERO && previous is UpdateState.Idle &&
-                last != null && clock.now() - last < minCheckInterval
-            ) {
-                return@withLock UpdateCheckResult.NoUpdate(latestKnownVersion ?: currentVersion)
-            }
             _state.value = UpdateState.Checking
             val result = try {
                 channel.checkForUpdates(currentVersion, targetPlatform)
@@ -79,7 +70,7 @@ class DefaultUpdateManager(
 
     override suspend fun downloadUpdate(): Result<DownloadedAsset> {
         val available = mutex.withLock {
-            val s = _state.value
+            val s = _state.value.let { if (it is UpdateState.Error) it.previousState else it }
             if (s !is UpdateState.Available) {
                 return Result.failure(IllegalStateException("Cannot download in state ${s::class.simpleName}"))
             }
@@ -91,8 +82,8 @@ class DefaultUpdateManager(
         val asset = checkNotNull(available.asset)
         val result = try {
             applier.download(asset, available.release) { progress, read, total ->
-                if (_state.value is UpdateState.Downloading) {
-                    _state.value = UpdateState.Downloading(available.release, asset, progress, read, total)
+                _state.update {
+                    if (it is UpdateState.Downloading) it.copy(progress = progress, bytesRead = read, totalBytes = total) else it
                 }
             }
         } catch (e: CancellationException) {
@@ -116,21 +107,24 @@ class DefaultUpdateManager(
 
     override suspend fun applyUpdate(): UpdateApplyResult {
         val ready = mutex.withLock {
-            val s = _state.value
+            val s = _state.value.let { if (it is UpdateState.Error) it.previousState else it }
             if (s !is UpdateState.ReadyToInstall) {
                 return UpdateApplyResult.Failed("Cannot apply in state ${s::class.simpleName}")
             }
+            applyInFlight = true
             _state.value = UpdateState.Installing(s.release)
             s
         }
         val result = try {
             applier.apply(ready.downloadedAsset)
         } catch (e: CancellationException) {
+            applyInFlight = false
             _state.value = ready
             throw e
         } catch (e: Throwable) {
             UpdateApplyResult.Failed(e.message ?: "Update failed", e)
         }
+        applyInFlight = false
         _state.value = when (result) {
             is UpdateApplyResult.Failed -> UpdateState.Error(result.error, ready)
             is UpdateApplyResult.LaunchedInstaller -> UpdateState.Installing(ready.release)
@@ -141,14 +135,23 @@ class DefaultUpdateManager(
         return result
     }
 
+    /**
+     * Сброс в Idle. No-op, пока идут проверка, скачивание или сам вызов apply.
+     * После возврата apply (установщик запущен, состояние Installing) dismiss возвращает Idle,
+     * чтобы состояние не залипало навсегда.
+     */
     override fun dismiss() {
         _state.update { s ->
-            when (s) {
-                is UpdateState.Downloading, is UpdateState.Installing, UpdateState.Checking -> s
+            when {
+                s is UpdateState.Downloading || s === UpdateState.Checking -> s
+                s is UpdateState.Installing && applyInFlight -> s
                 else -> idle()
             }
         }
     }
+
+    @kotlin.concurrent.Volatile
+    private var applyInFlight = false
 
     private fun idle() = UpdateState.Idle(lastCheckedAt, latestKnownVersion)
 }

@@ -119,7 +119,8 @@ class UpdateManagerTest {
     @Test
     fun downloadFailureThenRetrySucceeds() = runTest {
         val applier = FakeUpdateApplier(downloadFailure = RuntimeException("net down"))
-        val manager = manager(FakeUpdateChannel(available()), applier)
+        val channel = FakeUpdateChannel(available())
+        val manager = manager(channel, applier)
         manager.checkForUpdates()
 
         assertTrue(manager.downloadUpdate().isFailure)
@@ -127,14 +128,13 @@ class UpdateManagerTest {
         assertEquals("net down", error.message)
         assertIs<UpdateState.Available>(error.previousState)
 
-        // повтор: из Error снова вернуться в Available нельзя через downloadUpdate,
-        // поэтому UI делает dismiss/повторную проверку.
+        assertTrue(applier.applied.isEmpty())
+
         applier.downloadFailure = null
-        manager.checkForUpdates(force = true)
-        assertIs<UpdateState.Available>(manager.state.value)
         assertTrue(manager.downloadUpdate().isSuccess)
         assertIs<UpdateState.ReadyToInstall>(manager.state.value)
         assertEquals(2, applier.downloadCalls)
+        assertEquals(1, channel.calls)
     }
 
     @Test
@@ -242,5 +242,78 @@ class UpdateManagerTest {
         manager.dismiss()
         val idle = assertIs<UpdateState.Idle>(manager.state.value)
         assertNull(idle.latestKnownVersion)
+    }
+
+    @Test
+    fun applyRetryAfterFailureDoesNotRedownload() = runTest {
+        val applier = FakeUpdateApplier(applyResult = UpdateApplyResult.Failed("denied"))
+        val channel = FakeUpdateChannel(available())
+        val manager = manager(channel, applier)
+        manager.checkForUpdates()
+        manager.downloadUpdate()
+        assertIs<UpdateApplyResult.Failed>(manager.applyUpdate())
+        assertIs<UpdateState.Error>(manager.state.value)
+
+        applier.applyResult = UpdateApplyResult.LaunchedInstaller("ok")
+        assertIs<UpdateApplyResult.LaunchedInstaller>(manager.applyUpdate())
+        assertIs<UpdateState.Installing>(manager.state.value)
+        assertEquals(1, applier.downloadCalls)
+        assertEquals(1, channel.calls)
+        assertEquals(2, applier.applied.size)
+    }
+
+    @Test
+    fun dismissAfterLaunchedInstallerReturnsToIdle() = runTest {
+        val manager = manager(FakeUpdateChannel(available()))
+        manager.checkForUpdates()
+        manager.downloadUpdate()
+        manager.applyUpdate()
+        assertIs<UpdateState.Installing>(manager.state.value)
+        manager.dismiss()
+        assertIs<UpdateState.Idle>(manager.state.value)
+    }
+
+    @Test
+    fun dismissAfterSuccessWithRestartReturnsToIdle() = runTest {
+        val applier = FakeUpdateApplier(applyResult = UpdateApplyResult.Success("done", requiresRestart = true))
+        val manager = manager(FakeUpdateChannel(available()), applier)
+        manager.checkForUpdates()
+        manager.downloadUpdate()
+        manager.applyUpdate()
+        assertIs<UpdateState.Installing>(manager.state.value)
+        manager.dismiss()
+        assertIs<UpdateState.Idle>(manager.state.value)
+    }
+
+    @Test
+    fun dismissWhileApplyInFlightIsNoOp() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        val applier = FakeUpdateApplier(applyGate = gate)
+        val manager = manager(FakeUpdateChannel(available()), applier)
+        manager.checkForUpdates()
+        manager.downloadUpdate()
+        val job = launch { manager.applyUpdate() }
+        runCurrent()
+        assertIs<UpdateState.Installing>(manager.state.value)
+        manager.dismiss()
+        assertIs<UpdateState.Installing>(manager.state.value)
+        gate.complete(Unit)
+        job.join()
+        assertIs<UpdateState.Installing>(manager.state.value)
+        manager.dismiss()
+        assertIs<UpdateState.Idle>(manager.state.value)
+    }
+
+    @Test
+    fun cancellationDuringDownloadRestoresAvailableNotError() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        val manager = manager(FakeUpdateChannel(available()), FakeUpdateApplier(downloadGate = gate))
+        manager.checkForUpdates()
+        val job = launch { manager.downloadUpdate() }
+        runCurrent()
+        assertIs<UpdateState.Downloading>(manager.state.value)
+        job.cancel()
+        job.join()
+        assertIs<UpdateState.Available>(manager.state.value)
     }
 }
