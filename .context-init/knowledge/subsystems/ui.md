@@ -2,8 +2,8 @@
 directory: ui
 source:
   kind: git
-  blob_sha: 41d715c8705aa86e2ed2ce37e6ce92363fecfd92
-  commit_sha: 59b2f01957ad853d3e73656dd4fdd3f849fcb7f6
+  blob_sha: 9ef094fbcb593a56ea3db3cfb8847b61fcf63bb2
+  commit_sha: 0015ea5942cd9570dd8e5f4a879cead20db73253
 generated_by:
   component: context-init
   role: update

@@ -3,7 +3,7 @@ directory: runtime
 source:
   kind: git
   blob_sha: e7becccfb76e435937d95b9d335cca678d40e769
-  commit_sha: 59b2f01957ad853d3e73656dd4fdd3f849fcb7f6
+  commit_sha: 0015ea5942cd9570dd8e5f4a879cead20db73253
 generated_by:
   component: context-init
   role: update

@@ -357,6 +357,7 @@
         "client/package.json"
       ],
       "key_files": [
+        "client/CHANGELOG.md",
         "client/build.gradle.kts",
         "client/package.json",
         "client/src/commonMain/kotlin/dev/mimir/client/DaemonDto.kt",
@@ -365,6 +366,10 @@
         "client/src/commonMain/kotlin/dev/mimir/client/UpdateDto.kt"
       ],
       "files": [
+        {
+          "path": "client/CHANGELOG.md",
+          "is_entrypoint": false
+        },
         {
           "path": "client/build.gradle.kts",
           "is_entrypoint": false
@@ -390,9 +395,6 @@
           "is_entrypoint": false
         }
       ],
-      "key_symbols": [
-        "class HttpDaemonClient( private val baseUrl: String, private val token: String? = null, scope: CoroutineScope, private val httpClient: HttpClient = defaultDaemonHttpClient(), pollInterval: Duration = 1.seconds, ) : DaemonService"
-      ],
       "summary_source": "heuristic"
     },
     {
@@ -408,6 +410,7 @@
         "core/package.json"
       ],
       "key_files": [
+        "core/CHANGELOG.md",
         "core/build.gradle.kts",
         "core/package.json",
         "core/src/androidMain/kotlin/dev/mimir/core/crypto/AndroidKeystoreSecretStore.kt",
@@ -419,12 +422,15 @@
         "core/src/jsMain/kotlin/dev/mimir/core/fs/LastModified.js.kt",
         "core/src/jsMain/kotlin/dev/mimir/core/update/FetchUpdateHttpClient.kt",
         "core/src/jvmMain/kotlin/dev/mimir/core/crypto/RandomNonce.jvm.kt",
-        "core/src/jvmMain/kotlin/dev/mimir/core/fs/LastModified.jvm.kt",
         "core/src/jvmMain/kotlin/dev/mimir/core/fs/NioWatchServiceVaultWatcher.kt",
         "core/src/jvmMain/kotlin/dev/mimir/core/fs/SymbolicLink.jvm.kt",
         "core/src/wasmJsMain/kotlin/dev/mimir/core/crypto/RandomNonce.wasmJs.kt"
       ],
       "files": [
+        {
+          "path": "core/CHANGELOG.md",
+          "is_entrypoint": false
+        },
         {
           "path": "core/build.gradle.kts",
           "is_entrypoint": false
@@ -470,10 +476,6 @@
           "is_entrypoint": false
         },
         {
-          "path": "core/src/jvmMain/kotlin/dev/mimir/core/fs/LastModified.jvm.kt",
-          "is_entrypoint": false
-        },
-        {
           "path": "core/src/jvmMain/kotlin/dev/mimir/core/fs/NioWatchServiceVaultWatcher.kt",
           "is_entrypoint": false
         },
@@ -485,9 +487,6 @@
           "path": "core/src/wasmJsMain/kotlin/dev/mimir/core/crypto/RandomNonce.wasmJs.kt",
           "is_entrypoint": false
         }
-      ],
-      "key_symbols": [
-        "class AndroidFileObserverVaultWatcher( private val root: File, rules: SyncRules = SyncRules(), private val debounce: Duration = 1.seconds, echoTtl: Duration = 2.seconds, private val clock: Clock = Clock.System, ) : VaultWatcher"
       ],
       "summary_source": "heuristic"
     },
@@ -693,6 +692,7 @@
         "daemon/package.json"
       ],
       "key_files": [
+        "daemon/CHANGELOG.md",
         "daemon/build.gradle.kts",
         "daemon/package.json",
         "daemon/src/main/kotlin/dev/mimir/daemon/DaemonConfig.kt",
@@ -705,6 +705,10 @@
         "daemon/src/main/kotlin/dev/mimir/daemon/UpdateRoutes.kt"
       ],
       "files": [
+        {
+          "path": "daemon/CHANGELOG.md",
+          "is_entrypoint": false
+        },
         {
           "path": "daemon/build.gradle.kts",
           "is_entrypoint": false
@@ -747,8 +751,7 @@
         }
       ],
       "key_symbols": [
-        "class DaemonSettingsStore(initial: DaemonConfig) : RuntimeSettingsStore",
-        "class DockerLogNotifyApplier( private val log: (String) -> Unit = applierLogger::info, ) : UpdateApplier"
+        "class DaemonSettingsStore(initial: DaemonConfig) : RuntimeSettingsStore"
       ],
       "summary_source": "heuristic"
     },
@@ -784,7 +787,6 @@
       "key_files": [
         "docs/superpowers/plans/2026-10-23-mimir-drive.md",
         "docs/superpowers/plans/2026-10-23-mimir-skeleton.md",
-        "docs/superpowers/plans/2026-10-24-mimir-daemon.md",
         "docs/superpowers/plans/2026-10-24-mimir-desktop-polish.md",
         "docs/superpowers/plans/2026-10-24-mimir-desktop.md",
         "docs/superpowers/plans/2026-10-24-mimir-obsidian-ui-and-onboarding.md",
@@ -793,6 +795,7 @@
         "docs/superpowers/plans/2026-10-27-mimir-android.md",
         "docs/superpowers/plans/2026-11-01-mimir-browser-extension.md",
         "docs/superpowers/plans/2026-11-03-cross-platform-auto-updates.md",
+        "docs/superpowers/plans/2026-11-03-web-ui-docker.md",
         "docs/superpowers/specs/2026-10-24-mimir-daemon-design.md",
         "docs/superpowers/specs/2026-10-26-mimir-improvements-design.md",
         "docs/superpowers/specs/2026-11-01-mimir-browser-extension-design.md",
@@ -805,10 +808,6 @@
         },
         {
           "path": "docs/superpowers/plans/2026-10-23-mimir-skeleton.md",
-          "is_entrypoint": false
-        },
-        {
-          "path": "docs/superpowers/plans/2026-10-24-mimir-daemon.md",
           "is_entrypoint": false
         },
         {
@@ -844,6 +843,10 @@
           "is_entrypoint": false
         },
         {
+          "path": "docs/superpowers/plans/2026-11-03-web-ui-docker.md",
+          "is_entrypoint": false
+        },
+        {
           "path": "docs/superpowers/specs/2026-10-24-mimir-daemon-design.md",
           "is_entrypoint": false
         },
@@ -866,11 +869,11 @@
         "class EncryptedRemoteStorage(private val inner: RemoteStorage, private val cipher: Cipher) : RemoteStorage object NotImplementedCipher : Cipher // все методы: throw NotImplementedError(\"rclone crypt is not implemented yet\") sealed interface SyncStatus",
         "class StubSyncEngine : SyncEngine // status всегда NotConfigured; start/stop — no-op; syncNow — NotImplementedError data class Conflict(val id: VaultFileId, val local: ByteArray, val remote: ByteArray) sealed interface Resolution",
         "class InMemoryRemoteStorage : RemoteStorage // для тестов и как образец адаптера data class TimeWindow(...) // в core/rules/SyncRules.kt data class SyncRules(val wifiOnly: Boolean = false, val windows: List<TimeWindow> = emptyList(), val excludedGl...",
-        "class FileSystemLocalVault(...) : LocalVault ``` - [ ] **Step 1: Write failing tests in `FileSystemLocalVaultTest`** - Проверка `list()`: рекурсивный обход тестового каталога, игнорирование `.git/**`, `.obsidian/workspace*....",
-        "class FileTokenStorage(...) : TokenStorage class JsonSyncStateStore(val indexFile: Path) : SyncStateStore ``` - [ ] **Step 1: Write failing tests** - `DaemonConfigTest`: чтение из `mimir.json`, переопределение переменными окружения (`...",
-        "class SyncScheduler( val syncEngine: SyncEngine,",
         "class GoogleAuthClients(val desktop: GoogleAuthClient?, val device: GoogleAuthClient?)",
-        "class CanaryCheckTest"
+        "class CanaryCheckTest",
+        "class ConfigureVaultTest",
+        "class MimirThemeTest",
+        "class AwtFolderPickerTest"
       ],
       "summary_source": "heuristic"
     },
@@ -1003,6 +1006,7 @@
         "obsidian-plugin/package.json"
       ],
       "key_files": [
+        "obsidian-plugin/CHANGELOG.md",
         "obsidian-plugin/build.gradle.kts",
         "obsidian-plugin/manifest.template.json",
         "obsidian-plugin/package.json",
@@ -1014,6 +1018,10 @@
         "obsidian-plugin/webpack.config.d/obsidian.js"
       ],
       "files": [
+        {
+          "path": "obsidian-plugin/CHANGELOG.md",
+          "is_entrypoint": false
+        },
         {
           "path": "obsidian-plugin/build.gradle.kts",
           "is_entrypoint": false
@@ -1053,8 +1061,7 @@
       ],
       "key_symbols": [
         "class Plugin",
-        "class Notice",
-        "class MimirPlugin : Plugin()"
+        "class Notice"
       ],
       "summary_source": "heuristic"
     },
@@ -1496,11 +1503,16 @@
         "web-ui/package.json"
       ],
       "key_files": [
+        "web-ui/CHANGELOG.md",
         "web-ui/build.gradle.kts",
         "web-ui/package.json",
         "web-ui/src/wasmJsMain/kotlin/dev/mimir/web/Main.kt"
       ],
       "files": [
+        {
+          "path": "web-ui/CHANGELOG.md",
+          "is_entrypoint": false
+        },
         {
           "path": "web-ui/build.gradle.kts",
           "is_entrypoint": false

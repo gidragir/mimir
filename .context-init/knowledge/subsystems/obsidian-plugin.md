@@ -2,15 +2,15 @@
 directory: obsidian-plugin
 source:
   kind: git
-  blob_sha: d0187adaed1346cfda9a784f97a8eaadbfef29fa
-  commit_sha: 59b2f01957ad853d3e73656dd4fdd3f849fcb7f6
+  blob_sha: 23b67461f0b81bc175e4729241735176d4c25bb9
+  commit_sha: 0015ea5942cd9570dd8e5f4a879cead20db73253
 generated_by:
   component: context-init
   role: update
   model: none
 freshness:
-  total_entries: 9
-  sampled_entries: 9
+  total_entries: 10
+  sampled_entries: 10
   unsampled_entries: 0
   pending_child_changes: 0
 ---
@@ -26,6 +26,7 @@ freshness:
 
 | Файл | Статус |
 | :--- | :--- |
+| `obsidian-plugin/CHANGELOG.md` | Исходный код |
 | `obsidian-plugin/build.gradle.kts` | Исходный код |
 | `obsidian-plugin/manifest.template.json` | Исходный код |
 | `obsidian-plugin/package.json` | ⭐ Точка входа |
@@ -40,7 +41,6 @@ freshness:
 ```text
 class Plugin
 class Notice
-class MimirPlugin : Plugin()
 ```
 
 ## 🧪 Запуск и тестирование

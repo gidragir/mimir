@@ -3,14 +3,14 @@ directory: daemon
 source:
   kind: git
   blob_sha: 6958fa16ac5e95505ff09964be7bb5563e9673f1
-  commit_sha: 59b2f01957ad853d3e73656dd4fdd3f849fcb7f6
+  commit_sha: 0015ea5942cd9570dd8e5f4a879cead20db73253
 generated_by:
   component: context-init
   role: update
   model: none
 freshness:
-  total_entries: 10
-  sampled_entries: 10
+  total_entries: 11
+  sampled_entries: 11
   unsampled_entries: 0
   pending_child_changes: 0
 ---
@@ -26,6 +26,7 @@ freshness:
 
 | Файл | Статус |
 | :--- | :--- |
+| `daemon/CHANGELOG.md` | Исходный код |
 | `daemon/build.gradle.kts` | Исходный код |
 | `daemon/package.json` | ⭐ Точка входа |
 | `daemon/src/main/kotlin/dev/mimir/daemon/DaemonConfig.kt` | Исходный код |
@@ -40,7 +41,6 @@ freshness:
 ## 🔑 Ключевой контракт и экспорты
 ```text
 class DaemonSettingsStore(initial: DaemonConfig) : RuntimeSettingsStore
-class DockerLogNotifyApplier( private val log: (String) -> Unit = applierLogger::info, ) : UpdateApplier
 ```
 
 ## 🧪 Запуск и тестирование
