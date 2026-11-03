@@ -25,6 +25,7 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.launch
 import java.net.URI
 import java.net.URISyntaxException
+import java.util.concurrent.atomic.AtomicBoolean
 
 private val logger = java.util.logging.Logger.getLogger("dev.mimir.daemon.UpdateRoutes")
 
@@ -67,6 +68,10 @@ internal fun Route.updateRoutes(service: DaemonService, config: DaemonConfig, ma
     val currentVersion = BuildConfig.VERSION
     val active = manager?.takeIf { config.updateCheck && it !== DisabledUpdateManager }
 
+    // Атомарный допуск: два одновременных запроса не должны оба получить 202/запуск до смены состояния менеджера.
+    val downloadInFlight = AtomicBoolean(false)
+    val applyInFlight = AtomicBoolean(false)
+
     suspend fun ApplicationCall.conflict(message: String) = respond(HttpStatusCode.Conflict, DaemonErrorBody(message))
 
     route("/update") {
@@ -96,9 +101,15 @@ internal fun Route.updateRoutes(service: DaemonService, config: DaemonConfig, ma
         post("/download") {
             if (!isTrustedCaller(call, config)) return@post call.respond(HttpStatusCode.Forbidden, DaemonErrorBody("Forbidden origin"))
             if (active == null) return@post call.conflict("Update checks are disabled")
+            if (!downloadInFlight.compareAndSet(false, true)) return@post call.conflict("A download is already in progress")
             val state = active.state.value.effective()
-            if (state !is UpdateState.Available) return@post call.conflict("No update is available to download")
-            if (state.asset == null) return@post call.conflict("This update has no installable file for this platform")
+            if (state !is UpdateState.Available || state.asset == null) {
+                downloadInFlight.set(false)
+                return@post call.conflict(
+                    if (state is UpdateState.Available) "This update has no installable file for this platform"
+                    else "No update is available to download",
+                )
+            }
             // UNDISPATCHED: менеджер успевает перейти в Downloading до ответа, и повторный запрос получит 409.
             call.application.launch(start = CoroutineStart.UNDISPATCHED) {
                 try {
@@ -109,6 +120,8 @@ internal fun Route.updateRoutes(service: DaemonService, config: DaemonConfig, ma
                     throw e
                 } catch (e: Exception) {
                     logger.warning("Update download failed: ${e.javaClass.simpleName}")
+                } finally {
+                    downloadInFlight.set(false)
                 }
             }
             call.respond(HttpStatusCode.Accepted, DaemonStatusOnlyResponse("started"))
@@ -117,19 +130,22 @@ internal fun Route.updateRoutes(service: DaemonService, config: DaemonConfig, ma
         post("/apply") {
             if (!isTrustedCaller(call, config)) return@post call.respond(HttpStatusCode.Forbidden, DaemonErrorBody("Forbidden origin"))
             if (active == null) return@post call.conflict("Update checks are disabled")
-            if (active.state.value.effective() !is UpdateState.ReadyToInstall) {
-                return@post call.conflict("No downloaded update to install")
-            }
-            if (service.status.value == SyncStatus.Syncing) {
-                return@post call.conflict("A sync run is in progress; try again when it finishes")
-            }
+            if (!applyInFlight.compareAndSet(false, true)) return@post call.conflict("An install is already in progress")
             val result = try {
+                if (active.state.value.effective() !is UpdateState.ReadyToInstall) {
+                    return@post call.conflict("No downloaded update to install")
+                }
+                if (service.status.value == SyncStatus.Syncing) {
+                    return@post call.conflict("A sync run is in progress; try again when it finishes")
+                }
                 active.applyUpdate()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 logger.warning("Update apply failed: ${e.javaClass.simpleName}")
                 UpdateApplyResult.Failed("Update failed")
+            } finally {
+                applyInFlight.set(false)
             }
             val body = result.toDto()
             if (body == null) {

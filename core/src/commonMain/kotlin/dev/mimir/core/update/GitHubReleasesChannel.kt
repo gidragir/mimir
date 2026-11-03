@@ -114,7 +114,24 @@ class GitHubReleasesChannel(
         if (!release.version.isNewerThan(currentVersion)) return UpdateCheckResult.NoUpdate(currentVersion)
         val matched = release.assets.firstOrNull { it.platform == targetPlatform && it.isPrimary() }
             ?: release.assets.firstOrNull { it.platform == targetPlatform }
+            ?: placeholderAsset(release, targetPlatform)
         return UpdateCheckResult.UpdateAvailable(release, matched)
+    }
+
+    /**
+     * Платформы только с уведомлением (Docker, Linux-пакеты, расширение) обходятся без файла: возвращаем
+     * виртуальный ассет со ссылкой на релиз. Он не входит в `release.assets`. Для Windows/Android/Obsidian
+     * нужен настоящий установщик, поэтому там `null`.
+     */
+    private fun placeholderAsset(release: UpdateRelease, targetPlatform: TargetPlatform): UpdateAsset? {
+        val kind = when (targetPlatform) {
+            TargetPlatform.DOCKER_ANY -> AssetKind.DOCKER_TAG
+            TargetPlatform.LINUX_X64, TargetPlatform.LINUX_ARM64,
+            TargetPlatform.BROWSER_EXTENSION_ANY, TargetPlatform.UNKNOWN,
+            -> AssetKind.GENERIC
+            else -> return null
+        }
+        return UpdateAsset("mimir-${release.version}", release.htmlUrl, 0L, null, targetPlatform, kind)
     }
 
     /** `Retry-After` в секундах; иначе `X-RateLimit-Reset` (epoch-секунды) минус сейчас. HTTP-date не разбирается. */

@@ -44,6 +44,60 @@ class GitHubReleasesChannelTest {
     }
 
     @Test
+    fun dockerGetsPlaceholderAssetNotListedInReleaseAssets() = runTest {
+        val c = FakeUpdateHttpClient(responses = mutableMapOf(api to ok(release("v0.2.0", asset("Mimir-0.2.0.msi")))))
+        val r = check(c, TargetPlatform.DOCKER_ANY)
+        assertIs<UpdateCheckResult.UpdateAvailable>(r)
+        val m = assertNotNull(r.matchedAsset)
+        assertEquals("mimir-0.2.0", m.name)
+        assertEquals("https://gh/rel", m.downloadUrl)
+        assertEquals(0L, m.sizeBytes)
+        assertNull(m.expectedSha256)
+        assertEquals(AssetKind.DOCKER_TAG, m.kind)
+        assertEquals(TargetPlatform.DOCKER_ANY, m.platform)
+        assertEquals(listOf("Mimir-0.2.0.msi"), r.release.assets.map { it.name })
+    }
+
+    @Test
+    fun linuxKeepsRealArchPackageButOtherwiseGetsGenericPlaceholder() = runTest {
+        val real = FakeUpdateHttpClient(responses = mutableMapOf(api to ok(release("v0.2.0", asset("mimir-0.2.0-1-x86_64.pkg.tar.zst")))))
+        val withPkg = check(real, TargetPlatform.LINUX_X64)
+        assertIs<UpdateCheckResult.UpdateAvailable>(withPkg)
+        assertEquals(AssetKind.ARCH_PKG, withPkg.matchedAsset?.kind)
+
+        val none = FakeUpdateHttpClient(responses = mutableMapOf(api to ok(release("v0.2.0"))))
+        val placeholder = check(none, TargetPlatform.LINUX_X64)
+        assertIs<UpdateCheckResult.UpdateAvailable>(placeholder)
+        assertEquals(AssetKind.GENERIC, placeholder.matchedAsset?.kind)
+    }
+
+    @Test
+    fun installerPlatformsWithoutAssetGetNull() = runTest {
+        for (platform in listOf(TargetPlatform.WINDOWS_X64, TargetPlatform.WINDOWS_ARM64, TargetPlatform.ANDROID_ANY, TargetPlatform.OBSIDIAN_ANY)) {
+            val c = FakeUpdateHttpClient(responses = mutableMapOf(api to ok(release("v0.2.0"))))
+            val r = check(c, platform)
+            assertIs<UpdateCheckResult.UpdateAvailable>(r)
+            assertNull(r.matchedAsset, platform.name)
+        }
+    }
+
+    @Test
+    fun notModifiedReevaluationForDockerKeepsPlaceholder() = runTest {
+        val c = FakeUpdateHttpClient(
+            responses = mutableMapOf(api to ok(release("v0.2.0"), mapOf("ETag" to "\"e\""))),
+            notModifiedWithEtag = mutableSetOf(api),
+        )
+        val ch = channel(c)
+        val first = ch.checkForUpdates(SemVer.parse("0.1.0"), TargetPlatform.DOCKER_ANY)
+        val second = ch.checkForUpdates(SemVer.parse("0.1.0"), TargetPlatform.DOCKER_ANY)
+        assertEquals("\"e\"", c.requests[1].headers["If-None-Match"])
+        assertIs<UpdateCheckResult.UpdateAvailable>(first)
+        assertIs<UpdateCheckResult.UpdateAvailable>(second)
+        assertEquals(first.matchedAsset, assertNotNull(second.matchedAsset))
+        assertEquals(AssetKind.DOCKER_TAG, second.matchedAsset?.kind)
+    }
+
+    @Test
     fun newerReleaseMatchesMsiWithChecksum() = runTest {
         val c = FakeUpdateHttpClient(
             responses = mutableMapOf(
