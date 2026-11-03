@@ -42,6 +42,12 @@ description: Use when you need to build, test or verify a change in the Mimir re
 - **Запуск эмулятора под Wayland (Niri / Sway)**: встроенный Qt SDK не имеет плагина wayland, запуск требует Xwayland:
   `QT_QPA_PLATFORM=xcb emulator -avd <avd_name> -netdelay none -netspeed full`
 
+## CI и кроссплатформенная матрица
+
+- **Windows Runners**: На `windows-latest` обязателен экспорт `JAVA_HOME=$(mise where java | tr '\\' '/')` в `$GITHUB_ENV` и `$GITHUB_PATH`.
+- **Karma в CI**: Chrome в headless-режиме на Ubuntu CI требует лаунчера `ChromeHeadlessCI` с флагами `--no-sandbox --disable-dev-shm-usage --disable-gpu --headless=new` (`browser-extension/karma.config.d/headless.js`).
+- **Сплющивание dist в Release**: Перед расчетом контрольных сумм `dist/` очищается от вложенных папок во избежание ошибки `sha256sum: directory`.
+
 ## TDD
 
 Тест пишется и запускается первым; отметить, что он упал по ожидаемой причине (нет класса/функции), и только потом реализация. Отчёт о проверке — с реальным выводом команды, не «должно пройти».
