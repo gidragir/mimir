@@ -46,6 +46,18 @@ class DaemonServiceFactoryTest {
     }
 
     @Test
+    fun `embedded daemon gets the applier chosen for the detected platform`() = runBlocking<Unit> {
+        var seen: dev.mimir.core.update.TargetPlatform? = null
+        val backend = DaemonServiceFactory.create(
+            config(freePort()),
+            platform = dev.mimir.core.update.TargetPlatform.LINUX_ARM64,
+            applierFor = { p, _, _ -> seen = p; dev.mimir.desktop.update.DesktopNotifyApplier { } },
+        ).also { closers += it::close }
+        assertEquals(DesktopBackend.Mode.InProcess, backend.mode)
+        assertEquals(dev.mimir.core.update.TargetPlatform.LINUX_ARM64, seen)
+    }
+
+    @Test
     fun `connects to an already running Mimir daemon over HTTP`() {
         val port = freePort()
         // Сервер стартует вне runBlocking: иначе Ktor делает его дочерним корутином теста, и тест не завершится.
