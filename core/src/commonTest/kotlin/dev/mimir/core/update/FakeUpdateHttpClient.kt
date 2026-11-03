@@ -12,6 +12,10 @@ class FakeUpdateHttpClient(
     val failures: MutableMap<String, Throwable> = mutableMapOf(),
     /** Чанки, отдаваемые `downloadStream` по URL; нет записи — `Result.failure`. */
     val downloads: MutableMap<String, List<ByteArray>> = mutableMapOf(),
+    /** URL, которые отвечают 304, если запрос содержит `If-None-Match`. */
+    val notModifiedWithEtag: MutableSet<String> = mutableSetOf(),
+    /** URL, которые всегда отвечают 304. */
+    val alwaysNotModified: MutableSet<String> = mutableSetOf(),
 ) : UpdateHttpClient {
     val requests = mutableListOf<RecordedRequest>()
 
@@ -20,6 +24,9 @@ class FakeUpdateHttpClient(
     override suspend fun get(url: String, headers: Map<String, String>): UpdateHttpResponse {
         requests += RecordedRequest(url, headers)
         failures[url]?.let { throw it }
+        if (url in alwaysNotModified || (url in notModifiedWithEtag && "If-None-Match" in headers)) {
+            return UpdateHttpResponse(304, emptyMap(), "")
+        }
         return responses[url] ?: UpdateHttpResponse(404, emptyMap(), "")
     }
 

@@ -1,6 +1,8 @@
 package dev.mimir.core.update
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -23,36 +25,42 @@ class GitHubReleasesChannel(
 ) : UpdateChannel {
     override val name: String = "github:$owner/$repo"
 
-    private var etag: String? = null
+    /** Неизменяемый снимок одного успешного ответа: ETag, версия и (если она новее) релиз с чек-суммами. */
+    private class Snapshot(val etag: String, val version: SemVer, val release: UpdateRelease?)
 
-    /** Версия последнего успешно разобранного релиза и сам релиз (только если он был новее) - для ответов на 304. */
-    private var cachedVersion: SemVer? = null
-    private var cachedRelease: UpdateRelease? = null
+    private val lock = Mutex()
+    private var snapshot: Snapshot? = null
 
     override suspend fun checkForUpdates(currentVersion: SemVer, targetPlatform: TargetPlatform): UpdateCheckResult =
         try {
-            check(currentVersion, targetPlatform, useEtag = true)
+            check(currentVersion, targetPlatform, allowConditional = true)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             UpdateCheckResult.Error("Update check failed: ${e.message ?: e::class.simpleName}", e)
         }
 
-    private suspend fun check(currentVersion: SemVer, targetPlatform: TargetPlatform, useEtag: Boolean): UpdateCheckResult {
+    private suspend fun check(
+        currentVersion: SemVer,
+        targetPlatform: TargetPlatform,
+        allowConditional: Boolean,
+    ): UpdateCheckResult {
         val url = "https://api.github.com/repos/$owner/$repo/releases/latest"
+        val sent = if (allowConditional) lock.withLock { snapshot } else null
         val headers = buildMap {
             put("Accept", "application/vnd.github+json")
-            if (useEtag) etag?.let { put("If-None-Match", it) }
+            sent?.let { put("If-None-Match", it.etag) }
         }
         val response = httpClient.get(url, headers)
         when (response.statusCode) {
             304 -> {
-                val cached = cachedRelease
+                if (sent == null) return UpdateCheckResult.Error("GitHub API returned unexpected HTTP 304 to an unconditional request")
+                val cached = sent.release
                 if (cached != null) return resultFor(cached, currentVersion, targetPlatform)
-                val v = cachedVersion
                 // Закэширован не-новый релиз: ответ верен, пока currentVersion не ниже его.
-                if (v != null && !v.isNewerThan(currentVersion)) return UpdateCheckResult.NoUpdate(currentVersion)
-                return check(currentVersion, targetPlatform, useEtag = false)
+                if (!sent.version.isNewerThan(currentVersion)) return UpdateCheckResult.NoUpdate(currentVersion)
+                // Снимок не подходит запросу: один безусловный повтор (без рекурсии дальше).
+                return check(currentVersion, targetPlatform, allowConditional = false)
             }
             200 -> Unit
             403, 429 -> {
@@ -74,7 +82,8 @@ class GitHubReleasesChannel(
         val checksumsUrl = if (!isNewer) null else rawAssets
             .firstOrNull { (it["name"] as? JsonPrimitive)?.content == CHECKSUMS_NAME }
             ?.let { (it["browser_download_url"] as? JsonPrimitive)?.content }
-        val checksums = checksumsUrl?.let { fetchChecksums(it) }.orEmpty()
+        val fetched = checksumsUrl?.let { fetchChecksums(it) }
+        val checksums = fetched.orEmpty()
 
         // Один битый ассет не валит всю проверку.
         val assets = rawAssets.mapNotNull { runCatching { toAsset(it, checksums) }.getOrNull() }
@@ -86,11 +95,17 @@ class GitHubReleasesChannel(
             assets = assets,
             checksums = checksums,
         )
-        // Кэш и ETag сохраняются только после полного успешного разбора.
-        // Не-новый релиз без чек-сумм не кэшируется целиком: при более низкой currentVersion пришлось бы перезапросить.
-        cachedVersion = version
-        cachedRelease = release.takeIf { isNewer }
-        etag = response.header("ETag")
+        // Снимок только после полного разбора; при сбое загрузки чек-сумм не кэшируем, чтобы
+        // следующий опрос был полным и не раздавал релиз без хэшей по 304.
+        val checksumsFailed = checksumsUrl != null && fetched == null
+        val etag = response.header("ETag")
+        lock.withLock {
+            snapshot = if (etag != null && !checksumsFailed) {
+                Snapshot(etag, version, release.takeIf { isNewer })
+            } else {
+                null
+            }
+        }
         if (!isNewer) return UpdateCheckResult.NoUpdate(currentVersion)
         return resultFor(release, currentVersion, targetPlatform)
     }
@@ -110,14 +125,14 @@ class GitHubReleasesChannel(
     }
 
     /** Сбой загрузки контрольных сумм не валит проверку: хэши остаются неизвестными. */
-    private suspend fun fetchChecksums(url: String): Map<String, String> =
+    private suspend fun fetchChecksums(url: String): Map<String, String>? =
         try {
             val r = httpClient.get(url)
-            if (r.statusCode == 200) parseChecksums(r.bodyText) else emptyMap()
+            if (r.statusCode == 200) parseChecksums(r.bodyText) else null
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
-            emptyMap()
+            null
         }
 
     private fun toAsset(obj: JsonObject, checksums: Map<String, String>): UpdateAsset? {

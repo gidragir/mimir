@@ -149,15 +149,26 @@ class GitHubReleasesChannelTest {
     }
 
     @Test
-    fun checksumFetchFailureDoesNotFailCheck() = runTest {
+    fun checksumFetchFailureDoesNotFailCheckAndIsNotCached() = runTest {
         val c = FakeUpdateHttpClient(
-            responses = mutableMapOf(api to ok(release("v0.2.0", asset("Mimir.msi"), asset("sha256sums.txt", sums)))),
+            responses = mutableMapOf(
+                api to ok(release("v0.2.0", asset("Mimir.msi"), asset("sha256sums.txt", sums)), mapOf("ETag" to "\"e\"")),
+            ),
             failures = mutableMapOf(sums to RuntimeException("boom")),
+            notModifiedWithEtag = mutableSetOf(api),
         )
-        val r = check(c)
+        val ch = channel(c)
+        val r = ch.checkForUpdates(SemVer.parse("0.1.0"), TargetPlatform.WINDOWS_X64)
         assertIs<UpdateCheckResult.UpdateAvailable>(r)
         assertNull(r.matchedAsset?.expectedSha256)
         assertTrue(r.release.checksums.isEmpty())
+        // сбой чек-сумм: ETag не сохранён, следующий опрос полный и повторно тянет sha256sums.txt
+        c.failures.clear()
+        c.responses[sums] = ok("$h1  Mimir.msi\n")
+        val again = ch.checkForUpdates(SemVer.parse("0.1.0"), TargetPlatform.WINDOWS_X64)
+        assertNull(c.requests[1].headers["If-None-Match"])
+        assertIs<UpdateCheckResult.UpdateAvailable>(again)
+        assertEquals(h1, again.matchedAsset?.expectedSha256)
     }
 
     @Test
@@ -290,16 +301,37 @@ class GitHubReleasesChannelTest {
     fun notModifiedAfterNoUpdateIsNoUpdateUntilCurrentVersionDrops() = runTest {
         val c = FakeUpdateHttpClient(
             responses = mutableMapOf(api to ok(release("v0.2.0", asset("Mimir.msi")), mapOf("ETag" to "\"e\""))),
+            notModifiedWithEtag = mutableSetOf(api),
         )
         val ch = channel(c)
         assertIs<UpdateCheckResult.NoUpdate>(ch.checkForUpdates(SemVer.parse("0.2.0"), TargetPlatform.WINDOWS_X64))
-        c.responses[api] = UpdateHttpResponse(304, emptyMap(), "")
+        // 304 по снимку не-нового релиза
         assertIs<UpdateCheckResult.NoUpdate>(ch.checkForUpdates(SemVer.parse("0.3.0"), TargetPlatform.WINDOWS_X64))
         assertEquals(2, c.requests.size)
-        // версия понизилась: 304 нельзя использовать, релиз перезапрашивается без If-None-Match
-        c.responses[api] = ok(release("v0.2.0", asset("Mimir.msi")), mapOf("ETag" to "\"e\""))
+        assertEquals("\"e\"", c.requests[1].headers["If-None-Match"])
+        // версия понизилась: сервер ответит 304, но снимок без релиза не подходит -> безусловный повтор
         val r = ch.checkForUpdates(SemVer.parse("0.1.0"), TargetPlatform.WINDOWS_X64)
+        assertEquals(4, c.requests.size)
+        assertEquals("\"e\"", c.requests[2].headers["If-None-Match"])
+        assertNull(c.requests[3].headers["If-None-Match"])
         assertIs<UpdateCheckResult.UpdateAvailable>(r)
+    }
+
+    @Test
+    fun endlessNotModifiedIsBoundedError() = runTest {
+        val c = FakeUpdateHttpClient(
+            responses = mutableMapOf(api to ok(release("v0.2.0", asset("Mimir.msi")), mapOf("ETag" to "\"e\""))),
+        )
+        val ch = channel(c)
+        assertIs<UpdateCheckResult.NoUpdate>(ch.checkForUpdates(SemVer.parse("0.2.0"), TargetPlatform.WINDOWS_X64))
+        c.alwaysNotModified += api
+        val r = ch.checkForUpdates(SemVer.parse("0.1.0"), TargetPlatform.WINDOWS_X64)
+        assertIs<UpdateCheckResult.Error>(r)
+        assertEquals(3, c.requests.size) // 1 исходный + conditional + один безусловный повтор
+        // без снимка первый же 304 - тоже Error, без рекурсии
+        val fresh = FakeUpdateHttpClient(alwaysNotModified = mutableSetOf(api))
+        assertIs<UpdateCheckResult.Error>(check(fresh))
+        assertEquals(1, fresh.requests.size)
     }
 
     @Test
