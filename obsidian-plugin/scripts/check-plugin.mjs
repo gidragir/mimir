@@ -136,7 +136,9 @@ const update = commands.find((c) => c.id === "update-plugin");
 if (!update) fail("command update-plugin is not registered");
 update.callback();
 const deadline = Date.now() + 10000;
-while (writes.size < 2 && Date.now() < deadline) await new Promise((r) => setTimeout(r, 25));
+while ((writes.size < 2 || !notices.some((n) => n.includes("Plugin updated"))) && Date.now() < deadline) {
+  await new Promise((r) => setTimeout(r, 25));
+}
 const pluginPath = `.obsidian/plugins/${manifest.id}`;
 if (!writes.get(`${pluginPath}/main.js`)?.equals(newMain)) fail(`main.js was not replaced in place; notices: ${notices.join(" | ")}`);
 if (!writes.get(`${pluginPath}/manifest.json`)?.equals(newManifest)) fail("manifest.json was not replaced in place");
