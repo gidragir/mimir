@@ -7,6 +7,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.long
+import kotlin.time.Clock
 import kotlin.time.Instant
 
 /**
@@ -24,43 +25,59 @@ class GitHubReleasesChannel(
 
     private var etag: String? = null
 
+    /** Версия последнего успешно разобранного релиза и сам релиз (только если он был новее) - для ответов на 304. */
+    private var cachedVersion: SemVer? = null
+    private var cachedRelease: UpdateRelease? = null
+
     override suspend fun checkForUpdates(currentVersion: SemVer, targetPlatform: TargetPlatform): UpdateCheckResult =
         try {
-            check(currentVersion, targetPlatform)
+            check(currentVersion, targetPlatform, useEtag = true)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             UpdateCheckResult.Error("Update check failed: ${e.message ?: e::class.simpleName}", e)
         }
 
-    private suspend fun check(currentVersion: SemVer, targetPlatform: TargetPlatform): UpdateCheckResult {
+    private suspend fun check(currentVersion: SemVer, targetPlatform: TargetPlatform, useEtag: Boolean): UpdateCheckResult {
         val url = "https://api.github.com/repos/$owner/$repo/releases/latest"
         val headers = buildMap {
             put("Accept", "application/vnd.github+json")
-            etag?.let { put("If-None-Match", it) }
+            if (useEtag) etag?.let { put("If-None-Match", it) }
         }
         val response = httpClient.get(url, headers)
         when (response.statusCode) {
-            304 -> return UpdateCheckResult.NoUpdate(currentVersion)
+            304 -> {
+                val cached = cachedRelease
+                if (cached != null) return resultFor(cached, currentVersion, targetPlatform)
+                val v = cachedVersion
+                // Закэширован не-новый релиз: ответ верен, пока currentVersion не ниже его.
+                if (v != null && !v.isNewerThan(currentVersion)) return UpdateCheckResult.NoUpdate(currentVersion)
+                return check(currentVersion, targetPlatform, useEtag = false)
+            }
             200 -> Unit
             403, 429 -> {
                 val retryAfter = response.header("Retry-After")
                 val suffix = if (retryAfter != null) ", retry after $retryAfter s" else ""
-                return UpdateCheckResult.Error("GitHub API rate limit or access denied (HTTP ${response.statusCode}$suffix)")
+                return UpdateCheckResult.Error(
+                    "GitHub API rate limit or access denied (HTTP ${response.statusCode}$suffix)",
+                    retryAfterSeconds = retryAfterSeconds(response),
+                )
             }
             else -> return UpdateCheckResult.Error("GitHub API returned HTTP ${response.statusCode}")
         }
 
         val root = JSON.parseToJsonElement(response.bodyText).jsonObject
         val version = SemVer.parse(root.string("tag_name"))
-        response.header("ETag")?.let { etag = it }
-        if (!version.isNewerThan(currentVersion)) return UpdateCheckResult.NoUpdate(currentVersion)
 
-        val rawAssets = (root["assets"] as? JsonArray ?: JsonArray(emptyList())).map { it.jsonObject }
-        val checksumsUrl = rawAssets.firstOrNull { it.string("name") == CHECKSUMS_NAME }?.string("browser_download_url")
+        val rawAssets = (root["assets"] as? JsonArray ?: JsonArray(emptyList())).mapNotNull { it as? JsonObject }
+        val isNewer = version.isNewerThan(currentVersion)
+        val checksumsUrl = if (!isNewer) null else rawAssets
+            .firstOrNull { (it["name"] as? JsonPrimitive)?.content == CHECKSUMS_NAME }
+            ?.let { (it["browser_download_url"] as? JsonPrimitive)?.content }
         val checksums = checksumsUrl?.let { fetchChecksums(it) }.orEmpty()
 
-        val assets = rawAssets.mapNotNull { toAsset(it, checksums) }
+        // Один битый ассет не валит всю проверку.
+        val assets = rawAssets.mapNotNull { runCatching { toAsset(it, checksums) }.getOrNull() }
         val release = UpdateRelease(
             version = version,
             releaseNotes = (root["body"] as? JsonPrimitive)?.takeIf { it.isString }?.content.orEmpty(),
@@ -69,9 +86,27 @@ class GitHubReleasesChannel(
             assets = assets,
             checksums = checksums,
         )
-        val matched = assets.firstOrNull { it.platform == targetPlatform && it.isPrimary() }
-            ?: assets.firstOrNull { it.platform == targetPlatform }
+        // Кэш и ETag сохраняются только после полного успешного разбора.
+        // Не-новый релиз без чек-сумм не кэшируется целиком: при более низкой currentVersion пришлось бы перезапросить.
+        cachedVersion = version
+        cachedRelease = release.takeIf { isNewer }
+        etag = response.header("ETag")
+        if (!isNewer) return UpdateCheckResult.NoUpdate(currentVersion)
+        return resultFor(release, currentVersion, targetPlatform)
+    }
+
+    private fun resultFor(release: UpdateRelease, currentVersion: SemVer, targetPlatform: TargetPlatform): UpdateCheckResult {
+        if (!release.version.isNewerThan(currentVersion)) return UpdateCheckResult.NoUpdate(currentVersion)
+        val matched = release.assets.firstOrNull { it.platform == targetPlatform && it.isPrimary() }
+            ?: release.assets.firstOrNull { it.platform == targetPlatform }
         return UpdateCheckResult.UpdateAvailable(release, matched)
+    }
+
+    /** `Retry-After` в секундах; иначе `X-RateLimit-Reset` (epoch-секунды) минус сейчас. HTTP-date не разбирается. */
+    private fun retryAfterSeconds(response: UpdateHttpResponse): Long? {
+        response.header("Retry-After")?.trim()?.toLongOrNull()?.let { return it.coerceAtLeast(0) }
+        val reset = response.header("X-RateLimit-Reset")?.trim()?.toLongOrNull() ?: return null
+        return (reset - Clock.System.now().epochSeconds).coerceAtLeast(0)
     }
 
     /** Сбой загрузки контрольных сумм не валит проверку: хэши остаются неизвестными. */

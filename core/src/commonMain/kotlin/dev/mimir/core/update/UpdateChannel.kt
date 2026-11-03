@@ -5,7 +5,11 @@ sealed interface UpdateCheckResult {
 
     data class UpdateAvailable(val release: UpdateRelease, val matchedAsset: UpdateAsset?) : UpdateCheckResult
 
-    data class Error(val message: String, val cause: Throwable? = null) : UpdateCheckResult
+    data class Error(
+        val message: String,
+        val cause: Throwable? = null,
+        val retryAfterSeconds: Long? = null,
+    ) : UpdateCheckResult
 }
 
 /** Источник релизов (GitHub Releases и др.). */

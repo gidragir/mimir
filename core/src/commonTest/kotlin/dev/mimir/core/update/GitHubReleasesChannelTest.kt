@@ -243,10 +243,10 @@ class GitHubReleasesChannelTest {
             responses = mutableMapOf(api to ok(release("v0.2.0"), mapOf("ETag" to "\"tag-1\""))),
         )
         val ch = channel(c)
-        assertIs<UpdateCheckResult.UpdateAvailable>(ch.checkForUpdates(SemVer.parse("0.1.0"), TargetPlatform.WINDOWS_X64))
+        assertIs<UpdateCheckResult.NoUpdate>(ch.checkForUpdates(SemVer.parse("0.2.0"), TargetPlatform.WINDOWS_X64))
         assertNull(c.requests[0].headers["If-None-Match"])
         c.responses[api] = UpdateHttpResponse(304, emptyMap(), "")
-        val r = ch.checkForUpdates(SemVer.parse("0.1.0"), TargetPlatform.WINDOWS_X64)
+        val r = ch.checkForUpdates(SemVer.parse("0.2.0"), TargetPlatform.WINDOWS_X64)
         assertEquals("\"tag-1\"", c.requests[1].headers["If-None-Match"])
         assertIs<UpdateCheckResult.NoUpdate>(r)
     }
@@ -260,5 +260,82 @@ class GitHubReleasesChannelTest {
         ch.checkForUpdates(SemVer.parse("0.1.0"), TargetPlatform.WINDOWS_X64)
         ch.checkForUpdates(SemVer.parse("0.1.0"), TargetPlatform.WINDOWS_X64)
         assertEquals("W/\"x\"", c.requests[1].headers["If-None-Match"])
+    }
+
+    @Test
+    fun pendingUpdateSurvivesNotModified() = runTest {
+        val c = FakeUpdateHttpClient(
+            responses = mutableMapOf(
+                api to ok(release("v0.2.0", asset("Mimir.msi"), asset("sha256sums.txt", sums)), mapOf("ETag" to "\"e\"")),
+                sums to ok("$h1  Mimir.msi\n"),
+            ),
+        )
+        val ch = channel(c)
+        val first = ch.checkForUpdates(SemVer.parse("0.1.0"), TargetPlatform.WINDOWS_X64)
+        assertIs<UpdateCheckResult.UpdateAvailable>(first)
+        c.responses[api] = UpdateHttpResponse(304, emptyMap(), "")
+        val second = ch.checkForUpdates(SemVer.parse("0.1.0"), TargetPlatform.WINDOWS_X64)
+        assertIs<UpdateCheckResult.UpdateAvailable>(second)
+        assertEquals(first.release, second.release)
+        assertEquals(h1, second.matchedAsset?.expectedSha256)
+        // другая платформа и другая версия не используют устаревший результат
+        val android = ch.checkForUpdates(SemVer.parse("0.1.0"), TargetPlatform.ANDROID_ANY)
+        assertIs<UpdateCheckResult.UpdateAvailable>(android)
+        assertNull(android.matchedAsset)
+        assertIs<UpdateCheckResult.NoUpdate>(ch.checkForUpdates(SemVer.parse("0.2.0"), TargetPlatform.WINDOWS_X64))
+        assertEquals(1, c.requestsTo(sums).size)
+    }
+
+    @Test
+    fun notModifiedAfterNoUpdateIsNoUpdateUntilCurrentVersionDrops() = runTest {
+        val c = FakeUpdateHttpClient(
+            responses = mutableMapOf(api to ok(release("v0.2.0", asset("Mimir.msi")), mapOf("ETag" to "\"e\""))),
+        )
+        val ch = channel(c)
+        assertIs<UpdateCheckResult.NoUpdate>(ch.checkForUpdates(SemVer.parse("0.2.0"), TargetPlatform.WINDOWS_X64))
+        c.responses[api] = UpdateHttpResponse(304, emptyMap(), "")
+        assertIs<UpdateCheckResult.NoUpdate>(ch.checkForUpdates(SemVer.parse("0.3.0"), TargetPlatform.WINDOWS_X64))
+        assertEquals(2, c.requests.size)
+        // версия понизилась: 304 нельзя использовать, релиз перезапрашивается без If-None-Match
+        c.responses[api] = ok(release("v0.2.0", asset("Mimir.msi")), mapOf("ETag" to "\"e\""))
+        val r = ch.checkForUpdates(SemVer.parse("0.1.0"), TargetPlatform.WINDOWS_X64)
+        assertIs<UpdateCheckResult.UpdateAvailable>(r)
+    }
+
+    @Test
+    fun retryAfterSecondsFromRetryAfterHeader() = runTest {
+        val c = FakeUpdateHttpClient(
+            responses = mutableMapOf(api to UpdateHttpResponse(429, mapOf("Retry-After" to "60"), "")),
+        )
+        val r = check(c)
+        assertIs<UpdateCheckResult.Error>(r)
+        assertEquals(60L, r.retryAfterSeconds)
+    }
+
+    @Test
+    fun retryAfterSecondsFallsBackToRateLimitReset() = runTest {
+        val reset = kotlin.time.Clock.System.now().epochSeconds + 120
+        val c = FakeUpdateHttpClient(
+            responses = mutableMapOf(api to UpdateHttpResponse(403, mapOf("X-RateLimit-Reset" to "$reset"), "")),
+        )
+        val r = check(c)
+        assertIs<UpdateCheckResult.Error>(r)
+        val s = assertNotNull(r.retryAfterSeconds)
+        assertTrue(s in 100L..120L, "$s")
+        val none = check(FakeUpdateHttpClient(responses = mutableMapOf(api to UpdateHttpResponse(403, emptyMap(), ""))))
+        assertIs<UpdateCheckResult.Error>(none)
+        assertNull(none.retryAfterSeconds)
+    }
+
+    @Test
+    fun malformedAssetIsSkippedNotFatal() = runTest {
+        val bad = """{"name":"Bad.msi","browser_download_url":123,"size":"x"}"""
+        val c = FakeUpdateHttpClient(
+            responses = mutableMapOf(api to ok(release("v0.2.0", bad, asset("Mimir.msi")))),
+        )
+        val r = check(c)
+        assertIs<UpdateCheckResult.UpdateAvailable>(r)
+        assertEquals("Mimir.msi", r.matchedAsset?.name)
+        assertEquals(1, r.release.assets.size)
     }
 }
