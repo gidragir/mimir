@@ -2,7 +2,7 @@ package dev.mimir.desktop.tray
 
 import dev.mimir.core.SyncPhase
 import dev.mimir.ui.model.UpdateUiState
-import dev.mimir.ui.screens.UpdateTexts
+import dev.mimir.ui.model.UpdateTexts
 import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncStatus
 import dev.mimir.core.label

@@ -32,5 +32,8 @@ sealed interface UpdateState {
 
     data class Installing(val release: UpdateRelease) : UpdateState
 
-    data class Error(val message: String, val previousState: UpdateState) : UpdateState
+    /** [step] — какой шаг не удался: от него зависит, что повторять. */
+    data class Error(val message: String, val previousState: UpdateState, val step: UpdateStep = UpdateStep.CHECK) : UpdateState
 }
+
+enum class UpdateStep { CHECK, DOWNLOAD, INSTALL }

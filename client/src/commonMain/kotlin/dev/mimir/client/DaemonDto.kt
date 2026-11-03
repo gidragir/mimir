@@ -7,6 +7,8 @@ import dev.mimir.core.SyncPhase
 import dev.mimir.core.SyncProblem
 import dev.mimir.core.SyncProblemKind
 import dev.mimir.core.SyncProgress
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlin.time.Instant
 
@@ -182,9 +184,13 @@ data class DaemonFailedResponse(
     val error: String,
 )
 
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 data class DaemonErrorBody(
     val error: String,
+    /** Для команд обновления: [UpdateErrorCode] по имени. */
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val code: String? = null,
 )
 
 enum class DaemonConnectionStatus {

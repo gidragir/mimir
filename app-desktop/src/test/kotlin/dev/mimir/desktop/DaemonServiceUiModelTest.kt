@@ -12,6 +12,9 @@ import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncStatus
 import dev.mimir.client.InvalidPasswordException
 import dev.mimir.client.UpdateApplyDto
+import dev.mimir.client.UpdateCommandException
+import dev.mimir.client.UpdateErrorCode
+import dev.mimir.ui.model.UpdateRetry
 import dev.mimir.client.UpdateStatus
 import dev.mimir.client.UpdateStatusDto
 import dev.mimir.ui.model.UpdateInstallKind
@@ -124,7 +127,12 @@ class DaemonServiceUiModelTest {
             return model.updateState.value
         }
         assertEquals(UpdateUiState.Disabled, stateFor(UpdateStatusDto("0.1.0", UpdateStatus.DISABLED)))
-        assertEquals(UpdateUiState.UpToDate("0.1.0"), stateFor(UpdateStatusDto("0.1.0", UpdateStatus.IDLE)))
+        assertEquals(UpdateUiState.Unknown("0.1.0"), stateFor(UpdateStatusDto("0.1.0", UpdateStatus.IDLE)), "never checked")
+        assertEquals(
+            UpdateUiState.UpToDate("0.1.0"),
+            stateFor(UpdateStatusDto("0.1.0", UpdateStatus.IDLE, lastCheckedAt = "2026-11-03T10:00:00Z")),
+            "checked and nothing found",
+        )
         assertEquals(UpdateUiState.Checking, stateFor(UpdateStatusDto("0.1.0", UpdateStatus.CHECKING)))
         assertEquals(
             UpdateUiState.Available("0.2.0", "Новое\n• Быстрее", UpdateInstallKind.DownloadAndLaunch, "https://example.org/r"),
@@ -138,10 +146,24 @@ class DaemonServiceUiModelTest {
         )
         assertEquals(UpdateUiState.ReadyToInstall("0.2.0"), stateFor(availableDto.copy(status = UpdateStatus.READY_TO_INSTALL)))
         assertEquals(UpdateUiState.Installing("0.2.0"), stateFor(availableDto.copy(status = UpdateStatus.INSTALLING)))
-        val error = stateFor(availableDto.copy(status = UpdateStatus.ERROR, errorMessage = "Download failed: checksum mismatch"))
+        val error = stateFor(
+            availableDto.copy(status = UpdateStatus.ERROR, errorMessage = "raw english", errorCode = "CHECKSUM_MISMATCH", failedStep = "DOWNLOAD"),
+        )
         assertEquals(
-            UpdateUiState.Error("Не удалось обновить Mimir. Файл повредился при загрузке — скачайте его заново."),
+            UpdateUiState.Error("Не удалось скачать обновление. Файл повредился при загрузке — скачайте его заново.", UpdateRetry.Download),
             error,
+        )
+        assertEquals(
+            UpdateUiState.Error("Не удалось установить обновление. Попробуйте ещё раз позже.", UpdateRetry.Install),
+            stateFor(availableDto.copy(status = UpdateStatus.ERROR, errorCode = "FAILED", failedStep = "INSTALL")),
+        )
+        // повторять то же самое бессмысленно: нужна свежая проверка
+        assertEquals(
+            UpdateUiState.Error(
+                "Для этой системы нет готового установщика. Откройте страницу релиза и обновитесь вручную.",
+                UpdateRetry.Check,
+            ),
+            stateFor(availableDto.copy(status = UpdateStatus.ERROR, errorCode = "NO_INSTALLABLE_FILE", failedStep = "DOWNLOAD")),
         )
     }
 
@@ -171,6 +193,25 @@ class DaemonServiceUiModelTest {
     }
 
     @Test
+    fun `an unreachable daemon backs off to the idle cadence even while downloading`() = runTest {
+        val service = FakeDaemonService()
+        service.update = availableDto.copy(status = UpdateStatus.DOWNLOADING, downloadProgress = 0.3f)
+        val model = DaemonServiceUiModel(service, backgroundScope)
+        runCurrent()
+        assertIs<UpdateUiState.Downloading>(model.updateState.value)
+        advanceTimeBy(2_100) // частый ритм, пока демон отвечает
+        assertTrue(service.updateGets >= 3)
+        service.updateFailure = java.io.IOException("down")
+        advanceTimeBy(1_100) // следующий опрос упал
+        val atFailure = service.updateGets
+        advanceTimeBy(20_000)
+        assertEquals(atFailure, service.updateGets, "no 1 s hammering while the daemon is down")
+        advanceTimeBy(11_000)
+        assertEquals(atFailure + 1, service.updateGets, "retries on the 30 s cadence")
+        assertIs<UpdateUiState.Downloading>(model.updateState.value, "keeps the last known state")
+    }
+
+    @Test
     fun `an unreachable daemon keeps the last known update state`() = runTest {
         val service = FakeDaemonService()
         service.update = availableDto
@@ -195,7 +236,7 @@ class DaemonServiceUiModelTest {
         service.updateFailure = IllegalStateException("java.net.UnknownHostException: api.github.com")
         model.checkForUpdates()
         assertEquals(
-            UpdateUiState.Error("Не удалось проверить обновления. Проверьте подключение к интернету и повторите."),
+            UpdateUiState.Error("Не удалось проверить обновления. Проверьте подключение к интернету и повторите.", UpdateRetry.Check),
             model.updateState.value,
         )
         // периодический опрос не стирает ошибку команды, пока состояние демона не сдвинулось
@@ -227,10 +268,10 @@ class DaemonServiceUiModelTest {
         service.update = availableDto.copy(status = UpdateStatus.READY_TO_INSTALL)
         val model = DaemonServiceUiModel(service, backgroundScope)
         runCurrent()
-        service.updateFailure = IllegalStateException("A sync run is in progress; try again when it finishes")
+        service.updateFailure = UpdateCommandException(UpdateErrorCode.SYNC_RUNNING)
         model.applyUpdate()
         assertEquals(
-            UpdateUiState.Error("Не удалось установить обновление. Идёт синхронизация — попробуйте, когда она закончится."),
+            UpdateUiState.Error("Идёт синхронизация — установите обновление, когда она закончится.", UpdateRetry.Install),
             model.updateState.value,
         )
         service.updateFailure = null
@@ -246,9 +287,9 @@ class DaemonServiceUiModelTest {
         val model = DaemonServiceUiModel(service, backgroundScope)
         runCurrent()
         model.dismissUpdate()
-        assertEquals(UpdateUiState.UpToDate("0.1.0"), model.updateState.value)
+        assertEquals(UpdateUiState.Unknown("0.1.0"), model.updateState.value, "hiding an offer must not claim the app is current")
         advanceTimeBy(31_000)
-        assertEquals(UpdateUiState.UpToDate("0.1.0"), model.updateState.value)
+        assertEquals(UpdateUiState.Unknown("0.1.0"), model.updateState.value)
         service.update = availableDto.copy(latestVersion = "0.3.0")
         advanceTimeBy(31_000)
         assertIs<UpdateUiState.Available>(model.updateState.value)

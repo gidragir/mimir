@@ -3,6 +3,10 @@ package dev.mimir.daemon
 import dev.mimir.client.DaemonErrorBody
 import dev.mimir.client.DaemonService
 import dev.mimir.client.DaemonStatusOnlyResponse
+import dev.mimir.client.UpdateErrorCode
+import dev.mimir.client.applyBlocker
+import dev.mimir.client.classifyUpdateError
+import dev.mimir.client.downloadBlocker
 import dev.mimir.client.disabledUpdateStatus
 import dev.mimir.client.toDto
 import dev.mimir.core.BuildConfig
@@ -58,8 +62,6 @@ private fun isTrustedCaller(call: ApplicationCall, config: DaemonConfig): Boolea
     return config.token != null && host == requestHost
 }
 
-private fun UpdateState.effective(): UpdateState = if (this is UpdateState.Error) previousState else this
-
 /**
  * `GET /update`, `POST /update/check|download|apply`. Скачивание долгое, поэтому `download` отвечает `202` и работает в
  * фоне, а клиент опрашивает `GET /update` (статус `DOWNLOADING` с `downloadProgress`, затем `READY_TO_INSTALL`
@@ -74,7 +76,8 @@ internal fun Route.updateRoutes(service: DaemonService, config: DaemonConfig, ma
     val downloadInFlight = AtomicBoolean(false)
     val applyInFlight = AtomicBoolean(false)
 
-    suspend fun ApplicationCall.conflict(message: String) = respond(HttpStatusCode.Conflict, DaemonErrorBody(message))
+    suspend fun ApplicationCall.conflict(code: UpdateErrorCode) =
+        respond(HttpStatusCode.Conflict, DaemonErrorBody(code.defaultMessage, code.name))
 
     route("/update") {
         get {
@@ -84,7 +87,7 @@ internal fun Route.updateRoutes(service: DaemonService, config: DaemonConfig, ma
 
         post("/check") {
             if (!isTrustedCaller(call, config)) return@post call.respond(HttpStatusCode.Forbidden, DaemonErrorBody("Forbidden origin"))
-            if (active == null) return@post call.conflict("Update checks are disabled")
+            if (active == null) return@post call.conflict(UpdateErrorCode.UPDATES_DISABLED)
             val result = try {
                 active.checkForUpdates(force = true)
             } catch (e: CancellationException) {
@@ -95,22 +98,19 @@ internal fun Route.updateRoutes(service: DaemonService, config: DaemonConfig, ma
             }
             if (result is UpdateCheckResult.Error) {
                 result.retryAfterSeconds?.let { call.response.header(HttpHeaders.RetryAfter, it.toString()) }
-                return@post call.respond(HttpStatusCode.BadGateway, DaemonErrorBody(result.message))
+                val code = classifyUpdateError(result.message, result.retryAfterSeconds)
+                return@post call.respond(HttpStatusCode.BadGateway, DaemonErrorBody(result.message, code.name))
             }
             call.respond(active.state.value.toDto(currentVersion))
         }
 
         post("/download") {
             if (!isTrustedCaller(call, config)) return@post call.respond(HttpStatusCode.Forbidden, DaemonErrorBody("Forbidden origin"))
-            if (active == null) return@post call.conflict("Update checks are disabled")
-            if (!downloadInFlight.compareAndSet(false, true)) return@post call.conflict("A download is already in progress")
-            val state = active.state.value.effective()
-            if (state !is UpdateState.Available || state.asset == null) {
+            if (active == null) return@post call.conflict(UpdateErrorCode.UPDATES_DISABLED)
+            if (!downloadInFlight.compareAndSet(false, true)) return@post call.conflict(UpdateErrorCode.DOWNLOAD_IN_PROGRESS)
+            active.state.value.downloadBlocker()?.let {
                 downloadInFlight.set(false)
-                return@post call.conflict(
-                    if (state is UpdateState.Available) "This update has no installable file for this platform"
-                    else "No update is available to download",
-                )
+                return@post call.conflict(it)
             }
             // UNDISPATCHED: менеджер успевает перейти в Downloading до ответа, и повторный запрос получит 409.
             call.application.launch(start = CoroutineStart.UNDISPATCHED) {
@@ -131,14 +131,11 @@ internal fun Route.updateRoutes(service: DaemonService, config: DaemonConfig, ma
 
         post("/apply") {
             if (!isTrustedCaller(call, config)) return@post call.respond(HttpStatusCode.Forbidden, DaemonErrorBody("Forbidden origin"))
-            if (active == null) return@post call.conflict("Update checks are disabled")
-            if (!applyInFlight.compareAndSet(false, true)) return@post call.conflict("An install is already in progress")
+            if (active == null) return@post call.conflict(UpdateErrorCode.UPDATES_DISABLED)
+            if (!applyInFlight.compareAndSet(false, true)) return@post call.conflict(UpdateErrorCode.INSTALL_IN_PROGRESS)
             val result = try {
-                if (active.state.value.effective() !is UpdateState.ReadyToInstall) {
-                    return@post call.conflict("No downloaded update to install")
-                }
-                if (service.status.value == SyncStatus.Syncing) {
-                    return@post call.conflict("A sync run is in progress; try again when it finishes")
+                active.state.value.applyBlocker(service.status.value == SyncStatus.Syncing)?.let {
+                    return@post call.conflict(it)
                 }
                 active.applyUpdate()
             } catch (e: CancellationException) {
@@ -153,7 +150,7 @@ internal fun Route.updateRoutes(service: DaemonService, config: DaemonConfig, ma
             if (body == null) {
                 val failed = result as UpdateApplyResult.Failed
                 failed.cause?.let { logger.warning("Update apply failed: ${it.javaClass.simpleName}") }
-                return@post call.respond(HttpStatusCode.InternalServerError, DaemonErrorBody(failed.error))
+                return@post call.respond(HttpStatusCode.InternalServerError, DaemonErrorBody(failed.error, UpdateErrorCode.FAILED.name))
             }
             call.respond(body)
         }

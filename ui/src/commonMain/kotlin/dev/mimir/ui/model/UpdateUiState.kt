@@ -20,7 +20,11 @@ sealed interface UpdateUiState {
     /** Проверка обновлений выключена (`MIMIR_UPDATE_CHECK=false`) — это выбор, а не ошибка. */
     data object Disabled : UpdateUiState
 
+    /** Проверка успешно прошла и нового нет. Нельзя показывать, если проверки не было или она не удалась. */
     data class UpToDate(val version: String) : UpdateUiState
+
+    /** Версия известна, но актуальность — нет (проверки не было, предложение скрыто): без утверждений, только «Проверить». */
+    data class Unknown(val version: String) : UpdateUiState
 
     data object Checking : UpdateUiState
 
@@ -39,8 +43,8 @@ sealed interface UpdateUiState {
 
     data class Installing(val version: String) : UpdateUiState
 
-    /** [message] уже написан для человека. */
-    data class Error(val message: String) : UpdateUiState
+    /** [message] уже написан для человека; [retry] — шаг, который повторяет «Повторить». */
+    data class Error(val message: String, val retry: UpdateRetry = UpdateRetry.Check) : UpdateUiState
 
     /** Есть что предложить пользователю: пункт трея и бейдж. */
     val isActionable: Boolean get() = this is Available || this is ReadyToInstall

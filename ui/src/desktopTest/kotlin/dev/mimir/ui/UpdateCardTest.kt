@@ -13,11 +13,13 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
 import dev.mimir.core.SyncStatus
 import dev.mimir.ui.model.FakeMimirUiModel
+import dev.mimir.client.UpdateErrorCode
 import dev.mimir.ui.model.UpdateInstallKind
+import dev.mimir.ui.model.UpdateRetry
+import dev.mimir.ui.model.UpdateTexts
 import dev.mimir.ui.model.UpdateUiState
 import dev.mimir.ui.screens.AboutUpdateCard
 import dev.mimir.ui.screens.StatusScreen
-import dev.mimir.ui.screens.UpdateTexts
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -88,7 +90,7 @@ class UpdateCardTest {
         card(available, log)
         onNodeWithText("Доступно обновление v0.2.0").assertExists()
         onNodeWithText("• Быстрее синхронизация\n• Исправлены ошибки").assertExists()
-        onNodeWithText("Скачать и установить").assertIsEnabled().performClick()
+        onNodeWithText("Скачать").assertIsEnabled().performClick()
         onNodeWithText("Скрыть").performClick()
         assertEquals(listOf("download", "dismiss"), log)
     }
@@ -120,14 +122,14 @@ class UpdateCardTest {
     fun `release without notes shows no notes block`() = runComposeUiTest {
         card(available.copy(notes = null))
         onNodeWithTag("update_notes").assertDoesNotExist()
-        onNodeWithText("Скачать и установить").assertExists()
+        onNodeWithText("Скачать").assertExists()
     }
 
     @Test
     fun `downloading shows determinate progress and percent`() = runComposeUiTest {
         card(UpdateUiState.Downloading("0.2.0", 0.42f))
         onNodeWithTag("update_progress").assertExists()
-        onNodeWithText("Скачиваю обновление… 42%").assertExists()
+        onNodeWithText("Скачиваю обновление v0.2.0… 42%").assertExists()
     }
 
     @Test
@@ -160,7 +162,7 @@ class UpdateCardTest {
     @Test
     fun `running sync disables download and shows the hint`() = runComposeUiTest {
         card(available, syncRunning = true)
-        onNodeWithText("Скачать и установить").assertIsNotEnabled()
+        onNodeWithText("Скачать").assertIsNotEnabled()
         onNodeWithText("Установка станет доступна после завершения синхронизации").assertExists()
     }
 
@@ -181,11 +183,51 @@ class UpdateCardTest {
     }
 
     @Test
-    fun `error text hides raw daemon wording and picks a hint`() {
-        val sync = UpdateTexts.errorText(UpdateTexts.Failed.Install, "A sync run is in progress; try again when it finishes")
-        assertEquals("Не удалось установить обновление. Идёт синхронизация — попробуйте, когда она закончится.", sync)
-        val generic = UpdateTexts.errorText(UpdateTexts.Failed.Check, "java.net.UnknownHostException: api.github.com")
-        assertEquals("Не удалось проверить обновления. Проверьте подключение к интернету и повторите.", generic)
+    fun `every error code has its own human text and none is the generic network hint except network`() {
+        val network = UpdateTexts.errorText(UpdateRetry.Check, UpdateErrorCode.NETWORK)
+        assertEquals("Не удалось проверить обновления. Проверьте подключение к интернету и повторите.", network)
+        UpdateErrorCode.entries.filter { it != UpdateErrorCode.NETWORK }.forEach {
+            val text = UpdateTexts.errorText(UpdateRetry.Download, it)
+            assertTrue("подключение к интернету" !in text, "$it -> $text")
+            assertTrue(text.none { c -> c in 'a'..'z' }, "no raw english for $it: $text")
+        }
+        assertEquals(
+            "Для этой системы нет готового установщика. Откройте страницу релиза и обновитесь вручную.",
+            UpdateTexts.errorText(UpdateRetry.Download, UpdateErrorCode.NO_INSTALLABLE_FILE),
+        )
+        assertEquals("Обновление уже скачивается.", UpdateTexts.errorText(UpdateRetry.Download, UpdateErrorCode.DOWNLOAD_IN_PROGRESS))
+        assertEquals("Проверка обновлений выключена.", UpdateTexts.errorText(UpdateRetry.Check, UpdateErrorCode.UPDATES_DISABLED))
+        assertEquals(
+            "Идёт синхронизация — установите обновление, когда она закончится.",
+            UpdateTexts.errorText(UpdateRetry.Install, UpdateErrorCode.SYNC_RUNNING),
+        )
+    }
+
+    @Test
+    fun `unknown state shows the version and a check button but never claims the app is current`() = runComposeUiTest {
+        val log = mutableListOf<String>()
+        card(UpdateUiState.Unknown("0.1.0"), log)
+        onNodeWithText("v0.1.0").assertExists()
+        onNodeWithText(UpdateTexts.NOT_CHECKED).assertExists()
+        onNodeWithText("Установлена последняя версия", substring = true).assertDoesNotExist()
+        onNodeWithText("Проверить обновления").performClick()
+        assertEquals(listOf("check"), log)
+    }
+
+    private fun retryLog(retry: UpdateRetry): List<String> {
+        val log = mutableListOf<String>()
+        runComposeUiTest {
+            card(UpdateUiState.Error("Ошибка", retry), log)
+            onNodeWithText("Повторить").performClick()
+        }
+        return log
+    }
+
+    @Test
+    fun `retry repeats the step that failed`() {
+        assertEquals(listOf("check"), retryLog(UpdateRetry.Check))
+        assertEquals(listOf("download"), retryLog(UpdateRetry.Download))
+        assertEquals(listOf("install"), retryLog(UpdateRetry.Install))
     }
 
     @Test
@@ -209,7 +251,7 @@ class UpdateCardTest {
     fun `status screen disables install while syncing`() = runComposeUiTest {
         val syncing = FakeMimirUiModel(status = SyncStatus.Syncing, updateState = available)
         setContent { MimirTheme { StatusScreen(syncing) } }
-        onNodeWithText("Скачать и установить").assertIsNotEnabled()
+        onNodeWithText("Скачать").assertIsNotEnabled()
     }
 
     @Test
@@ -222,7 +264,7 @@ class UpdateCardTest {
     fun `status screen starts the download through the model`() = runComposeUiTest {
         val model = FakeMimirUiModel(status = SyncStatus.Idle, updateState = available)
         setContent { MimirTheme { StatusScreen(model) } }
-        onNodeWithText("Скачать и установить").performClick()
+        onNodeWithText("Скачать").performClick()
         waitForIdle()
         assertEquals(listOf("download"), model.updateCalls)
     }

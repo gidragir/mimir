@@ -1,14 +1,18 @@
 package dev.mimir.runtime.update
 
 import dev.mimir.client.UpdateApplyDto
+import dev.mimir.client.UpdateCommandException
+import dev.mimir.client.UpdateErrorCode
+import dev.mimir.client.applyBlocker
+import dev.mimir.client.classifyUpdateError
+import dev.mimir.client.downloadBlocker
+import dev.mimir.client.toDto
 import dev.mimir.client.UpdateStatusDto
 import dev.mimir.client.disabledUpdateStatus
-import dev.mimir.client.toDto
 import dev.mimir.core.BuildConfig
 import dev.mimir.core.update.UpdateApplyResult
 import dev.mimir.core.update.UpdateCheckResult
 import dev.mimir.core.update.UpdateManager
-import dev.mimir.core.update.UpdateState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -27,22 +31,25 @@ class UpdateFacade(
 ) {
     private val enabled get() = manager !== DisabledUpdateManager
 
-    private fun UpdateState.effective(): UpdateState = if (this is UpdateState.Error) previousState else this
+    private fun requireEnabled() {
+        if (!enabled) throw UpdateCommandException(UpdateErrorCode.UPDATES_DISABLED)
+    }
 
     fun get(): UpdateStatusDto =
         if (enabled) manager.state.value.toDto(currentVersion) else disabledUpdateStatus(currentVersion)
 
     suspend fun check(): UpdateStatusDto {
-        check(enabled) { "Update checks are disabled" }
+        requireEnabled()
         val result = manager.checkForUpdates(force = true)
-        if (result is UpdateCheckResult.Error) throw IllegalStateException(result.message)
+        if (result is UpdateCheckResult.Error) {
+            throw UpdateCommandException(classifyUpdateError(result.message, result.retryAfterSeconds), result.message)
+        }
         return get()
     }
 
     fun download() {
-        check(enabled) { "Update checks are disabled" }
-        val state = manager.state.value.effective()
-        check(state is UpdateState.Available && state.asset != null) { "No update is available to download" }
+        requireEnabled()
+        manager.state.value.downloadBlocker()?.let { throw UpdateCommandException(it) }
         // UNDISPATCHED: менеджер успевает перейти в Downloading до возврата, повторный вызов получит отказ.
         scope.launch(start = CoroutineStart.UNDISPATCHED) {
             try {
@@ -56,14 +63,9 @@ class UpdateFacade(
     }
 
     suspend fun apply(): UpdateApplyDto {
-        check(enabled) { "Update checks are disabled" }
-        check(manager.state.value.effective() is UpdateState.ReadyToInstall) { "No downloaded update to install" }
-        check(!isSyncing()) { "A sync run is in progress; try again when it finishes" }
-        return when (val result = manager.applyUpdate()) {
-            is UpdateApplyResult.Success -> UpdateApplyDto("applied", result.message, result.requiresRestart)
-            is UpdateApplyResult.LaunchedInstaller -> UpdateApplyDto("installer_launched", result.message, requiresRestart = true)
-            is UpdateApplyResult.NotificationDispatched -> UpdateApplyDto("notification", "Update details: ${result.url}", url = result.url)
-            is UpdateApplyResult.Failed -> throw IllegalStateException(result.error)
-        }
+        requireEnabled()
+        manager.state.value.applyBlocker(isSyncing())?.let { throw UpdateCommandException(it) }
+        val result = manager.applyUpdate()
+        return result.toDto() ?: throw UpdateCommandException(UpdateErrorCode.FAILED, (result as UpdateApplyResult.Failed).error)
     }
 }

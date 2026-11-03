@@ -310,9 +310,9 @@ class HttpDaemonClient(
     }
 
     private suspend fun HttpResponse.toException(): Exception {
-        val message = runCatching {
-            json.decodeFromString<DaemonErrorBody>(bodyAsText()).error
-        }.getOrNull() ?: "Daemon replied $status"
+        val body = runCatching { json.decodeFromString<DaemonErrorBody>(bodyAsText()) }.getOrNull()
+        val message = body?.error ?: "Daemon replied $status"
+        UpdateErrorCode.parse(body?.code)?.let { return UpdateCommandException(it, message) }
         return when (status) {
             HttpStatusCode.Forbidden -> InvalidPasswordException(message)
             HttpStatusCode.BadRequest -> IllegalArgumentException(message)

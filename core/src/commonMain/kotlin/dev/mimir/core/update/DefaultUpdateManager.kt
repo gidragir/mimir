@@ -98,7 +98,7 @@ class DefaultUpdateManager(
                 _state.value = available
                 throw error
             }
-            _state.value = UpdateState.Error(error.message ?: "Download failed", available)
+            _state.value = UpdateState.Error(error.message ?: "Download failed", available, UpdateStep.DOWNLOAD)
             return result
         }
         _state.value = UpdateState.ReadyToInstall(available.release, result.getOrThrow(), available.capability)
@@ -126,7 +126,7 @@ class DefaultUpdateManager(
         }
         applyInFlight = false
         _state.value = when (result) {
-            is UpdateApplyResult.Failed -> UpdateState.Error(result.error, ready)
+            is UpdateApplyResult.Failed -> UpdateState.Error(result.error, ready, UpdateStep.INSTALL)
             is UpdateApplyResult.LaunchedInstaller -> UpdateState.Installing(ready.release)
             is UpdateApplyResult.Success ->
                 if (result.requiresRestart) UpdateState.Installing(ready.release) else idle()

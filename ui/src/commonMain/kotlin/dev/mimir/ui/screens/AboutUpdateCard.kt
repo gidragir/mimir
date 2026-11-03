@@ -24,6 +24,8 @@ import dev.mimir.ui.components.MimirButton
 import dev.mimir.ui.components.MimirButtonVariant
 import dev.mimir.ui.components.MimirCard
 import dev.mimir.ui.components.MimirProgressBar
+import dev.mimir.ui.model.UpdateRetry
+import dev.mimir.ui.model.UpdateTexts
 import dev.mimir.ui.model.UpdateUiState
 
 /**
@@ -67,6 +69,10 @@ fun AboutUpdateCard(
                     Muted(UpdateTexts.upToDate(state.version))
                     MimirButton(UpdateTexts.CHECK, onCheck, variant = MimirButtonVariant.Secondary)
                 }
+                is UpdateUiState.Unknown -> {
+                    Muted(UpdateTexts.NOT_CHECKED)
+                    MimirButton(UpdateTexts.CHECK, onCheck, variant = MimirButtonVariant.Secondary)
+                }
                 UpdateUiState.Checking -> {
                     MimirProgressBar(progress = null, modifier = Modifier.fillMaxWidth().testTag("update_progress"))
                     Muted(UpdateTexts.CHECKING)
@@ -75,7 +81,7 @@ fun AboutUpdateCard(
                 is UpdateUiState.Downloading -> {
                     val percent = (state.progress * 100).toInt().coerceIn(0, 100)
                     MimirProgressBar(state.progress, Modifier.fillMaxWidth().testTag("update_progress"))
-                    Text(UpdateTexts.downloading(percent), style = MaterialTheme.typography.bodyMedium)
+                    Text(UpdateTexts.downloading(state.version, percent), style = MaterialTheme.typography.bodyMedium)
                 }
                 is UpdateUiState.ReadyToInstall -> {
                     Text(UpdateTexts.readyToInstall(state.version), style = MaterialTheme.typography.bodyMedium)
@@ -89,7 +95,12 @@ fun AboutUpdateCard(
                 is UpdateUiState.Error -> {
                     Text(state.message, style = MaterialTheme.typography.bodyMedium, color = MimirTokens.StatusError)
                     Row(horizontalArrangement = Arrangement.spacedBy(MimirTokens.Space8)) {
-                        MimirButton(UpdateTexts.RETRY, onCheck, variant = MimirButtonVariant.Primary)
+                        val retry = when (state.retry) {
+                            UpdateRetry.Check -> onCheck
+                            UpdateRetry.Download -> onDownload
+                            UpdateRetry.Install -> onInstall
+                        }
+                        MimirButton(UpdateTexts.RETRY, retry, variant = MimirButtonVariant.Primary)
                         MimirButton(UpdateTexts.DISMISS, onDismiss, variant = MimirButtonVariant.Ghost)
                     }
                 }
@@ -112,7 +123,7 @@ private fun AvailableBlock(
         color = MaterialTheme.colorScheme.primary,
         modifier = Modifier
             .clip(RoundedCornerShape(MimirTokens.Radius6))
-            .background(if (isDarkSurface()) MimirTokens.AccentSubtleDark else MimirTokens.AccentSubtleLight)
+            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f))
             .padding(horizontal = MimirTokens.Space8, vertical = MimirTokens.Space4)
             .testTag("update_badge"),
     )
@@ -163,6 +174,3 @@ private fun NotesBlock(notes: String) {
 private fun Muted(text: String) {
     Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
-
-@Composable
-private fun isDarkSurface(): Boolean = MaterialTheme.colorScheme.surface == MimirTokens.DarkSurface

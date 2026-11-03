@@ -6,7 +6,8 @@ import dev.mimir.client.DaemonLoginMethod
 import dev.mimir.client.DaemonService
 import dev.mimir.client.UpdateStatus
 import dev.mimir.client.UpdateStatusDto
-import dev.mimir.ui.screens.UpdateTexts
+import dev.mimir.client.UpdateCommandException
+import dev.mimir.client.UpdateErrorCode
 import dev.mimir.core.ConflictFileEntry
 import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncStatus
@@ -81,8 +82,10 @@ class DaemonServiceUiModel(
         // Один неспешный цикл: частый, только пока идёт проверка/скачивание/установка, иначе редкий.
         scope.launch {
             while (true) {
-                refreshUpdate()
-                withTimeoutOrNull(if (_updateState.value.isInProgress) updateActiveInterval else updateIdleInterval) { updateKick.receive() }
+                val reachable = refreshUpdate()
+                // Частый ритм только пока демон отвечает: без связи не долбим его каждую секунду.
+                val interval = if (reachable && _updateState.value.isInProgress) updateActiveInterval else updateIdleInterval
+                withTimeoutOrNull(interval) { updateKick.receive() }
             }
         }
         scope.launch { service.status.collect { refresh() } }
@@ -97,22 +100,24 @@ class DaemonServiceUiModel(
     private val UpdateUiState.isInProgress: Boolean
         get() = this is UpdateUiState.Checking || this is UpdateUiState.Downloading || this is UpdateUiState.Installing
 
-    private suspend fun refreshUpdate() {
+    /** `false`, если демон не ответил (тогда остаётся последнее известное состояние). */
+    private suspend fun refreshUpdate(): Boolean {
         val dto = try {
             service.getUpdate()
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
-            return // демон недоступен: показываем последнее известное
+            return false
         }
         lastUpdate = dto
         val moved = dto.status in MOVING
-        if (localError && !moved) return
+        if (localError && !moved) return true
         localError = false
         _updateState.value = dto.toUi(dismissedKey)
+        return true
     }
 
-    private inline fun runUpdateCommand(failed: UpdateTexts.Failed, block: () -> Unit): Boolean =
+    private inline fun runUpdateCommand(step: UpdateRetry, block: () -> Unit): Boolean =
         try {
             block()
             true
@@ -120,7 +125,9 @@ class DaemonServiceUiModel(
             throw e
         } catch (e: Exception) {
             localError = true
-            _updateState.value = UpdateUiState.Error(UpdateTexts.errorText(failed, e.message))
+            // Причину даёт устойчивый код; всё, что не отказ демона по состоянию, — проблема связи.
+            val code = (e as? UpdateCommandException)?.code ?: UpdateErrorCode.NETWORK
+            _updateState.value = UpdateUiState.Error(UpdateTexts.errorText(step, code), retryFor(step, code))
             false
         }
 
@@ -136,7 +143,7 @@ class DaemonServiceUiModel(
         localError = false
         dismissedKey = null
         _updateState.value = UpdateUiState.Checking
-        runUpdateCommand(UpdateTexts.Failed.Check) {
+        runUpdateCommand(UpdateRetry.Check) {
             val dto = service.checkUpdates()
             lastUpdate = dto
             _updateState.value = dto.toUi()
@@ -147,7 +154,7 @@ class DaemonServiceUiModel(
     override suspend fun downloadUpdate() {
         localError = false
         val version = versionOfCurrent()
-        if (runUpdateCommand(UpdateTexts.Failed.Download) { service.downloadUpdate() }) {
+        if (runUpdateCommand(UpdateRetry.Download) { service.downloadUpdate() }) {
             _updateState.value = UpdateUiState.Downloading(version, 0f)
             refreshUpdate()
         }
@@ -158,7 +165,7 @@ class DaemonServiceUiModel(
         localError = false
         val version = versionOfCurrent()
         _updateState.value = UpdateUiState.Installing(version)
-        if (runUpdateCommand(UpdateTexts.Failed.Install) { service.applyUpdate() }) refreshUpdate()
+        if (runUpdateCommand(UpdateRetry.Install) { service.applyUpdate() }) refreshUpdate()
         updateKick.trySend(Unit)
     }
 

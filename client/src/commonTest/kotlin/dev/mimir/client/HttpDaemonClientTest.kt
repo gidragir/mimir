@@ -361,4 +361,15 @@ class HttpDaemonClientTest {
         replies["POST /api/v1/update/apply"] = HttpStatusCode.Conflict to """{"error":"A sync run is in progress; try again when it finishes"}"""
         assertTrue(assertFailsWith<IllegalStateException> { client.applyUpdate() }.message!!.contains("sync run"))
     }
+
+    @Test
+    fun updateConflictsCarryTheStableErrorCode() = runTest {
+        val mockEngine = MockEngine { respond("""{"error":"A sync run is in progress; try again when it finishes","code":"SYNC_RUNNING"}""", HttpStatusCode.Conflict, jsonHeaders) }
+        val client = HttpDaemonClient("http://127.0.0.1:1", scope = backgroundScope, httpClient = HttpClient(mockEngine))
+        val e = assertFailsWith<UpdateCommandException> { client.applyUpdate() }
+        assertEquals(UpdateErrorCode.SYNC_RUNNING, e.code)
+        val unknown = MockEngine { respond("""{"error":"x","code":"SOMETHING_NEW"}""", HttpStatusCode.Conflict, jsonHeaders) }
+        val other = HttpDaemonClient("http://127.0.0.1:1", scope = backgroundScope, httpClient = HttpClient(unknown))
+        assertFailsWith<IllegalStateException> { other.downloadUpdate() }
+    }
 }

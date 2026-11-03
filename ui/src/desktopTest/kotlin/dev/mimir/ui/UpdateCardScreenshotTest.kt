@@ -32,6 +32,8 @@ class UpdateCardScreenshotTest {
         "downloading" to UpdateUiState.Downloading("0.2.0", 0.42f),
         "error" to UpdateUiState.Error("Не удалось скачать обновление. Проверьте подключение к интернету и повторите."),
         "uptodate" to UpdateUiState.UpToDate("0.1.0"),
+        "unknown" to UpdateUiState.Unknown("0.1.0"),
+        "error_sync" to UpdateUiState.Error("Идёт синхронизация — установите обновление, когда она закончится.", dev.mimir.ui.model.UpdateRetry.Install),
     )
 
     private fun shoot(dark: Boolean) {

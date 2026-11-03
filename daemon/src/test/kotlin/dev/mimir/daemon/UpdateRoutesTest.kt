@@ -120,6 +120,7 @@ class UpdateRoutesTest {
             val response = client.post("/api/v1/update/$action")
             assertEquals(HttpStatusCode.Conflict, response.status, action)
             assertTrue(response.json().str("error").contains("disabled", ignoreCase = true))
+            assertEquals("UPDATES_DISABLED", response.json().str("code"))
         }
         assertEquals(0, updates.checkCalls + updates.downloadCalls + updates.applyCalls)
     }
@@ -158,7 +159,7 @@ class UpdateRoutesTest {
         val response = client.post("/api/v1/update/check")
 
         assertEquals(HttpStatusCode.BadGateway, response.status)
-        assertEquals("""{"error":"GitHub rate limit"}""", response.bodyAsText())
+        assertEquals("""{"error":"GitHub rate limit","code":"RATE_LIMITED"}""", response.bodyAsText())
         assertEquals("60", response.headers[HttpHeaders.RetryAfter])
     }
 
@@ -205,6 +206,7 @@ class UpdateRoutesTest {
         }
         assertEquals("ERROR", body.str("status"))
         assertEquals("Checksum mismatch", body.str("errorMessage"))
+        assertEquals("CHECKSUM_MISMATCH", body.str("errorCode"))
     }
 
     @Test
@@ -215,6 +217,7 @@ class UpdateRoutesTest {
             val response = client.post("/api/v1/update/download")
             assertEquals(HttpStatusCode.Conflict, response.status, "$state")
             assertEquals("No update is available to download", response.json().str("error"))
+            assertEquals(if (state is UpdateState.Installing || state is UpdateState.Checking || state is UpdateState.Idle) "NOTHING_TO_DOWNLOAD" else "?", response.json().str("code"))
         }
         assertEquals(0, updates.downloadCalls)
     }
@@ -227,6 +230,7 @@ class UpdateRoutesTest {
         val response = client.post("/api/v1/update/download")
 
         assertEquals(HttpStatusCode.Conflict, response.status)
+        assertEquals("NO_INSTALLABLE_FILE", response.json().str("code"))
         assertEquals(0, updates.downloadCalls)
     }
 
@@ -266,7 +270,8 @@ class UpdateRoutesTest {
         val response = client.post("/api/v1/update/apply")
 
         assertEquals(HttpStatusCode.InternalServerError, response.status)
-        assertEquals("""{"error":"msiexec not found"}""", response.bodyAsText())
+        assertEquals("msiexec not found", response.json().str("error"))
+        assertEquals("FAILED", response.json().str("code"))
     }
 
     @Test
@@ -278,6 +283,7 @@ class UpdateRoutesTest {
 
         assertEquals(HttpStatusCode.Conflict, response.status)
         assertEquals("No downloaded update to install", response.json().str("error"))
+        assertEquals("NOT_DOWNLOADED", response.json().str("code"))
         assertEquals(0, updates.applyCalls)
     }
 
@@ -291,6 +297,7 @@ class UpdateRoutesTest {
 
         assertEquals(HttpStatusCode.Conflict, response.status)
         assertTrue(response.json().str("error").contains("sync", ignoreCase = true))
+        assertEquals("SYNC_RUNNING", response.json().str("code"))
         assertEquals(0, updates.applyCalls)
 
         service.status.value = SyncStatus.Idle

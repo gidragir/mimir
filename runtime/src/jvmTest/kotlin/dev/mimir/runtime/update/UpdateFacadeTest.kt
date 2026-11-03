@@ -1,5 +1,7 @@
 package dev.mimir.runtime.update
 
+import dev.mimir.client.UpdateCommandException
+import dev.mimir.client.UpdateErrorCode
 import dev.mimir.client.UpdateStatus
 import dev.mimir.core.update.ApplierCapability
 import dev.mimir.core.update.AssetKind
@@ -57,9 +59,9 @@ class UpdateFacadeTest {
     fun `without a real manager the status is disabled and commands are refused`() = runTest {
         val facade = UpdateFacade(DisabledUpdateManager, backgroundScope, { false }, "0.1.0")
         assertEquals(UpdateStatus.DISABLED, facade.get().status)
-        assertFailsWith<IllegalStateException> { facade.check() }
-        assertFailsWith<IllegalStateException> { facade.download() }
-        assertFailsWith<IllegalStateException> { facade.apply() }
+        assertEquals(UpdateErrorCode.UPDATES_DISABLED, assertFailsWith<UpdateCommandException> { facade.check() }.code)
+        assertEquals(UpdateErrorCode.UPDATES_DISABLED, assertFailsWith<UpdateCommandException> { facade.download() }.code)
+        assertEquals(UpdateErrorCode.UPDATES_DISABLED, assertFailsWith<UpdateCommandException> { facade.apply() }.code)
     }
 
     @Test
@@ -76,7 +78,7 @@ class UpdateFacadeTest {
     fun `check failure surfaces as an error`() = runTest {
         val manager = Manager(UpdateState.Idle())
         manager.checkResult = UpdateCheckResult.Error("rate limit")
-        assertEquals("rate limit", assertFailsWith<IllegalStateException> { UpdateFacade(manager, backgroundScope, { false }, "0.1.0").check() }.message)
+        assertEquals(UpdateErrorCode.RATE_LIMITED, assertFailsWith<UpdateCommandException> { UpdateFacade(manager, backgroundScope, { false }, "0.1.0").check() }.code)
     }
 
     @Test
@@ -85,7 +87,7 @@ class UpdateFacadeTest {
         val facade = UpdateFacade(manager, backgroundScope, { false }, "0.1.0")
         facade.download()
         assertEquals(UpdateStatus.DOWNLOADING, facade.get().status)
-        assertFailsWith<IllegalStateException> { facade.download() }
+        assertEquals(UpdateErrorCode.DOWNLOAD_IN_PROGRESS, assertFailsWith<UpdateCommandException> { facade.download() }.code)
         manager.gate.complete(Unit)
         runCurrent()
         assertEquals(UpdateStatus.READY_TO_INSTALL, facade.get().status)
@@ -93,7 +95,10 @@ class UpdateFacadeTest {
 
     @Test
     fun `download needs an available update`() = runTest {
-        assertFailsWith<IllegalStateException> { UpdateFacade(Manager(UpdateState.Idle()), backgroundScope, { false }, "0.1.0").download() }
+        assertEquals(
+            UpdateErrorCode.NOTHING_TO_DOWNLOAD,
+            assertFailsWith<UpdateCommandException> { UpdateFacade(Manager(UpdateState.Idle()), backgroundScope, { false }, "0.1.0").download() }.code,
+        )
     }
 
     @Test
@@ -102,12 +107,15 @@ class UpdateFacadeTest {
         val manager = Manager(ready)
         var syncing = true
         val facade = UpdateFacade(manager, backgroundScope, { syncing }, "0.1.0")
-        assertTrue(assertFailsWith<IllegalStateException> { facade.apply() }.message!!.contains("sync"))
+        assertEquals(UpdateErrorCode.SYNC_RUNNING, assertFailsWith<UpdateCommandException> { facade.apply() }.code)
         assertEquals(0, manager.applied)
         syncing = false
         assertEquals("installer_launched", facade.apply().result)
         assertEquals(1, manager.applied)
-        assertFailsWith<IllegalStateException> { UpdateFacade(Manager(available()), backgroundScope, { false }, "0.1.0").apply() }
+        assertEquals(
+            UpdateErrorCode.NOT_DOWNLOADED,
+            assertFailsWith<UpdateCommandException> { UpdateFacade(Manager(available()), backgroundScope, { false }, "0.1.0").apply() }.code,
+        )
     }
 
     @Test
@@ -118,6 +126,6 @@ class UpdateFacadeTest {
         manager.applyResult = UpdateApplyResult.NotificationDispatched("https://x/r")
         assertEquals("https://x/r", facade.apply().url)
         manager.applyResult = UpdateApplyResult.Failed("boom")
-        assertEquals("boom", assertFailsWith<IllegalStateException> { facade.apply() }.message)
+        assertEquals("boom", assertFailsWith<UpdateCommandException> { facade.apply() }.message)
     }
 }
