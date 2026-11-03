@@ -57,6 +57,9 @@ interface DbusMenu : DBusInterface {
     fun GetGroupProperties(ids: List<Int>, propertyNames: List<String>): List<MenuItemProperties>
     fun AboutToShow(id: Int): Boolean
     fun Event(id: Int, eventId: String, data: Variant<*>, timestamp: UInt32)
+
+    /** Меню изменилось: клиент трея перечитывает раскладку. */
+    class LayoutUpdated(path: String, revision: UInt32, parent: Int) : DBusSignal(path, revision, parent)
 }
 
 /** Составной ответ D-Bus: dbus-java берёт типы значений из параметров дженерика. */

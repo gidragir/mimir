@@ -27,7 +27,18 @@ class FakeMimirUiModel(
     private val loginPoll: () -> UiLoginPoll = { UiLoginPoll.Pending },
     connectionStatus: dev.mimir.client.DaemonConnectionStatus = dev.mimir.client.DaemonConnectionStatus.Connected,
     backgroundSync: UiBackgroundSync? = null,
+    updateState: UpdateUiState = UpdateUiState.Hidden,
 ) : MimirUiModel {
+    override val updateState: MutableStateFlow<UpdateUiState> = MutableStateFlow(updateState)
+
+    /** Вызовы действий обновления по порядку: `check`, `download`, `apply`, `dismiss`. */
+    val updateCalls = mutableListOf<String>()
+
+    override suspend fun checkForUpdates() { updateCalls += "check" }
+    override suspend fun downloadUpdate() { updateCalls += "download" }
+    override suspend fun applyUpdate() { updateCalls += "apply" }
+    override fun dismissUpdate() { updateCalls += "dismiss" }
+
     override val connectionStatus: StateFlow<dev.mimir.client.DaemonConnectionStatus> = MutableStateFlow(connectionStatus)
     override val backgroundSync: MutableStateFlow<UiBackgroundSync?> = MutableStateFlow(backgroundSync)
     override val status: StateFlow<SyncStatus> = MutableStateFlow(status)

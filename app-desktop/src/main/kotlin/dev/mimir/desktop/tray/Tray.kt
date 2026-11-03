@@ -8,6 +8,12 @@ interface Tray {
 
     fun update(status: String)
 
+    /**
+     * Пункт «Доступно обновление vX.Y.Z» в самом верху меню; `null` убирает его. Нажатие — [onClick].
+     * Вызывается после [show]; трей без меню (или без трея) может его игнорировать.
+     */
+    fun setUpdate(label: String?, onClick: () -> Unit) = Unit
+
     fun close()
 }
 

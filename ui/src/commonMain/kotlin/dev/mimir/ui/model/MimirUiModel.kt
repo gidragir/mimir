@@ -48,6 +48,8 @@ interface MimirUiModel {
     /** Связь с демоном; для моделей без сетевого демона всегда [DaemonConnectionStatus.Connected]. */
     val connectionStatus: StateFlow<DaemonConnectionStatus> get() = AlwaysConnected
 
+    /** Обновление приложения; модели без обновлений показывают [UpdateUiState.Hidden]. */
+    val updateState: StateFlow<UpdateUiState> get() = HiddenUpdate
 
     /** `false`, если синхронизация уже идёт. */
     suspend fun triggerSync(): Boolean
@@ -70,8 +72,21 @@ interface MimirUiModel {
 
     /** Состояние последней начатой попытки входа. */
     suspend fun pollLogin(): UiLoginPoll
+
+    /** Принудительная проверка; итог и ошибки — в [updateState]. */
+    suspend fun checkForUpdates() {}
+
+    /** Запускает скачивание; прогресс — в [updateState]. */
+    suspend fun downloadUpdate() {}
+
+    /** Запускает установку скачанного. */
+    suspend fun applyUpdate() {}
+
+    /** Скрывает текущее предложение или ошибку до следующей версии. */
+    fun dismissUpdate() {}
 }
 
 private val AlwaysConnected: StateFlow<DaemonConnectionStatus> = MutableStateFlow(DaemonConnectionStatus.Connected)
+private val HiddenUpdate: StateFlow<UpdateUiState> = MutableStateFlow(UpdateUiState.Hidden)
 private val DefaultBackgroundSync: StateFlow<UiBackgroundSync?> = MutableStateFlow(null)
 

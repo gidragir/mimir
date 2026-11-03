@@ -1,6 +1,8 @@
 package dev.mimir.desktop.tray
 
 import dev.mimir.core.SyncPhase
+import dev.mimir.ui.model.UpdateUiState
+import dev.mimir.ui.screens.UpdateTexts
 import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncStatus
 import dev.mimir.core.label
@@ -14,4 +16,11 @@ fun trayLabel(status: SyncStatus, progress: SyncProgress?): String = when {
         "Mimir: up to date ($n ${if (n == 1) "problem" else "problems"})"
     }
     else -> status.label()
+}
+
+/** Подпись пункта обновления в трее: только пока есть что предложить (доступно или скачано), иначе `null`. */
+fun trayUpdateLabel(state: UpdateUiState): String? = when (state) {
+    is UpdateUiState.Available -> UpdateTexts.available(state.version)
+    is UpdateUiState.ReadyToInstall -> UpdateTexts.available(state.version)
+    else -> null
 }

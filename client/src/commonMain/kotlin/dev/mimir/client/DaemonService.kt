@@ -29,4 +29,16 @@ interface DaemonService {
 
     /** Состояние последней начатой попытки входа; [DaemonLoginPoll.Failed], если вход не начат. */
     suspend fun pollLogin(): DaemonLoginPoll
+
+    /** Снимок состояния обновления; `DISABLED`, если проверка выключена. */
+    suspend fun getUpdate(): UpdateStatusDto
+
+    /** Принудительная проверка; бросает [IllegalStateException] с понятным текстом, если GitHub недоступен или проверка выключена. */
+    suspend fun checkUpdates(): UpdateStatusDto
+
+    /** Запускает скачивание в фоне и сразу возвращается; прогресс читается через [getUpdate]. [IllegalStateException], если скачивать нечего. */
+    suspend fun downloadUpdate()
+
+    /** Запускает установку скачанного; [IllegalStateException], если рано или идёт синхронизация. */
+    suspend fun applyUpdate(): UpdateApplyDto
 }

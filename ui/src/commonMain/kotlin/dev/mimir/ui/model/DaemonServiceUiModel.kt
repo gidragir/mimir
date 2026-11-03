@@ -4,11 +4,17 @@ import dev.mimir.client.DaemonLoginPoll
 import dev.mimir.client.DaemonLoginStart
 import dev.mimir.client.DaemonLoginMethod
 import dev.mimir.client.DaemonService
+import dev.mimir.client.UpdateStatus
+import dev.mimir.client.UpdateStatusDto
+import dev.mimir.ui.screens.UpdateTexts
 import dev.mimir.core.ConflictFileEntry
 import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncStatus
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -17,6 +23,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 
 /**
@@ -31,6 +38,10 @@ class DaemonServiceUiModel(
     private val rememberPassword: ((String) -> Unit)? = null,
     refreshInterval: Duration = 500.milliseconds,
     override val backgroundSync: StateFlow<UiBackgroundSync?> = MutableStateFlow(null),
+    /** Как часто спрашивать об обновлении, пока ничего не происходит (находку ищет планировщик демона). */
+    private val updateIdleInterval: Duration = 30.seconds,
+    /** Как часто, пока идут проверка, скачивание или установка. */
+    private val updateActiveInterval: Duration = 1.seconds,
 ) : MimirUiModel {
 
     private val _vaultPath = MutableStateFlow(service.vaultPath)
@@ -50,7 +61,30 @@ class DaemonServiceUiModel(
         service.conflictsFlow.map { list -> list.map { it.toUi() } }
             .stateIn(scope, SharingStarted.Eagerly, service.conflictsFlow.value.map { it.toUi() })
 
+    private val _updateState = MutableStateFlow<UpdateUiState>(UpdateUiState.Hidden)
+    override val updateState: StateFlow<UpdateUiState> = _updateState
+
+    @kotlin.concurrent.Volatile
+    private var lastUpdate: UpdateStatusDto? = null
+
+    @kotlin.concurrent.Volatile
+    private var dismissedKey: String? = null
+
+    /** Ошибка нашей команды (а не демона): опрос не должен её стирать, пока состояние не сдвинулось. */
+    @kotlin.concurrent.Volatile
+    private var localError = false
+
+    /** Будит цикл опроса после команды, чтобы он сразу перешёл на частый ритм. */
+    private val updateKick = Channel<Unit>(Channel.CONFLATED)
+
     init {
+        // Один неспешный цикл: частый, только пока идёт проверка/скачивание/установка, иначе редкий.
+        scope.launch {
+            while (true) {
+                refreshUpdate()
+                withTimeoutOrNull(if (_updateState.value.isInProgress) updateActiveInterval else updateIdleInterval) { updateKick.receive() }
+            }
+        }
         scope.launch { service.status.collect { refresh() } }
         scope.launch {
             while (true) {
@@ -58,6 +92,87 @@ class DaemonServiceUiModel(
                 refresh()
             }
         }
+    }
+
+    private val UpdateUiState.isInProgress: Boolean
+        get() = this is UpdateUiState.Checking || this is UpdateUiState.Downloading || this is UpdateUiState.Installing
+
+    private suspend fun refreshUpdate() {
+        val dto = try {
+            service.getUpdate()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            return // демон недоступен: показываем последнее известное
+        }
+        lastUpdate = dto
+        val moved = dto.status in MOVING
+        if (localError && !moved) return
+        localError = false
+        _updateState.value = dto.toUi(dismissedKey)
+    }
+
+    private inline fun runUpdateCommand(failed: UpdateTexts.Failed, block: () -> Unit): Boolean =
+        try {
+            block()
+            true
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            localError = true
+            _updateState.value = UpdateUiState.Error(UpdateTexts.errorText(failed, e.message))
+            false
+        }
+
+    private fun versionOfCurrent(): String = when (val s = _updateState.value) {
+        is UpdateUiState.Available -> s.version
+        is UpdateUiState.ReadyToInstall -> s.version
+        is UpdateUiState.Downloading -> s.version
+        is UpdateUiState.Installing -> s.version
+        else -> lastUpdate?.latestVersion.orEmpty()
+    }
+
+    override suspend fun checkForUpdates() {
+        localError = false
+        dismissedKey = null
+        _updateState.value = UpdateUiState.Checking
+        runUpdateCommand(UpdateTexts.Failed.Check) {
+            val dto = service.checkUpdates()
+            lastUpdate = dto
+            _updateState.value = dto.toUi()
+        }
+        updateKick.trySend(Unit)
+    }
+
+    override suspend fun downloadUpdate() {
+        localError = false
+        val version = versionOfCurrent()
+        if (runUpdateCommand(UpdateTexts.Failed.Download) { service.downloadUpdate() }) {
+            _updateState.value = UpdateUiState.Downloading(version, 0f)
+            refreshUpdate()
+        }
+        updateKick.trySend(Unit)
+    }
+
+    override suspend fun applyUpdate() {
+        localError = false
+        val version = versionOfCurrent()
+        _updateState.value = UpdateUiState.Installing(version)
+        if (runUpdateCommand(UpdateTexts.Failed.Install) { service.applyUpdate() }) refreshUpdate()
+        updateKick.trySend(Unit)
+    }
+
+    override fun dismissUpdate() {
+        val dto = lastUpdate
+        if (localError) {
+            // Ошибка нашей команды: убираем её, само предложение остаётся.
+            localError = false
+            if (dto != null) _updateState.value = dto.toUi(dismissedKey)
+            return
+        }
+        if (dto == null) return
+        dismissedKey = dto.dismissKey()
+        _updateState.value = dto.toUi(dismissedKey)
     }
 
     private fun refresh() {
@@ -121,3 +236,5 @@ class DaemonServiceUiModel(
 
     private fun ConflictFileEntry.toUi() = UiConflictEntry(originalPath, conflictPath, createdAt)
 }
+
+private val MOVING = setOf(UpdateStatus.CHECKING, UpdateStatus.DOWNLOADING, UpdateStatus.READY_TO_INSTALL, UpdateStatus.INSTALLING)

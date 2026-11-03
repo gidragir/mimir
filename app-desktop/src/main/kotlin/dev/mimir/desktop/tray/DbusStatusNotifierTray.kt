@@ -20,6 +20,7 @@ private const val ICON_SIZE = 64
 private const val ID_OPEN = 1
 private const val ID_SYNC = 2
 private const val ID_QUIT = 3
+private const val ID_UPDATE = 4
 
 /**
  * Иконка в трее по протоколу StatusNotifierItem поверх чистого JVM D-Bus (Unix domain sockets, без нативных библиотек).
@@ -72,6 +73,12 @@ class DbusStatusNotifierTray(private val busAddress: String? = null) : Tray {
         runCatching { connection?.sendMessage(StatusNotifierItem.NewTitle(ITEM_PATH)) }
     }
 
+    override fun setUpdate(label: String?, onClick: () -> Unit) {
+        val current = item ?: return
+        val revision = current.menu.setUpdate(label, onClick)
+        runCatching { connection?.sendMessage(DbusMenu.LayoutUpdated(MENU_PATH, UInt32(revision.toLong()), 0)) }
+    }
+
     override fun close() {
         available = false
         item = null
@@ -106,13 +113,30 @@ class DbusStatusNotifierTray(private val busAddress: String? = null) : Tray {
         override fun Scroll(delta: Int, orientation: String) = Unit
     }
 
-    /** Минимальный dbusmenu: плоский список из трёх пунктов. */
+    /** Минимальный dbusmenu: плоский список из трёх пунктов, сверху которых бывает четвёртый — про обновление. */
     private class Menu(
         private val onOpen: () -> Unit,
         private val onSyncNow: () -> Unit,
         private val onQuit: () -> Unit,
     ) : DbusMenu {
-        private val entries = listOf(ID_OPEN to "Открыть", ID_SYNC to "Синхронизировать сейчас", ID_QUIT to "Выход")
+        private val base = listOf(ID_OPEN to "Открыть", ID_SYNC to "Синхронизировать сейчас", ID_QUIT to "Выход")
+
+        @Volatile
+        private var entries: List<Pair<Int, String>> = base
+
+        @Volatile
+        private var revision = 1
+
+        @Volatile
+        private var onUpdate: () -> Unit = {}
+
+        /** Возвращает новую ревизию раскладки: по ней клиент трея понимает, что меню изменилось. */
+        @Synchronized
+        fun setUpdate(label: String?, onClick: () -> Unit): Int {
+            onUpdate = onClick
+            entries = if (label == null) base else listOf(ID_UPDATE to label) + base
+            return ++revision
+        }
 
         override fun getObjectPath() = MENU_PATH
         override fun getVersion() = UInt32(3)
@@ -131,7 +155,7 @@ class DbusStatusNotifierTray(private val busAddress: String? = null) : Tray {
             val properties: Map<String, Variant<*>> = if (parentId == 0) mapOf("children-display" to Variant("submenu")) else {
                 entries.firstOrNull { it.first == parentId }?.let { labelOf(it.second) } ?: emptyMap()
             }
-            return MenuLayoutReply(UInt32(1), MenuLayout(parentId, properties, children))
+            return MenuLayoutReply(UInt32(revision.toLong()), MenuLayout(parentId, properties, children))
         }
 
         override fun GetGroupProperties(ids: List<Int>, propertyNames: List<String>): List<MenuItemProperties> =
@@ -145,6 +169,7 @@ class DbusStatusNotifierTray(private val busAddress: String? = null) : Tray {
                 ID_OPEN -> onOpen()
                 ID_SYNC -> onSyncNow()
                 ID_QUIT -> onQuit()
+                ID_UPDATE -> onUpdate()
             }
         }
     }

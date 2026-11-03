@@ -93,6 +93,18 @@ class TrayLifecycleTest {
             assertTrue(synced.await(5, TimeUnit.SECONDS))
             menu.Event(3, "clicked", Variant(0), UInt32(0))
             assertTrue(quit.await(5, TimeUnit.SECONDS))
+
+            // Пункт обновления: появляется сверху, нажатие доходит до обработчика, пропадает по null.
+            val updateClicked = CountDownLatch(1)
+            val before = menu.GetLayout(0, -1, emptyList()).revision.toLong()
+            tray.setUpdate("Доступно обновление v0.2.0") { updateClicked.countDown() }
+            val withUpdate = menu.GetLayout(0, -1, emptyList())
+            assertTrue(withUpdate.revision.toLong() > before)
+            assertEquals(listOf(4, 1, 2, 3), withUpdate.layout.children.map { (it.value as Array<*>)[0] as Int })
+            menu.Event(4, "clicked", Variant(0), UInt32(0))
+            assertTrue(updateClicked.await(5, TimeUnit.SECONDS))
+            tray.setUpdate(null) {}
+            assertEquals(listOf(1, 2, 3), menu.GetLayout(0, -1, emptyList()).layout.children.map { (it.value as Array<*>)[0] as Int })
         } finally {
             tray.close()
         }

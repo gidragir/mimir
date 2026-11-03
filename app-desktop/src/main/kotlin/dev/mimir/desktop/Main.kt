@@ -16,6 +16,7 @@ import androidx.compose.ui.window.rememberWindowState
 import androidx.compose.ui.window.application
 import dev.mimir.core.BuildConfig
 import dev.mimir.daemon.DaemonConfig
+import dev.mimir.desktop.tray.bindUpdateItem
 import dev.mimir.desktop.tray.createTray
 import dev.mimir.desktop.tray.trayLabel
 import dev.mimir.desktop.picker.defaultFolderPicker
@@ -87,6 +88,7 @@ private fun runDesktop(config: DaemonConfig, ipc: SingleInstanceManager) = appli
                     onQuit = ::exitApplication,
                 )
             }
+            launch { bindUpdateItem(tray, ready.updateState) { visible = true } }
             combine(ready.status, ready.progress) { s, p -> trayLabel(s, p) }
                 .distinctUntilChanged()
                 .collect { tray.update(it) }

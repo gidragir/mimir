@@ -13,6 +13,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlin.time.Instant
 
 class FakeDaemonService : DaemonService {
+    override suspend fun getUpdate() = dev.mimir.client.disabledUpdateStatus("test")
+    override suspend fun checkUpdates() = dev.mimir.client.disabledUpdateStatus("test")
+    override suspend fun downloadUpdate() = Unit
+    override suspend fun applyUpdate() = dev.mimir.client.UpdateApplyDto("applied", "")
+
     override val status = MutableStateFlow<SyncStatus>(SyncStatus.NotConfigured)
     override val progress = MutableStateFlow<SyncProgress?>(null)
     override var vaultPath: String? = null

@@ -6,6 +6,9 @@ import dev.mimir.client.DaemonLoginPoll
 import dev.mimir.client.DaemonLoginStart
 import dev.mimir.client.DaemonService
 import dev.mimir.client.DaemonVaultInspectionDto
+import dev.mimir.client.UpdateApplyDto
+import dev.mimir.client.UpdateStatusDto
+import dev.mimir.runtime.update.UpdateFacade
 import dev.mimir.core.Cipher
 import dev.mimir.core.LocalVault
 import dev.mimir.core.RcloneCipher
@@ -244,6 +247,13 @@ class MimirRuntime(
 
     override suspend fun resolveConflict(originalPath: String, conflictPath: String, keepConflict: Boolean) =
         conflictTracker.resolve(originalPath, conflictPath, keepConflict)
+
+    private val updates by lazy { UpdateFacade(this.updateManager, scope, { _status.value == SyncStatus.Syncing }) }
+
+    override suspend fun getUpdate(): UpdateStatusDto = updates.get()
+    override suspend fun checkUpdates(): UpdateStatusDto = updates.check()
+    override suspend fun downloadUpdate() = updates.download()
+    override suspend fun applyUpdate(): UpdateApplyDto = updates.apply()
 
     override suspend fun loginMethods(): Set<DaemonLoginMethod> = logins.methods()
 

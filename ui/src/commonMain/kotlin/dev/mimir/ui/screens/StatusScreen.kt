@@ -21,6 +21,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import dev.mimir.core.BuildConfig
 import dev.mimir.core.SyncErrorKind
@@ -58,6 +59,8 @@ fun StatusScreen(
     val conflicts by model.conflicts.collectAsState()
     val vaultPath by model.vaultPath.collectAsState()
     val isLocked by model.isLocked.collectAsState()
+    val update by model.updateState.collectAsState()
+    val uriHandler = LocalUriHandler.current
     val scope = rememberCoroutineScope()
 
     val syncing = status == SyncStatus.Syncing
@@ -222,6 +225,16 @@ fun StatusScreen(
                 )
             }
         }
+
+        AboutUpdateCard(
+            state = update,
+            syncRunning = syncing,
+            onCheck = { scope.launch { model.checkForUpdates() } },
+            onDownload = { scope.launch { model.downloadUpdate() } },
+            onInstall = { scope.launch { model.applyUpdate() } },
+            onOpenReleasePage = { url -> runCatching { uriHandler.openUri(url) } },
+            onDismiss = model::dismissUpdate,
+        )
     }
 }
 

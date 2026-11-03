@@ -3,6 +3,8 @@ package dev.mimir.daemon
 import dev.mimir.client.DaemonErrorBody
 import dev.mimir.client.DaemonService
 import dev.mimir.client.DaemonStatusOnlyResponse
+import dev.mimir.client.disabledUpdateStatus
+import dev.mimir.client.toDto
 import dev.mimir.core.BuildConfig
 import dev.mimir.core.SyncStatus
 import dev.mimir.core.update.UpdateApplyResult

@@ -182,6 +182,29 @@ class HttpDaemonClient(
         return json.decodeFromString<DaemonVaultInspectionDto>(response.bodyAsText())
     }
 
+    override suspend fun getUpdate(): UpdateStatusDto {
+        val response = get("/api/v1/update")
+        if (response.status != HttpStatusCode.OK) throw response.toException()
+        return json.decodeFromString<UpdateStatusDto>(response.bodyAsText())
+    }
+
+    override suspend fun checkUpdates(): UpdateStatusDto {
+        val response = post("/api/v1/update/check")
+        if (response.status != HttpStatusCode.OK) throw response.toException()
+        return json.decodeFromString<UpdateStatusDto>(response.bodyAsText())
+    }
+
+    override suspend fun downloadUpdate() {
+        val response = post("/api/v1/update/download")
+        if (response.status != HttpStatusCode.Accepted) throw response.toException()
+    }
+
+    override suspend fun applyUpdate(): UpdateApplyDto {
+        val response = post("/api/v1/update/apply")
+        if (response.status != HttpStatusCode.OK) throw response.toException()
+        return json.decodeFromString<UpdateApplyDto>(response.bodyAsText())
+    }
+
     override suspend fun loginMethods(): Set<DaemonLoginMethod> {
         val response = get("/api/v1/auth/methods")
         if (response.status != HttpStatusCode.OK) throw response.toException()

@@ -324,4 +324,41 @@ class HttpDaemonClientTest {
         replies["GET /api/v1/auth/browser/poll"] = HttpStatusCode.OK to """{"status":"failed","error":"Вход отменён"}"""
         assertEquals(DaemonLoginPoll.Failed("Вход отменён"), client.pollLogin())
     }
+
+    @Test
+    fun updateCommandsUseTheUpdateRoutesAndMapErrors() = runTest {
+        val requests = mutableListOf<String>()
+        val replies = mutableMapOf<String, Pair<HttpStatusCode, String>>()
+        val mockEngine = MockEngine { request ->
+            val key = "${request.method.value} ${request.url.encodedPath}"
+            requests += key
+            val (status, body) = replies[key] ?: (HttpStatusCode.NotFound to """{"error":"unexpected $key"}""")
+            respond(body, status, jsonHeaders)
+        }
+        val client = HttpDaemonClient("http://127.0.0.1:1", scope = backgroundScope, httpClient = HttpClient(mockEngine))
+
+        replies["GET /api/v1/update"] = HttpStatusCode.OK to
+            """{"currentVersion":"0.1.0","status":"AVAILABLE","latestVersion":"0.2.0","releaseNotes":"Fixes","capability":"DOWNLOAD_AND_LAUNCH","htmlUrl":"https://x/r","extra":1}"""
+        val available = client.getUpdate()
+        assertEquals(UpdateStatus.AVAILABLE, available.status)
+        assertEquals("0.2.0", available.latestVersion)
+        assertEquals("DOWNLOAD_AND_LAUNCH", available.capability)
+
+        replies["POST /api/v1/update/check"] = HttpStatusCode.OK to """{"currentVersion":"0.1.0","status":"IDLE"}"""
+        assertEquals(UpdateStatus.IDLE, client.checkUpdates().status)
+
+        replies["POST /api/v1/update/check"] = HttpStatusCode.BadGateway to """{"error":"rate limit"}"""
+        assertEquals("rate limit", assertFailsWith<IllegalStateException> { client.checkUpdates() }.message)
+
+        replies["POST /api/v1/update/download"] = HttpStatusCode.Accepted to """{"status":"started"}"""
+        client.downloadUpdate()
+        replies["POST /api/v1/update/download"] = HttpStatusCode.Conflict to """{"error":"A download is already in progress"}"""
+        assertFailsWith<IllegalStateException> { client.downloadUpdate() }
+
+        replies["POST /api/v1/update/apply"] = HttpStatusCode.OK to
+            """{"result":"notification","message":"Update details: https://x/r","requiresRestart":false,"url":"https://x/r"}"""
+        assertEquals("https://x/r", client.applyUpdate().url)
+        replies["POST /api/v1/update/apply"] = HttpStatusCode.Conflict to """{"error":"A sync run is in progress; try again when it finishes"}"""
+        assertTrue(assertFailsWith<IllegalStateException> { client.applyUpdate() }.message!!.contains("sync run"))
+    }
 }
