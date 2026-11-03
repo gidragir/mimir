@@ -1,6 +1,12 @@
 package dev.mimir.extension
 
+import dev.mimir.core.BuildConfig as CoreBuildConfig
 import dev.mimir.core.RemoteStorage
+import dev.mimir.core.update.DefaultUpdateManager
+import dev.mimir.core.update.FetchUpdateHttpClient
+import dev.mimir.core.update.GitHubReleasesChannel
+import dev.mimir.core.update.SemVer
+import dev.mimir.core.update.TargetPlatform
 import dev.mimir.drive.GoogleDriveStorage
 import dev.mimir.drive.auth.GoogleAuthClient
 import dev.mimir.drive.auth.GoogleAuthClients
@@ -14,12 +20,17 @@ import dev.mimir.extension.platform.ExtensionTokenStorage
 import dev.mimir.extension.ui.ExtensionController
 import dev.mimir.extension.ui.GoogleExtensionAuthHandler
 import dev.mimir.extension.ui.PopupDomView
+import dev.mimir.extension.ui.UpdateBannerView
+import dev.mimir.extension.update.ExtensionUpdateController
+import dev.mimir.extension.update.WebExtensionNotifyApplier
+import dev.mimir.extension.update.bindUpdateBadge
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.js.Js
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.browser.document
 import kotlinx.browser.window
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
@@ -57,6 +68,24 @@ fun main() {
     val scope = MainScope()
     scope.launch { controller.state.collect { view.render(it) } }
     scope.launch { controller.initialize(initialPath) }
+    startUpdateChecks(platform, scope)
+}
+
+/** Автономная проверка обновлений (без демона): не чаще раза в сутки, значок на иконке и строка над экраном. */
+private fun startUpdateChecks(platform: ChromeExtensionPlatform, scope: CoroutineScope) {
+    val bannerRoot = document.getElementById("update-banner") as? HTMLElement ?: return
+    val currentVersion = SemVer.parse(CoreBuildConfig.VERSION)
+    val manager = DefaultUpdateManager(
+        currentVersion = currentVersion,
+        targetPlatform = TargetPlatform.BROWSER_EXTENSION_ANY,
+        channel = GitHubReleasesChannel(CoreBuildConfig.GITHUB_OWNER, CoreBuildConfig.GITHUB_REPO, FetchUpdateHttpClient()),
+        applier = WebExtensionNotifyApplier(platform),
+    )
+    val updates = ExtensionUpdateController(manager, platform, currentVersion)
+    val banner = UpdateBannerView(bannerRoot, updates, scope)
+    scope.launch { updates.state.collect { banner.render(it) } }
+    scope.launch { bindUpdateBadge(updates.state, platform) }
+    scope.launch { updates.checkIfDue() }
 }
 
 private fun googleClient(http: HttpClient, kind: GoogleClientKind, id: String, secret: String): GoogleAuthClient? =

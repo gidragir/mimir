@@ -91,6 +91,15 @@ class ChromeExtensionPlatform : ExtensionPlatform {
         chrome.tabs.create(json("url" to url))
     }
 
+    override fun setBadge(text: String) {
+        try {
+            chrome.action.setBadgeText(json("text" to text))
+            if (text.isNotEmpty()) chrome.action.setBadgeBackgroundColor(json("color" to "#7c5cff"))
+        } catch (e: Throwable) {
+            // значок — удобство; сбой chrome.action не должен ломать панель
+        }
+    }
+
     override suspend fun copyToClipboard(text: String) {
         try {
             awaitVoid(window.navigator.asDynamic().clipboard.writeText(text))

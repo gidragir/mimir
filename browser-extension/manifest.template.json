@@ -16,6 +16,7 @@
     "https://accounts.google.com/*",
     "https://oauth2.googleapis.com/*",
     "https://www.googleapis.com/*",
+    "https://api.github.com/*",
     "https://drive.google.com/*",
     "http://127.0.0.1/*"
   ],

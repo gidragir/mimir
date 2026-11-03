@@ -26,6 +26,7 @@ if (!manifest.key || /[$]\{/.test(manifest.key)) fail("manifest.key must be a su
 if (!manifest.content_security_policy?.extension_pages?.includes("script-src 'self'")) fail("CSP must restrict script-src to 'self'");
 read("popup.css");
 if (!manifest.host_permissions?.includes("http://127.0.0.1/*")) fail("host_permissions must include http://127.0.0.1/* for loopback OAuth redirect");
+if (!manifest.host_permissions?.includes("https://api.github.com/*")) fail("host_permissions must include https://api.github.com/* for update checks");
 if (manifest.background?.service_worker !== "background.js") fail('background.service_worker must be "background.js"');
 if (!read("background.js").includes("setPanelBehavior")) fail("background.js must call sidePanel.setPanelBehavior");
 if (manifest.background?.scripts) fail("background.scripts is not allowed in MV3 Chromium; use service_worker");

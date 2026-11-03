@@ -454,6 +454,18 @@ input::placeholder {
   color: var(--mimir-text);
 }
 
+.update-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mimir-space-sm);
+}
+
+.update-banner .update-text {
+  flex: 1 1 auto;
+  font-weight: 600;
+}
+
 .banner.error {
   background: color-mix(in srgb, var(--mimir-status-error) 15%, transparent);
   color: var(--mimir-status-error);

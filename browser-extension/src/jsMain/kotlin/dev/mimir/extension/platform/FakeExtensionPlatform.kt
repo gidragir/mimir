@@ -51,4 +51,8 @@ class FakeExtensionPlatform : ExtensionPlatform {
     override fun openFullTab(relativePath: String?) { openedTabs += relativePath }
     override fun openExternalUrl(url: String) { openedExternalUrls += url }
     override suspend fun copyToClipboard(text: String) { clipboard += text }
+
+    var badgeText: String = ""
+        private set
+    override fun setBadge(text: String) { badgeText = text }
 }

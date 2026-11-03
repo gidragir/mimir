@@ -31,6 +31,9 @@ interface ExtensionPlatform {
     fun openFullTab(relativePath: String?)
     fun openExternalUrl(url: String)
     suspend fun copyToClipboard(text: String)
+
+    /** Текст значка на иконке расширения (`chrome.action.setBadgeText`); пустая строка снимает значок. */
+    fun setBadge(text: String)
 }
 
 /**
