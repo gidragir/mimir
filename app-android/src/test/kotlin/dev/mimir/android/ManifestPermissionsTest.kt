@@ -24,6 +24,7 @@ class ManifestPermissionsTest {
             "android.permission.ACCESS_NETWORK_STATE",
             "android.permission.MANAGE_EXTERNAL_STORAGE",
             "android.permission.POST_NOTIFICATIONS",
+            "android.permission.REQUEST_INSTALL_PACKAGES",
         )
         assertEquals(required, declared)
         assertFalse(declared.contains("android.permission.FOREGROUND_SERVICE_DATA_SYNC"))
@@ -76,5 +77,21 @@ class ManifestPermissionsTest {
         assertTrue(singleTop, "MainActivity must have launchMode=singleTop")
         assertTrue(foundDeepLink, "MainActivity must declare mimir://authorized deep link")
     }
-}
 
+    @Test
+    fun `update file provider is private, grants uris and points at the cache updates dir`() {
+        val document = DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }
+            .newDocumentBuilder().parse(File("src/main/AndroidManifest.xml"))
+        val providers = document.getElementsByTagName("provider")
+        val provider = (0 until providers.length).map { providers.item(it) as org.w3c.dom.Element }
+            .single { it.getAttributeNS(androidName, "name") == "androidx.core.content.FileProvider" }
+        assertEquals("\${applicationId}.updates", provider.getAttributeNS(androidName, "authorities"))
+        assertEquals("false", provider.getAttributeNS(androidName, "exported"))
+        assertEquals("true", provider.getAttributeNS(androidName, "grantUriPermissions"))
+
+        val paths = DocumentBuilderFactory.newInstance().newDocumentBuilder()
+            .parse(File("src/main/res/xml/update_file_paths.xml")).documentElement
+        val cache = paths.getElementsByTagName("cache-path").item(0) as org.w3c.dom.Element
+        assertEquals("updates/", cache.getAttribute("path"))
+    }
+}

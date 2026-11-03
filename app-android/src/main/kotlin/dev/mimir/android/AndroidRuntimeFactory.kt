@@ -7,7 +7,9 @@ import dev.mimir.android.auth.SystemAccountLoginProvider
 import dev.mimir.core.AndroidKeystoreSecretStore
 import dev.mimir.core.LocalVault
 import dev.mimir.core.fs.AndroidFileObserverVaultWatcher
+import dev.mimir.android.update.AndroidApkInstallLauncher
 import dev.mimir.core.fs.FileSystemLocalVault
+import dev.mimir.core.update.TargetPlatform
 import dev.mimir.drive.auth.GoogleAuthClient
 import dev.mimir.drive.auth.GoogleAuthClients
 import dev.mimir.drive.auth.GoogleClientCredentials
@@ -20,6 +22,10 @@ import dev.mimir.runtime.VaultWatcherFactory
 import dev.mimir.runtime.login.BrowserLoginProvider
 import dev.mimir.runtime.login.LoginProvider
 import dev.mimir.runtime.login.LoginRegistry
+import dev.mimir.runtime.update.ApkInstallApplier
+import dev.mimir.runtime.update.KtorUpdateHttpClient
+import dev.mimir.runtime.update.UpdateQuiesce
+import dev.mimir.runtime.update.createGitHubUpdateManager
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -98,6 +104,20 @@ object AndroidRuntimeFactory {
             AndroidFileObserverVaultWatcher(File(root.toString()), rules, debounce)
         }
 
+        // Установщик создаётся раньше рантайма, а останавливать синхронизацию должен именно рантайм.
+        var runtimeRef: MimirRuntime? = null
+        val quiesce = object : UpdateQuiesce {
+            override suspend fun quiesce(): Boolean = runtimeRef?.quiesceForUpdate() ?: false
+            override suspend fun resume() { runtimeRef?.resumeAfterQuiesce() }
+        }
+        val updateApplier = ApkInstallApplier(
+            httpClient = KtorUpdateHttpClient(httpClient),
+            updatesDir = appContext.cacheDir.toPath().resolve("updates"),
+            launcher = AndroidApkInstallLauncher(appContext),
+            quiesce = quiesce,
+            ioDispatcher = Dispatchers.IO,
+        )
+
         return MimirRuntime(
             settings = JsonRuntimeSettingsStore(dataDir),
             logins = LoginRegistry(providers),
@@ -107,6 +127,7 @@ object AndroidRuntimeFactory {
             httpClient = httpClient,
             scope = scope,
             localVaultFactory = { path: KxPath -> FileSystemLocalVault(path, ioDispatcher = Dispatchers.IO) },
-        )
+            updateManager = createGitHubUpdateManager(httpClient, TargetPlatform.ANDROID_ANY, updateApplier),
+        ).also { runtimeRef = it }
     }
 }
