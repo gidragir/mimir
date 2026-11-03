@@ -2,8 +2,8 @@
 directory: daemon
 source:
   kind: git
-  blob_sha: 414e424651056277301d0b75ece408e885a282e0
-  commit_sha: 16e76cfbc4c783e4e90380d131b7b1bd19b1ae68
+  blob_sha: 8c208027580a178e885bec672060186a19cbe568
+  commit_sha: e87f1148fd8185cdd0ff7269ac85792979a95a32
 generated_by:
   component: context-init
   role: update

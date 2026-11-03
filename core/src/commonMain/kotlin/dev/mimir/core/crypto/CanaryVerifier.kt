@@ -34,7 +34,7 @@ object CanaryVerifier {
         if (remote.stat(canaryPath) != null) {
             val text = try {
                 cipher.decrypt(remote.read(canaryPath)).readString()
-            } catch (e: CryptException) {
+            } catch (e: Throwable) {
                 return CanaryVerifyResult.Invalid(WRONG_PASSWORD)
             }
             return if (CANARY_MAGIC in text) CanaryVerifyResult.Valid(candidateHash)
@@ -47,7 +47,7 @@ object CanaryVerifier {
             first != CANARY_FILENAME && try {
                 cipher.decryptName(first)
                 true
-            } catch (e: CryptException) {
+            } catch (e: Throwable) {
                 false
             }
         }

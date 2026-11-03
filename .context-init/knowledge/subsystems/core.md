@@ -2,8 +2,8 @@
 directory: core
 source:
   kind: git
-  blob_sha: 109bf6ac2615353e6fae78fbfbabda75b38bc705
-  commit_sha: 16e76cfbc4c783e4e90380d131b7b1bd19b1ae68
+  blob_sha: 1751e73d38e42f988ec2e87bd8f90375993f4099
+  commit_sha: e87f1148fd8185cdd0ff7269ac85792979a95a32
 generated_by:
   component: context-init
   role: update

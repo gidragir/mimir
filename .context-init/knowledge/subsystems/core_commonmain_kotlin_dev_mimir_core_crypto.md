@@ -3,7 +3,7 @@ directory: core/src/commonMain/kotlin/dev/mimir/core/crypto
 source:
   kind: git
   blob_sha: 21eb1233b8e656152a7eb6250719148f1fd2abbb
-  commit_sha: 16e76cfbc4c783e4e90380d131b7b1bd19b1ae68
+  commit_sha: e87f1148fd8185cdd0ff7269ac85792979a95a32
 generated_by:
   component: context-init
   role: update

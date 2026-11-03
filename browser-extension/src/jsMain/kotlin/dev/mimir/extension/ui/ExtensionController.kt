@@ -150,7 +150,7 @@ class ExtensionController(
             CanaryVerifier.verifyReadOnly(raw(), candidate, knownHash)
         } catch (e: CancellationException) {
             throw e
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             if (!handleAuthFailure(e)) {
                 _state.value = ExtensionUiState.UnlockRequired(acc, error = "Не удалось проверить пароль: ${e.message}")
             }
@@ -183,7 +183,7 @@ class ExtensionController(
     }
 
     /** Отозванный или просроченный refresh-токен: возвращаем к входу, а не показываем «нет сети». */
-    private suspend fun handleAuthFailure(e: Exception): Boolean {
+    private suspend fun handleAuthFailure(e: Throwable): Boolean {
         val revoked = e is AuthRevokedException || (e is DriveAuthException && e.statusCode == HttpStatusCode.Unauthorized)
         if (!revoked) return false
         runCatching { authHandler.signOut() }
@@ -242,7 +242,7 @@ class ExtensionController(
             ActiveNoteState.Loaded(file, text, plainTextOf(text))
         } catch (e: CancellationException) {
             throw e
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             if (cipher === c && handleAuthFailure(e)) return
             ActiveNoteState.Error(file, e.message ?: "Не удалось прочитать заметку")
         }
