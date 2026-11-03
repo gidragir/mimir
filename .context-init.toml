@@ -1,0 +1,12 @@
+split_threshold_tokens = 30000
+
+[scope]
+exclude = [
+    "**/commonTest/**",
+    "**/jvmTest/**",
+    "**/jsTest/**",
+    "**/test/**",
+    "node_modules",
+    "build",
+    ".gradle",
+]
