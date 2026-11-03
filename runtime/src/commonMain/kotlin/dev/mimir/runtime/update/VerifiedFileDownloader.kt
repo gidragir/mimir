@@ -74,6 +74,27 @@ class VerifiedFileDownloader(
             return hasher.digestHex()
         }
 
+        /** Удаляет брошенные загрузки по маске [glob] старше [maxAge] (остаются после падения процесса); возвращает число удалённых. */
+        fun sweepStale(
+            dir: Path,
+            glob: String,
+            maxAge: java.time.Duration = java.time.Duration.ofDays(1),
+            now: java.time.Instant = java.time.Instant.now(),
+        ): Int {
+            if (!Files.isDirectory(dir)) return 0
+            var deleted = 0
+            Files.newDirectoryStream(dir, glob).use { files ->
+                for (f in files) {
+                    try {
+                        val modified = Files.getLastModifiedTime(f).toInstant()
+                        if (modified.plus(maxAge).isBefore(now) && Files.deleteIfExists(f)) deleted++
+                    } catch (_: IOException) {
+                    }
+                }
+            }
+            return deleted
+        }
+
         fun deleteQuietly(path: Path) {
             try {
                 Files.deleteIfExists(path)

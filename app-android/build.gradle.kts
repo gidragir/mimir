@@ -76,6 +76,7 @@ dependencies {
     implementation(libs.compose.ui)
     implementation(libs.activity.compose)
     implementation(libs.androidx.browser)
+    implementation(libs.androidx.core)
 
     implementation(libs.work.runtime.ktx)
     implementation(libs.lifecycle.process)

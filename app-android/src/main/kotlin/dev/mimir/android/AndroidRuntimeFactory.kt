@@ -4,10 +4,10 @@ import android.content.Context
 import dev.mimir.android.auth.GisTokenSource
 import dev.mimir.android.auth.PlayServicesGisAuthorizer
 import dev.mimir.android.auth.SystemAccountLoginProvider
+import dev.mimir.android.update.AndroidApkInstallLauncher
 import dev.mimir.core.AndroidKeystoreSecretStore
 import dev.mimir.core.LocalVault
 import dev.mimir.core.fs.AndroidFileObserverVaultWatcher
-import dev.mimir.android.update.AndroidApkInstallLauncher
 import dev.mimir.core.fs.FileSystemLocalVault
 import dev.mimir.core.update.TargetPlatform
 import dev.mimir.drive.auth.GoogleAuthClient
@@ -25,6 +25,7 @@ import dev.mimir.runtime.login.LoginRegistry
 import dev.mimir.runtime.update.ApkInstallApplier
 import dev.mimir.runtime.update.KtorUpdateHttpClient
 import dev.mimir.runtime.update.UpdateQuiesce
+import dev.mimir.runtime.update.VerifiedFileDownloader
 import dev.mimir.runtime.update.createGitHubUpdateManager
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
@@ -34,6 +35,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import java.io.File
 import kotlinx.io.files.Path as KxPath
@@ -110,12 +112,15 @@ object AndroidRuntimeFactory {
             override suspend fun quiesce(): Boolean = runtimeRef?.quiesceForUpdate() ?: false
             override suspend fun resume() { runtimeRef?.resumeAfterQuiesce() }
         }
+        val updatesDir = appContext.cacheDir.toPath().resolve("updates")
+        scope.launch(Dispatchers.IO) { VerifiedFileDownloader.sweepStale(updatesDir, "mimir-update-*.apk") }
         val updateApplier = ApkInstallApplier(
             httpClient = KtorUpdateHttpClient(httpClient),
-            updatesDir = appContext.cacheDir.toPath().resolve("updates"),
+            updatesDir = updatesDir,
             launcher = AndroidApkInstallLauncher(appContext),
             quiesce = quiesce,
             ioDispatcher = Dispatchers.IO,
+            scope = scope,
         )
 
         return MimirRuntime(

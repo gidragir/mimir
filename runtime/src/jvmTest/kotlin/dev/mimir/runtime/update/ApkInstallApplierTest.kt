@@ -11,6 +11,15 @@ import dev.mimir.core.update.UpdateAsset
 import dev.mimir.core.update.UpdateHttpClient
 import dev.mimir.core.update.UpdateRelease
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
@@ -25,6 +34,7 @@ import kotlin.test.assertIs
 import kotlin.test.assertTrue
 import kotlin.time.Instant
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class ApkInstallApplierTest {
     private val root = Files.createTempDirectory("mimir apk test")
     private val dir: Path = root.resolve("cache").resolve("updates")
@@ -32,18 +42,25 @@ class ApkInstallApplierTest {
     private val sha = Sha256.digest(content).joinToString("") { "%02x".format(it) }
     private val events = mutableListOf<String>()
     private var canInstall = true
+    private var settingsFail = false
     private var quiesceResult = true
     private var launchError: Throwable? = null
     private var launchedPath: Path? = null
 
+    private val scope = CoroutineScope(Dispatchers.Default)
+
     @AfterTest
     fun cleanup() {
+        scope.cancel()
         root.toFile().deleteRecursively()
     }
 
     private val launcher = object : ApkInstallLauncher {
         override fun canRequestInstalls() = canInstall
-        override fun openInstallPermissionSettings() { events += "settings" }
+        override fun openInstallPermissionSettings() {
+            events += "settings"
+            if (settingsFail) throw IllegalStateException("no settings activity")
+        }
         override fun launchInstaller(apk: Path) {
             events += "launch"
             launchError?.let { throw it }
@@ -57,7 +74,7 @@ class ApkInstallApplierTest {
     }
 
     private fun applier(client: UpdateHttpClient = ScriptedUpdateHttpClient(chunked())) =
-        ApkInstallApplier(client, dir, launcher, quiesce, Dispatchers.IO)
+        ApkInstallApplier(client, dir, launcher, quiesce, Dispatchers.IO, scope)
 
     private fun asset(expected: String? = sha) =
         UpdateAsset("Mimir-0.2.0.apk", "https://example.test/Mimir-0.2.0.apk", content.size.toLong(), expected, TargetPlatform.ANDROID_ANY, AssetKind.APK)
@@ -182,5 +199,59 @@ class ApkInstallApplierTest {
         assertIs<UpdateApplyResult.Failed>(applier().apply(DownloadedAsset.LocalFile(outside.toString(), sha, asset())))
         assertIs<UpdateApplyResult.Failed>(applier().apply(DownloadedAsset.Virtual(asset())))
         assertTrue(events.isEmpty())
+    }
+
+    @Test
+    fun `settings screen failing to open gives an accurate message`() = runBlocking<Unit> {
+        val a = applier()
+        val local = downloaded(a)
+        canInstall = false
+        settingsFail = true
+        val result = assertIs<UpdateApplyResult.Failed>(a.apply(local))
+        assertTrue(result.error.contains("Install unknown apps"), result.error)
+        assertTrue(!result.error.contains("just opened"), result.error)
+    }
+
+    @Test
+    fun `after a successful launch sync stays paused for the window then resumes once`() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val timerScope = CoroutineScope(dispatcher)
+        val a = ApkInstallApplier(ScriptedUpdateHttpClient(chunked()), dir, launcher, quiesce, dispatcher, timerScope, resumeAfterLaunch = 2.minutes)
+        val local = downloaded(a)
+
+        assertIs<UpdateApplyResult.LaunchedInstaller>(a.apply(local))
+        assertEquals(listOf("quiesce", "launch"), events)
+
+        testScheduler.advanceTimeBy(119.seconds)
+        testScheduler.runCurrent()
+        assertEquals(listOf("quiesce", "launch"), events, "still paused inside the window")
+
+        testScheduler.advanceTimeBy(2.seconds)
+        testScheduler.runCurrent()
+        assertEquals(listOf("quiesce", "launch", "resume"), events)
+
+        testScheduler.advanceTimeBy(10.minutes)
+        testScheduler.runCurrent()
+        assertEquals(1, events.count { it == "resume" }, "resume is idempotent")
+        timerScope.cancel()
+    }
+
+    @Test
+    fun `a second apply restarts the window and a failed launch does not double resume`() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val timerScope = CoroutineScope(dispatcher)
+        val a = ApkInstallApplier(ScriptedUpdateHttpClient(chunked()), dir, launcher, quiesce, dispatcher, timerScope, resumeAfterLaunch = 2.minutes)
+        val local = downloaded(a)
+
+        assertIs<UpdateApplyResult.LaunchedInstaller>(a.apply(local))
+        testScheduler.advanceTimeBy(90.seconds)
+        testScheduler.runCurrent()
+        launchError = IllegalStateException("boom")
+        assertIs<UpdateApplyResult.Failed>(a.apply(local))
+        // Первый запуск оставил паузу; сбой второго возобновил рантайм ровно один раз, таймер отменён.
+        testScheduler.advanceTimeBy(10.minutes)
+        testScheduler.runCurrent()
+        assertEquals(1, events.count { it == "resume" })
+        timerScope.cancel()
     }
 }

@@ -8,10 +8,18 @@ import dev.mimir.core.update.UpdateAsset
 import dev.mimir.core.update.UpdateHttpClient
 import dev.mimir.core.update.UpdateRelease
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.nio.file.Path
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
 
 /** Платформенные вызовы Android за интерфейсом: логика установщика тестируется на JVM без SDK. */
 interface ApkInstallLauncher {
@@ -39,7 +47,8 @@ interface UpdateQuiesce {
  *
  * Порядок применения: разрешение на установку -> [UpdateQuiesce.quiesce] -> повторная проверка хэша (файл могли
  * подменить после скачивания) -> запуск. Любой сбой до успешного запуска возвращает синхронизацию в работу.
- * Процесс завершает сама ОС при установке, поэтому явного выхода нет.
+ * Процесс завершает сама ОС при установке, поэтому явного выхода нет. Если пользователь отменил установщик, процесс
+ * жив: через [resumeAfterLaunch] синхронизация возобновляется (повторный resume безвреден).
  */
 class ApkInstallApplier(
     httpClient: UpdateHttpClient,
@@ -47,8 +56,13 @@ class ApkInstallApplier(
     private val launcher: ApkInstallLauncher,
     private val quiesce: UpdateQuiesce,
     private val ioDispatcher: CoroutineDispatcher,
+    private val scope: CoroutineScope,
+    private val resumeAfterLaunch: Duration = 2.minutes,
 ) : UpdateApplier {
     override val capability = ApplierCapability.DOWNLOAD_AND_LAUNCH
+
+    private val paused = AtomicBoolean(false)
+    private val resumeTimer = AtomicReference<Job?>(null)
 
     private val downloader = VerifiedFileDownloader(httpClient, updatesDir, "mimir-update-", ".apk", ioDispatcher)
 
@@ -68,18 +82,27 @@ class ApkInstallApplier(
             return UpdateApplyResult.Failed("Installer is outside the update directory")
         }
         if (!launcher.canRequestInstalls()) {
-            try {
+            val opened = try {
                 launcher.openInstallPermissionSettings()
+                true
             } catch (_: Exception) {
-                // Экран настроек недоступен: пользователь всё равно получает текст ниже.
+                false
             }
-            return UpdateApplyResult.Failed("Allow installing apps from Mimir in the system settings that just opened, then try again")
+            return UpdateApplyResult.Failed(
+                if (opened) {
+                    "Allow installing apps from Mimir in the system settings that just opened, then try again"
+                } else {
+                    "Allow installing apps from Mimir in Settings > Apps > Special app access > Install unknown apps, then try again"
+                },
+            )
         }
         // Остановка рантайма отменяет корутины; запуск установщика обязан завершиться в любом случае.
         return withContext(NonCancellable) {
+            resumeTimer.getAndSet(null)?.cancel()
             if (!quiesce.quiesce()) {
                 return@withContext UpdateApplyResult.Failed("A sync is still running, try again later")
             }
+            paused.set(true)
             var launched = false
             try {
                 val actual = try {
@@ -98,9 +121,17 @@ class ApkInstallApplier(
                     return@withContext UpdateApplyResult.Failed("Could not start the installer: ${e.message}", e)
                 }
             } finally {
-                if (!launched) quiesce.resume()
+                if (!launched) resumeOnce()
             }
+            resumeTimer.set(scope.launch {
+                delay(resumeAfterLaunch)
+                resumeOnce()
+            })
             UpdateApplyResult.LaunchedInstaller("Installer started for ${local.asset.name}")
         }
+    }
+
+    private suspend fun resumeOnce() {
+        if (paused.compareAndSet(true, false)) quiesce.resume()
     }
 }

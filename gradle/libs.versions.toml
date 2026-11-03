@@ -20,6 +20,7 @@ playServicesAuth = "21.3.0"
 robolectric = "4.14.1"
 androidxTestCore = "1.6.1"
 browser = "1.8.0"
+androidxCore = "1.17.0"
 
 
 [libraries]
@@ -61,6 +62,7 @@ play-services-auth = { module = "com.google.android.gms:play-services-auth", ver
 coroutines-play-services = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-play-services", version.ref = "coroutines" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 androidx-test-core = { module = "androidx.test:core", version.ref = "androidxTestCore" }
+androidx-core = { module = "androidx.core:core", version.ref = "androidxCore" }
 androidx-browser = { module = "androidx.browser:browser", version.ref = "browser" }
 
 

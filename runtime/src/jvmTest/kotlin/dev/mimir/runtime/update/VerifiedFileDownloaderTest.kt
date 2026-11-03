@@ -82,4 +82,21 @@ class VerifiedFileDownloaderTest {
         job.cancelAndJoin()
         assertTrue(leftovers().isEmpty())
     }
+
+    @Test
+    fun `sweepStale removes only old files matching the glob`() {
+        Files.createDirectories(dir)
+        val old = Files.createFile(dir.resolve("mimir-update-old.apk"))
+        val fresh = Files.createFile(dir.resolve("mimir-update-new.apk"))
+        val other = Files.createFile(dir.resolve("mimir-update-old.msi"))
+        val now = java.time.Instant.now()
+        Files.setLastModifiedTime(old, java.nio.file.attribute.FileTime.from(now.minus(java.time.Duration.ofDays(3))))
+        Files.setLastModifiedTime(other, java.nio.file.attribute.FileTime.from(now.minus(java.time.Duration.ofDays(3))))
+
+        assertEquals(1, VerifiedFileDownloader.sweepStale(dir, "mimir-update-*.apk", now = now))
+        assertTrue(!Files.exists(old))
+        assertTrue(Files.exists(fresh))
+        assertTrue(Files.exists(other))
+        assertEquals(0, VerifiedFileDownloader.sweepStale(root.resolve("missing"), "*"))
+    }
 }

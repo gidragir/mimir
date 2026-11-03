@@ -53,16 +53,5 @@ fun sweepStaleUpdateFiles(
     maxAge: java.time.Duration = java.time.Duration.ofDays(1),
     now: java.time.Instant = java.time.Instant.now(),
 ): Int {
-    if (!java.nio.file.Files.isDirectory(tempDir)) return 0
-    var deleted = 0
-    java.nio.file.Files.newDirectoryStream(tempDir, "mimir-update-*.msi").use { files ->
-        for (f in files) {
-            try {
-                val modified = java.nio.file.Files.getLastModifiedTime(f).toInstant()
-                if (modified.plus(maxAge).isBefore(now) && java.nio.file.Files.deleteIfExists(f)) deleted++
-            } catch (_: java.io.IOException) {
-            }
-        }
-    }
-    return deleted
+    return dev.mimir.runtime.update.VerifiedFileDownloader.sweepStale(tempDir, "mimir-update-*.msi", maxAge, now)
 }
