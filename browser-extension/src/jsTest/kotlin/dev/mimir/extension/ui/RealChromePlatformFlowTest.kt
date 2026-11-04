@@ -54,8 +54,23 @@ class RealChromePlatformFlowTest {
         )
     }
 
-    private suspend fun pause(ms: Int = 60) {
+    private suspend fun pause(ms: Int = 20) {
         Promise<Unit> { resolve, _ -> window.setTimeout({ resolve(Unit) }, ms) }.await()
+    }
+
+    private suspend fun waitFor(
+        timeoutMs: Int = 10000,
+        intervalMs: Int = 20,
+        description: String = "condition",
+        predicate: () -> Boolean,
+    ) {
+        val start = window.performance.now()
+        while (!predicate()) {
+            if (window.performance.now() - start > timeoutMs) {
+                error("Timeout waiting for $description after ${timeoutMs}ms")
+            }
+            pause(intervalMs)
+        }
     }
 
     @Test
@@ -74,24 +89,22 @@ class RealChromePlatformFlowTest {
         val job = controller.state.onEach { view.render(it) }.launchIn(MainScope())
 
         controller.initialize()
-        pause()
+        waitFor(description = "password input") { container.querySelector("input[type='password']") != null }
         (container.querySelector("input[type='password']") as HTMLInputElement).value = "pw"
         (container.querySelector("[data-testid='unlock-btn']") as HTMLButtonElement).click()
-        pause(500)
-        assertNotNull(container.querySelector("[data-testid='vault-tree-pane']"), "vault list: ${container.textContent}")
+        waitFor(description = "vault list") { container.querySelector("[data-testid='vault-tree-pane']") != null }
 
         (container.querySelector("button.tree-row.file") as HTMLButtonElement).click()
-        pause(300)
-        assertNotNull(container.querySelector("[data-testid='note-reader-pane']"), "reader: ${container.textContent}")
+        waitFor(description = "note reader") { container.querySelector("[data-testid='note-reader-pane']") != null }
 
         (container.querySelector("[data-testid='back-to-list-btn']") as HTMLButtonElement).click()
-        pause(300)
-        assertNotNull(container.querySelector("[data-testid='vault-tree-pane']"), "after back: state=${controller.state.value} dom=${container.textContent}")
-        assertNull(container.querySelector("[data-testid='note-reader-pane']"))
+        waitFor(description = "vault tree after back") {
+            container.querySelector("[data-testid='vault-tree-pane']") != null &&
+                container.querySelector("[data-testid='note-reader-pane']") == null
+        }
 
         (container.querySelector("[data-testid='lock-btn']") as HTMLButtonElement).click()
-        pause(300)
-        assertNotNull(container.querySelector("[data-testid='unlock-screen']"), "after lock: ${container.textContent}")
+        waitFor(description = "unlock screen after lock") { container.querySelector("[data-testid='unlock-screen']") != null }
         job.cancel()
         container.remove()
     }

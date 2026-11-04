@@ -11,6 +11,10 @@ on:
         required: true
         type: string
 
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
 permissions:
   contents: write
   packages: write
@@ -23,6 +27,7 @@ jobs:
   build:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -109,6 +114,7 @@ jobs:
 
   arch:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     container: archlinux:latest
     steps:
       - run: pacman -Syu --noconfirm jdk-openjdk base-devel git
@@ -131,6 +137,7 @@ jobs:
 
   docker:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
@@ -160,6 +167,7 @@ jobs:
   publish:
     needs: [build, arch, docker]
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/download-artifact@v4
         with:

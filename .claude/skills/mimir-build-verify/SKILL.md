@@ -45,7 +45,7 @@ description: Use when you need to build, test or verify a change in the Mimir re
 ## CI и кроссплатформенная матрица
 
 - **Windows Runners**: На `windows-latest` обязателен экспорт `JAVA_HOME=$(mise where java | tr '\\' '/')` в `$GITHUB_ENV` и `$GITHUB_PATH`.
-- **Karma в CI**: Chrome в headless-режиме на Ubuntu CI требует лаунчера `ChromeHeadlessCI` с флагами `--no-sandbox --disable-dev-shm-usage --disable-gpu --headless=new` (`browser-extension/karma.config.d/headless.js`).
+- **Karma в CI**: Chrome в headless-режиме на Ubuntu CI требует лаунчера `ChromeHeadlessCI` с флагами `--no-sandbox --disable-dev-shm-usage --disable-gpu --headless=new` (`browser-extension/karma.config.d/headless.js`), а также таймаута mocha 120 с (`browser-extension/karma.config.d/mocha-timeout.js`) из-за scrypt в JS.
 - **Сплющивание dist в Release**: Перед расчетом контрольных сумм `dist/` очищается от вложенных папок во избежание ошибки `sha256sum: directory`.
 
 ## TDD
