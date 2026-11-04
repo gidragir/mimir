@@ -33,6 +33,14 @@ jobs:
       run:
         shell: bash
     steps:
+      - name: Configure Windows environment (Developer Mode, symlinks, long paths)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock" /t REG_DWORD /f /v "AllowDevelopmentWithoutDevLicense" /d "1"
+          reg add "HKLM\SYSTEM\CurrentControlSet\Control\FileSystem" /v "LongPathsEnabled" /t REG_DWORD /d 1 /f
+          git config --global core.symlinks true
+          git config --global core.longpaths true
       - uses: actions/checkout@v4
         with:
           persist-credentials: false

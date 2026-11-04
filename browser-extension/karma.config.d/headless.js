@@ -13,6 +13,3 @@ config.set({
     },
     browsers: ['ChromeHeadlessCI']
 });
-
-config.client = config.client || {};
-config.client.mocha = { timeout: 120000 };

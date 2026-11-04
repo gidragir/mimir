@@ -83,3 +83,34 @@ tasks.withType<JavaExec>().configureEach {
 
 // Kotlin 2.4 таргетит JVM 26 при JDK 27, выравниваем javac по Kotlin
 tasks.withType<JavaCompile>().configureEach { options.release = 26 }
+
+// Отключаем перезапуск Windows-лаунчера jpackage (win.norestart=true), чтобы в Диспетчере задач
+// не создавался родительский процесс-обёртка и отображался ровно один процесс Mimir.exe.
+tasks.configureEach {
+    if (name.startsWith("createDistributable") || name.startsWith("createReleaseDistributable")) {
+        doLast {
+            patchWindowsCfg()
+        }
+    }
+    if (name.contains("packageMsi", ignoreCase = true) || name.contains("packageReleaseMsi", ignoreCase = true)) {
+        doFirst {
+            patchWindowsCfg()
+        }
+    }
+}
+
+fun patchWindowsCfg() {
+    val buildDir = layout.buildDirectory.orNull?.asFile ?: return
+    val appName = providers.gradleProperty("mimir.appName").get()
+    if (buildDir.exists()) {
+        buildDir.walkTopDown()
+            .filter { it.isFile && it.name.equals("$appName.cfg", ignoreCase = true) }
+            .forEach { cfg ->
+                val content = cfg.readText()
+                if (!content.contains("win.norestart")) {
+                    cfg.writeText(content.replace("[Application]", "[Application]\r\nwin.norestart=true"))
+                }
+            }
+    }
+}
+
