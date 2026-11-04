@@ -28,6 +28,16 @@
 
 Зависимости идут только вниз: точки входа → `ui` → `drive` → `core`.
 
+## Скачивание и установка
+
+Готовые релизные сборки для всех поддерживаемых платформ (Windows MSI, Android APK, Linux пакеты, Chromium Extension) доступны на странице [GitHub Releases](https://github.com/gidragir/mimir/releases).
+
+### Цифровая подпись (Code Signing)
+
+Бесплатная подпись кода для релизов Windows предоставлена сервисом [SignPath.io](https://signpath.io), сертификат предоставлен [SignPath Foundation](https://signpath.org).
+
+Free code signing provided by [SignPath.io](https://signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+
 ## Как начать
 
 ```sh
