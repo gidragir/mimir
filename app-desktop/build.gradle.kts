@@ -42,7 +42,11 @@ compose.desktop {
             appResourcesRootDir.set(project.layout.projectDirectory.dir("src/packaging"))
             windows {
                 perUserInstall = true
+                shortcut = true
+                menu = true
+                dirChooser = true
                 upgradeUuid = providers.gradleProperty("mimir.msiUpgradeUuid").get()
+                iconFile.set(project.file("src/main/resources/icon.ico"))
             }
             macOS {
                 bundleID = providers.gradleProperty("mimir.appId").get()
