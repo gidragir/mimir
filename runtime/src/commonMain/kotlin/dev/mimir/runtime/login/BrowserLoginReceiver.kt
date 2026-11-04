@@ -109,6 +109,7 @@ class BrowserLoginReceiver(
     p { font-size: 14px; color: #999; line-height: 1.5; margin-bottom: 24px; }
     .btn { display: inline-block; background: #705dcf; color: white; padding: 10px 20px; 
            border-radius: 6px; text-decoration: none; font-weight: 500; font-size: 14px; }
+    .hint { font-size: 12px; color: #888; line-height: 1.4; margin-top: 20px; margin-bottom: 0; }
   </style>
 </head>
 <body>
@@ -116,6 +117,7 @@ class BrowserLoginReceiver(
     <h1>Готово!</h1>
     <p>Авторизация успешно завершена. Перенаправляем вас обратно в приложение Mimir…</p>
     $manualButton
+    <p class="hint">Если приложение не открылось автоматически, нажмите кнопку выше или переключитесь в окно Mimir вручную.</p>
   </div>
   $redirectScript
 </body>
