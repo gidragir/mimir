@@ -3,7 +3,18 @@ name: CI
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - 'README.md'
+      - '.context-init/**'
   pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - 'README.md'
+      - '.context-init/**'
+
+permissions:
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -26,6 +37,8 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: jdx/mise-action@v2
       - name: Configure Java environment from mise
         run: |
@@ -49,6 +62,7 @@ jobs:
           path: |
             **/build/reports/tests/
             **/build/reports/problems/
+          retention-days: 7
           if-no-files-found: ignore
 
   changesets:
@@ -59,6 +73,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
       - uses: pnpm/action-setup@v4
         with:
           version: 10.18.0 # не в package.json: поле packageManager ломает yarn, которым Kotlin/JS ставит npm-зависимости
