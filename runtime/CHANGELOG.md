@@ -1,5 +1,11 @@
 # @mimir/runtime
 
+## 0.2.1
+
+### Patch Changes
+
+- 735e932: fix(desktop): register mimir:// URI scheme on Windows startup and enable native FFM access for window foreground activation
+
 ## 0.2.0
 
 ### Minor Changes

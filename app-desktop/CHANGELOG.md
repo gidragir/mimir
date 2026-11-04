@@ -1,5 +1,12 @@
 # @mimir/app-desktop
 
+## 0.2.1
+
+### Patch Changes
+
+- 85de105: feat(desktop): disable jpackage Windows launcher wrapper via win.norestart=true to run as single process
+- 735e932: fix(desktop): register mimir:// URI scheme on Windows startup and enable native FFM access for window foreground activation
+
 ## 0.2.0
 
 ### Minor Changes
