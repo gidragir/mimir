@@ -20,6 +20,7 @@ import dev.mimir.desktop.tray.bindUpdateItem
 import dev.mimir.desktop.tray.createTray
 import dev.mimir.desktop.tray.trayLabel
 import dev.mimir.desktop.picker.defaultFolderPicker
+import dev.mimir.desktop.platform.WindowsProtocolRegistrar
 import dev.mimir.desktop.ipc.SingleInstanceManager
 import dev.mimir.ui.MimirApp
 import dev.mimir.ui.picker.LocalFolderPicker
@@ -39,6 +40,9 @@ fun main(args: Array<String>) {
     val ipc = SingleInstanceManager()
     if (!ipc.acquirePrimary(args)) {
         exitProcess(0)
+    }
+    Thread.ofVirtual().name("mimir-proto-reg").start {
+        WindowsProtocolRegistrar.registerIfWindows()
     }
     val config = try {
         DaemonConfig.load()

@@ -18,6 +18,14 @@ object PlatformFocus {
         window.toFront()
         window.requestFocus()
 
+        if (isWindows()) {
+            try {
+                window.isAlwaysOnTop = true
+                window.isAlwaysOnTop = false
+            } catch (_: Throwable) {
+            }
+        }
+
         try {
             if (isMac()) {
                 if (Desktop.isDesktopSupported()) {

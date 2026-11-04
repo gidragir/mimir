@@ -35,6 +35,7 @@ dependencies {
 compose.desktop {
     application {
         mainClass = "dev.mimir.desktop.MainKt"
+        jvmArgs += listOf("--enable-native-access=ALL-UNNAMED")
         nativeDistributions {
             targetFormats(TargetFormat.Msi)
             packageName = providers.gradleProperty("mimir.appName").get()
@@ -113,4 +114,3 @@ fun patchWindowsCfg() {
             }
     }
 }
-
