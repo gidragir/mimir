@@ -1,9 +1,15 @@
 name: Release
 
-# Запускается вручную-тегом v* или из changesets.yml (workflow_call) после слияния «Version Packages».
+# Запускается вручную-тегом v*, через workflow_dispatch или из changesets.yml (workflow_call).
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Тег релиза (v<версия>)"
+        required: false
+        type: string
   workflow_call:
     inputs:
       tag:
