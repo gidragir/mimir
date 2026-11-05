@@ -197,12 +197,17 @@ jobs:
         with:
           ref: ${{ env.SOURCE_REF }}
           persist-credentials: false
+      # Ключ считается до сборки: post-шаг actions/cache иначе пересчитывает hashFiles по workspace,
+      # где makepkg оставил файлы, недоступные раннеру, и падает (Fail to hash files).
+      - name: Compute Gradle cache key
+        id: gradle-key
+        run: echo "hash=${{ hashFiles('**/*.gradle.kts', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@v5
         with:
           path: |
             /root/.gradle/caches
             /root/.gradle/wrapper
-          key: arch-gradle-${{ hashFiles('**/*.gradle.kts', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
+          key: arch-gradle-${{ steps.gradle-key.outputs.hash }}
           restore-keys: arch-gradle-
       - name: Build package
         # build-arch.sh: packageUberJarForCurrentOS -> копирует jar -> makepkg под непривилегированным пользователем
