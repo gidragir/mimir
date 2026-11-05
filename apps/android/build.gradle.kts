@@ -13,11 +13,14 @@ base {
 }
 
 // Ключ подписи берётся из окружения; при отсутствии любого из параметров release остаётся неподписанным.
-val keystorePath = providers.environmentVariable("MIMIR_KEYSTORE_PATH").orNull?.takeIf { it.isNotBlank() }
-val keystorePassword = providers.environmentVariable("MIMIR_KEYSTORE_PASSWORD").orNull?.takeIf { it.isNotBlank() }
-val keyAlias = providers.environmentVariable("MIMIR_KEY_ALIAS").orNull?.takeIf { it.isNotBlank() }
-val keyPassword = providers.environmentVariable("MIMIR_KEY_PASSWORD").orNull?.takeIf { it.isNotBlank() }
-val isSignedRelease = keystorePath != null && keystorePassword != null && keyAlias != null && keyPassword != null
+// Имена с префиксом signing*: внутри signingConfigs.create { } свойства SigningConfig (storeFile, keyAlias, keyPassword)
+// перекрывают одноимённые свойства скрипта, и `keyAlias = keyAlias` присвоило бы полю его же null.
+val signingStorePath = providers.environmentVariable("MIMIR_KEYSTORE_PATH").orNull?.takeIf { it.isNotBlank() }
+val signingStorePassword = providers.environmentVariable("MIMIR_KEYSTORE_PASSWORD").orNull?.takeIf { it.isNotBlank() }
+val signingKeyAlias = providers.environmentVariable("MIMIR_KEY_ALIAS").orNull?.takeIf { it.isNotBlank() }
+val signingKeyPassword = providers.environmentVariable("MIMIR_KEY_PASSWORD").orNull?.takeIf { it.isNotBlank() }
+val isSignedRelease = signingStorePath != null && signingStorePassword != null && signingKeyAlias != null && signingKeyPassword != null
+val signingStoreFile: File? = signingStorePath?.let { project.file(it) }
 
 android {
     namespace = "${providers.gradleProperty("mimir.group").get()}.android"
@@ -66,10 +69,10 @@ android {
     signingConfigs {
         if (isSignedRelease) {
             create("release") {
-                storeFile = file(checkNotNull(keystorePath))
-                storePassword = keystorePassword
-                this.keyAlias = keyAlias
-                this.keyPassword = keyPassword
+                storeFile = checkNotNull(signingStoreFile)
+                storePassword = signingStorePassword
+                keyAlias = signingKeyAlias
+                keyPassword = signingKeyPassword
             }
         }
     }
