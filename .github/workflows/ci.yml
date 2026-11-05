@@ -78,7 +78,7 @@ jobs:
               - 'mise.toml'
               - 'gradlew'
               - 'gradlew.bat'
-              - '.github/scripts/**'
+              - 'packaging/arch/build-arch.sh'
               - '.github/workflows/**'
             msi_packaging:
               - 'apps/desktop/**'
@@ -244,7 +244,7 @@ jobs:
           key: arch-gradle-${{ hashFiles('**/*.gradle.kts', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: arch-gradle-
       - name: Build Arch package
-        run: .github/scripts/build-arch.sh
+        run: packaging/arch/build-arch.sh
 
   docker-dry-run:
     name: docker (dry-run)

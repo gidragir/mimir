@@ -196,7 +196,7 @@ jobs:
           MIMIR_BUILD_GOOGLE_DESKTOP_CLIENT_SECRET: ${{ secrets.MIMIR_BUILD_GOOGLE_DESKTOP_CLIENT_SECRET }}
           MIMIR_BUILD_GOOGLE_DEVICE_CLIENT_ID: ${{ secrets.MIMIR_BUILD_GOOGLE_DEVICE_CLIENT_ID }}
           MIMIR_BUILD_GOOGLE_DEVICE_CLIENT_SECRET: ${{ secrets.MIMIR_BUILD_GOOGLE_DEVICE_CLIENT_SECRET }}
-        run: .github/scripts/build-arch.sh
+        run: packaging/arch/build-arch.sh
       - uses: actions/upload-artifact@v7
         with:
           name: arch

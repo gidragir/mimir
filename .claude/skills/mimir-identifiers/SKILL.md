@@ -17,7 +17,7 @@ description: Use when a Mimir name, version, id, port, UUID or other long-lived 
 | Gradle-скрипты и convention-плагины | `providers.gradleProperty("mimir.…")` |
 | Манифесты/шаблоны (Obsidian `manifest.template.json`, расширение, Android `strings.xml`) | подстановка при сборке (`processResources`/`resValue`/задача сборки), шаблон без литералов |
 | compose desktop (`nativeDistributions`) | `packageName`/`packageVersion`/`upgradeUuid` из properties |
-| PKGBUILD / CI | `pkgname`/`pkgver` подставляются скриптом `.github/scripts/build-arch.sh` и `sed`; теги и имя Docker-образа — из properties |
+| PKGBUILD / CI | `pkgname`/`pkgver` подставляются скриптом `packaging/arch/build-arch.sh` и `sed`; теги и имя Docker-образа — из properties |
 
 ## Правила
 

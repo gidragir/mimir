@@ -1,4 +1,4 @@
-# pkgname и pkgver подставляет .github/scripts/build-arch.sh из gradle.properties.
+# pkgname и pkgver подставляет packaging/arch/build-arch.sh из gradle.properties.
 pkgname=mimir
 pkgver=0.1.0
 pkgrel=1
