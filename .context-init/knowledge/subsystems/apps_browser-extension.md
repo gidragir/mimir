@@ -2,15 +2,15 @@
 directory: apps/browser-extension
 source:
   kind: git
-  blob_sha: 2e689521be1ef6c16f1ccc631c797de8b6df520a
-  commit_sha: d76124709e74a48c435fa5562976a03d7ddce70f
+  blob_sha: 7a4fa310212b2fb0078157cd3a0c2229a6d65e8e
+  commit_sha: 799cec16d9d3f57d366553b65e11bd0d24956012
 generated_by:
   component: context-init
   role: update
   model: none
 freshness:
-  total_entries: 7
-  sampled_entries: 7
+  total_entries: 5
+  sampled_entries: 5
   unsampled_entries: 0
   pending_child_changes: 0
 ---
@@ -27,8 +27,6 @@ freshness:
 | Файл | Статус |
 | :--- | :--- |
 | `apps/browser-extension/build.gradle.kts` | ⭐ Точка входа |
-| `apps/browser-extension/karma.config.d/headless.js` | Исходный код |
-| `apps/browser-extension/karma.config.d/mocha-timeout.js` | Исходный код |
 | `apps/browser-extension/manifest.template.json` | Исходный код |
 | `apps/browser-extension/scripts/capture-screenshots.mjs` | Исходный код |
 | `apps/browser-extension/scripts/check-extension.mjs` | Исходный код |

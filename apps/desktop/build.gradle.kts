@@ -1,14 +1,11 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 
 plugins {
-    kotlin("jvm")
+    id("mimir.jvm")
     kotlin("plugin.serialization")
     alias(libs.plugins.compose.multiplatform)
     alias(libs.plugins.compose.compiler)
 }
-
-group = providers.gradleProperty("mimir.group").get()
-version = providers.gradleProperty("mimir.version").get()
 
 dependencies {
     implementation(project(":libs:core"))
@@ -84,12 +81,6 @@ tasks.withType<JavaExec>().configureEach {
 
 // Тесты, как и приложение: Skiko и PlatformFocus (FFM) обращаются к нативному коду.
 tasks.withType<Test>().configureEach { jvmArgs("--enable-native-access=ALL-UNNAMED") }
-
-// Kotlin 2.4 таргетит JVM 26 при JDK 27, выравниваем javac по Kotlin
-tasks.withType<JavaCompile>().configureEach { options.release = 26 }
-tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
-    compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_26)
-}
 
 // Отключаем перезапуск Windows-лаунчера jpackage (win.norestart=true), чтобы в Диспетчере задач
 // не создавался родительский процесс-обёртка и отображался ровно один процесс Mimir.exe.

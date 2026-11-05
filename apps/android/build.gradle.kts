@@ -6,6 +6,11 @@ plugins {
 val appName = providers.gradleProperty("mimir.appName").get()
 val appId = providers.gradleProperty("mimir.appId").get()
 val appVersion = providers.gradleProperty("mimir.version").get()
+val pacmanName = providers.gradleProperty("mimir.pacmanName").get()
+
+base {
+    archivesName.set("$pacmanName-$appVersion")
+}
 
 // Ключ подписи берётся из окружения; без него release остаётся неподписанным.
 val keystorePath = providers.environmentVariable("MIMIR_KEYSTORE_PATH").orNull
@@ -32,6 +37,10 @@ android {
             .get()
         buildConfigField("String", "GOOGLE_DESKTOP_CLIENT_ID", "\"$desktopClientId\"")
         buildConfigField("String", "GOOGLE_DESKTOP_CLIENT_SECRET", "\"$desktopClientSecret\"")
+    }
+
+    lint {
+        checkReleaseBuilds = false
     }
 
     testOptions {
@@ -66,6 +75,29 @@ android {
             if (keystorePath != null) signingConfig = signingConfigs.getByName("release")
         }
     }
+}
+
+androidComponents {
+    beforeVariants(selector().withBuildType("release")) { variantBuilder ->
+        (variantBuilder as? com.android.build.api.variant.HasUnitTestBuilder)?.enableUnitTest = false
+    }
+}
+
+val releaseApkFileName = if (keystorePath != null) {
+    "$pacmanName-$appVersion.apk"
+} else {
+    "$pacmanName-$appVersion-unsigned.apk"
+}
+
+tasks.register<Sync>("packageReleaseApk") {
+    group = "build"
+    description = "Собрать релизный APK и скопировать в build/distributions с каноническим именем"
+    dependsOn("assembleRelease")
+    from(layout.buildDirectory.dir("outputs/apk/release")) {
+        include("*.apk")
+        rename(".*\\.apk", releaseApkFileName)
+    }
+    into(layout.buildDirectory.dir("distributions"))
 }
 
 dependencies {

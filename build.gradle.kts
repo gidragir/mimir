@@ -1,9 +1,19 @@
 // Плагины объявлены здесь с apply false, чтобы все модули делили один classloader.
 plugins {
-    alias(libs.plugins.dependency.analysis)
+    id("com.autonomousapps.dependency-analysis")
     alias(libs.plugins.compose.multiplatform) apply false
     alias(libs.plugins.compose.compiler) apply false
     alias(libs.plugins.buildconfig) apply false
+}
+
+// DAGP 3.20.1 падает на KMP-проектах с js/wasm/android-таргетами (Graphs.lowestCommonAncestor:
+// "Empty collection can't be reduced"), поэтому анализ включён только для JVM- и Android-модулей.
+subprojects {
+    listOf("org.jetbrains.kotlin.jvm", "com.android.application").forEach { id ->
+        pluginManager.withPlugin(id) {
+            apply(plugin = "com.autonomousapps.dependency-analysis")
+        }
+    }
 }
 
 dependencyAnalysis {

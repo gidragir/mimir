@@ -11,7 +11,7 @@ prop() { sed -n "s/^$1=//p" gradle.properties; }
 pkgname="$(prop mimir.pacmanName)"
 pkgver="$(prop mimir.version)"
 
-./gradlew :apps:desktop:packageUberJarForCurrentOS --no-daemon --console=plain
+./gradlew :apps:desktop:packageUberJarForCurrentOS -Pmimir.bundleWebUi=true --no-daemon --console=plain
 
 jar="$(ls apps/desktop/build/compose/jars/*.jar | head -n 1)"
 cp "$jar" packaging/arch/mimir.jar

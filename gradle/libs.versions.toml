@@ -67,6 +67,7 @@ robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectr
 androidx-test-core = { module = "androidx.test:core", version.ref = "androidxTestCore" }
 androidx-core = { module = "androidx.core:core", version.ref = "androidxCore" }
 androidx-browser = { module = "androidx.browser:browser", version.ref = "browser" }
+dependency-analysis-plugin = { module = "com.autonomousapps:dependency-analysis-gradle-plugin", version.ref = "dependencyAnalysis" }
 
 
 [plugins]

@@ -9,12 +9,25 @@ kotlin {
     js {
         browser {
             webpackTask { mainOutputFileName = "main.js" }
+            testTask {
+                useKarma {
+                    useChromeHeadless()
+                    useConfigDirectory(rootProject.file("gradle/karma.config.d"))
+                }
+                if (System.getenv("CHROME_BIN") == null && file("/usr/bin/chromium").exists()) {
+                    environment("CHROME_BIN", "/usr/bin/chromium")
+                }
+            }
         }
         binaries.executable()
         compilerOptions { target = "es2015" } // class MimirPlugin : Plugin() должен быть настоящим ES-классом
     }
     sourceSets {
         jsMain.dependencies { implementation(project(":libs:core")) }
+        jsTest.dependencies {
+            implementation(kotlin("test"))
+            implementation(libs.coroutines.test)
+        }
     }
 }
 

@@ -1,16 +1,16 @@
 ---
-directory: libs/ui
+directory: libs/ui/build.gradle.kts
 source:
   kind: git
-  blob_sha: 81659824e20b56594639b0729c45e042b6315bc2
-  commit_sha: d76124709e74a48c435fa5562976a03d7ddce70f
+  blob_sha: 3724240776aa4e958c34d11220b3653b4f45c28e
+  commit_sha: 799cec16d9d3f57d366553b65e11bd0d24956012
 generated_by:
   component: context-init
   role: update
   model: none
 freshness:
-  total_entries: 2
-  sampled_entries: 2
+  total_entries: 1
+  sampled_entries: 1
   unsampled_entries: 0
   pending_child_changes: 0
 ---
@@ -27,7 +27,6 @@ freshness:
 | Файл | Статус |
 | :--- | :--- |
 | `libs/ui/build.gradle.kts` | ⭐ Точка входа |
-| `libs/ui/webpack.config.d/performance.js` | Исходный код |
 
 ## 🧪 Запуск и тестирование
 ```bash

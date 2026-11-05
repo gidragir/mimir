@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends libatomic1 && r
 COPY . .
 
 RUN --mount=type=cache,target=/root/.gradle \
-    ./gradlew :apps:daemon:installDist --no-daemon --console=plain
+    ./gradlew :apps:daemon:installDist -Pmimir.bundleWebUi=true --no-daemon --console=plain
 
 # ---- final ----
 FROM eclipse-temurin:27-jre

@@ -3,7 +3,7 @@ directory: libs/core
 source:
   kind: git
   blob_sha: 5b23cf31f986f3206fb0ea2404a02bacc1a40259
-  commit_sha: d76124709e74a48c435fa5562976a03d7ddce70f
+  commit_sha: 799cec16d9d3f57d366553b65e11bd0d24956012
 generated_by:
   component: context-init
   role: update

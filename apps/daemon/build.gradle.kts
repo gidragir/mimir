@@ -1,12 +1,9 @@
 plugins {
-    kotlin("jvm")
+    id("mimir.jvm")
     kotlin("plugin.serialization")
     application
     alias(libs.plugins.buildconfig)
 }
-
-group = providers.gradleProperty("mimir.group").get()
-version = providers.gradleProperty("mimir.version").get()
 
 // Вшитые значения клиентов Google для релизных сборок; без переменных окружения — пустые строки.
 buildConfig {
@@ -51,12 +48,6 @@ dependencies {
     testImplementation(libs.ktor.server.test.host)
 }
 
-// Kotlin 2.4 таргетит JVM 26 при JDK 27, выравниваем javac по Kotlin
-tasks.withType<JavaCompile>().configureEach { options.release = 26 }
-tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
-    compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_26)
-}
-
 // Web UI раздаётся демоном: бандл :web-ui попадает в ресурсы static/ только при упаковке дистрибутивов
 // или явном -Pmimir.bundleWebUi=true, чтобы JVM-тесты (:apps:daemon:test, :apps:desktop:test) не тянули Wasm/Webpack.
 val bundleWebUi = providers.gradleProperty("mimir.bundleWebUi").map { it.toBoolean() }.orElse(false).get() ||
@@ -71,7 +62,12 @@ if (bundleWebUi) {
     tasks.processResources {
         from(project(":apps:web-ui").tasks.named("wasmJsBrowserDistribution")) { into("static") }
     }
-} else {
-    // Без бандла static/ пуст: тест раздачи Web UI проверяется только с -Pmimir.bundleWebUi=true.
-    tasks.test { filter { excludeTestsMatching("*WebUiServedTest") } }
+}
+
+// Для JVM-тестов (WebUiServedTest) static/index.html подкладывается из исходников :web-ui без сборки Wasm.
+tasks.processTestResources {
+    from(rootProject.file("apps/web-ui/src/wasmJsMain/resources")) {
+        include("index.html")
+        into("static")
+    }
 }

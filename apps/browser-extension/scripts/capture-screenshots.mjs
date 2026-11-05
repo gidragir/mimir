@@ -61,6 +61,8 @@ const targets = [
 
 console.log(`Capturing browser extension screenshots using ${chromiumBin}...`);
 
+let failed = false;
+
 for (const target of targets) {
   const outFile = resolve(outputDir, target.name);
   const args = [
@@ -80,7 +82,10 @@ for (const target of targets) {
     console.log(`  ✓ ${target.name} (${target.width}x${target.height})`);
   } catch (err) {
     console.error(`  ✗ Failed to capture ${target.name}:`, err.message);
+    failed = true;
   }
 }
+
+if (failed) process.exit(1);
 
 console.log(`Screenshots saved to: ${outputDir}`);

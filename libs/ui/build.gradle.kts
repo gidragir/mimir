@@ -16,7 +16,6 @@ kotlin {
     @OptIn(ExperimentalWasmDsl::class)
     wasmJs {
         browser()
-        binaries.executable() // нужен проверке Compose UI tests (CMP-4906); входная точка живёт в :web-ui
     }
 
     sourceSets {
@@ -48,4 +47,11 @@ dependencies {
 }
 
 // Skiko загружает нативную библиотеку через System.load.
-tasks.withType<Test>().configureEach { jvmArgs("--enable-native-access=ALL-UNNAMED") }
+// Скриншотные тесты пишут PNG и запускаются только с -Pmimir.screenshots=true (mise run screenshots).
+val runScreenshots = providers.gradleProperty("mimir.screenshots").map { it.toBoolean() }.orElse(false).get()
+tasks.withType<Test>().configureEach {
+    jvmArgs("--enable-native-access=ALL-UNNAMED")
+    if (!runScreenshots) {
+        filter { excludeTestsMatching("*ScreenshotTest") }
+    }
+}

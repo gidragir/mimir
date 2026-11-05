@@ -60,8 +60,8 @@ run_windows = "gradlew.bat :apps:browser-extension:assembleExtension"
 
 [tasks.screenshots]
 description = "Сгенерировать скриншоты UI desktop и расширения браузера"
-run = "./gradlew :libs:ui:desktopTest --rerun --tests 'dev.mimir.ui.screenshots.*' && ./gradlew :apps:browser-extension:assembleExtension && node apps/browser-extension/scripts/capture-screenshots.mjs"
-run_windows = "gradlew.bat :libs:ui:desktopTest --rerun --tests dev.mimir.ui.screenshots.* && gradlew.bat :apps:browser-extension:assembleExtension && node apps/browser-extension/scripts/capture-screenshots.mjs"
+run = "./gradlew :libs:ui:desktopTest -Pmimir.screenshots=true --rerun --tests '*ScreenshotTest' && ./gradlew :apps:browser-extension:assembleExtension && node apps/browser-extension/scripts/capture-screenshots.mjs"
+run_windows = "gradlew.bat :libs:ui:desktopTest -Pmimir.screenshots=true --rerun --tests *ScreenshotTest && gradlew.bat :apps:browser-extension:assembleExtension && node apps/browser-extension/scripts/capture-screenshots.mjs"
 
 [tasks."package:extension"]
 description = "Упаковать расширение в zip для релиза"

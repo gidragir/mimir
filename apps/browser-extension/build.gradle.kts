@@ -31,7 +31,10 @@ kotlin {
         browser {
             webpackTask { mainOutputFileName = "popup.js" }
             testTask {
-                useKarma { useChromeHeadless() }
+                useKarma {
+                    useChromeHeadless()
+                    useConfigDirectory(rootProject.file("gradle/karma.config.d"))
+                }
                 if (System.getenv("CHROME_BIN") == null && file("/usr/bin/chromium").exists()) {
                     environment("CHROME_BIN", "/usr/bin/chromium")
                 }

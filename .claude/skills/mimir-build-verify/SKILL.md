@@ -41,7 +41,7 @@ description: Use when you need to build, test or verify a change in the Mimir re
 
 ### Проверка на Android эмуляторе
 
-- **Сборка и установка**: `./gradlew :apps:android:assembleDebug && adb install -r apps/android/build/outputs/apk/debug/android-debug.apk`
+- **Сборка и установка**: `./gradlew :apps:android:assembleDebug && adb install -r apps/android/build/outputs/apk/debug/mimir-*-debug.apk`
 - **Запуск Activity**: `adb shell am start -n dev.mimir.app/dev.mimir.android.MainActivity` (appId = `dev.mimir.app`)
 - **Запуск эмулятора под Wayland (Niri / Sway)**: встроенный Qt SDK не имеет плагина wayland, запуск требует Xwayland:
   `QT_QPA_PLATFORM=xcb emulator -avd <avd_name> -netdelay none -netspeed full`

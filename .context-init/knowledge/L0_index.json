@@ -16,20 +16,20 @@
     "test": "rtk mise run test",
     "run": "rtk mise run desktop",
     "custom": {
-      "plugin": "rtk mise run plugin",
-      "package:extension": "rtk mise run package:extension",
-      "package:arch": "rtk mise run package:arch",
-      "test:fast": "rtk mise run test:fast",
       "package:msi": "rtk mise run package:msi",
+      "package:arch": "rtk mise run package:arch",
       "android": "rtk mise run android",
       "build:extension": "rtk mise run build:extension",
-      "screenshots": "rtk mise run screenshots",
-      "desktop": "rtk mise run desktop",
-      "package:docker": "rtk mise run package:docker",
-      "extension": "rtk mise run extension",
       "daemon": "rtk mise run daemon",
+      "package:extension": "rtk mise run package:extension",
       "ci:fast": "rtk mise run ci:fast",
-      "web": "rtk mise run web"
+      "plugin": "rtk mise run plugin",
+      "web": "rtk mise run web",
+      "desktop": "rtk mise run desktop",
+      "test:fast": "rtk mise run test:fast",
+      "package:docker": "rtk mise run package:docker",
+      "screenshots": "rtk mise run screenshots",
+      "extension": "rtk mise run extension"
     }
   },
   "subsystems": [
@@ -152,8 +152,6 @@
       ],
       "key_files": [
         "apps/browser-extension/build.gradle.kts",
-        "apps/browser-extension/karma.config.d/headless.js",
-        "apps/browser-extension/karma.config.d/mocha-timeout.js",
         "apps/browser-extension/manifest.template.json",
         "apps/browser-extension/scripts/capture-screenshots.mjs",
         "apps/browser-extension/scripts/check-extension.mjs",
@@ -163,14 +161,6 @@
         {
           "path": "apps/browser-extension/build.gradle.kts",
           "is_entrypoint": true
-        },
-        {
-          "path": "apps/browser-extension/karma.config.d/headless.js",
-          "is_entrypoint": false
-        },
-        {
-          "path": "apps/browser-extension/karma.config.d/mocha-timeout.js",
-          "is_entrypoint": false
         },
         {
           "path": "apps/browser-extension/manifest.template.json",
@@ -668,6 +658,7 @@
         "build-logic/build.gradle.kts",
         "build-logic/settings.gradle.kts",
         "build-logic/src/main/kotlin/mimir.android-support.gradle.kts",
+        "build-logic/src/main/kotlin/mimir.jvm.gradle.kts",
         "build-logic/src/main/kotlin/mimir.kmp-library.gradle.kts",
         "build-logic/src/main/kotlin/mimir.settings.settings.gradle.kts"
       ],
@@ -682,6 +673,10 @@
         },
         {
           "path": "build-logic/src/main/kotlin/mimir.android-support.gradle.kts",
+          "is_entrypoint": false
+        },
+        {
+          "path": "build-logic/src/main/kotlin/mimir.jvm.gradle.kts",
           "is_entrypoint": false
         },
         {
@@ -1418,17 +1413,12 @@
         "libs/ui/build.gradle.kts"
       ],
       "key_files": [
-        "libs/ui/build.gradle.kts",
-        "libs/ui/webpack.config.d/performance.js"
+        "libs/ui/build.gradle.kts"
       ],
       "files": [
         {
           "path": "libs/ui/build.gradle.kts",
           "is_entrypoint": true
-        },
-        {
-          "path": "libs/ui/webpack.config.d/performance.js",
-          "is_entrypoint": false
         }
       ],
       "summary_source": "heuristic"

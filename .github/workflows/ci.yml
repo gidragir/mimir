@@ -62,7 +62,7 @@ jobs:
         run: node scripts/generate-tokens.mjs --check
       - name: Lint GitHub Actions workflows
         run: |
-          curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.7/scripts/download-actionlint.bash | bash -s -- 1.7.7 /tmp
+          curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.12/scripts/download-actionlint.bash | bash -s -- 1.7.12 /tmp
           /tmp/actionlint -color
       - uses: dorny/paths-filter@v4
         id: filter
@@ -115,6 +115,7 @@ jobs:
           CORE_OR_LIBS: ${{ steps.filter.outputs.core_or_libs }}
           DESKTOP: ${{ steps.filter.outputs.desktop }}
           MSI_PACKAGING: ${{ steps.filter.outputs.msi_packaging }}
+          COMMIT_SUBJECT: ${{ github.event.head_commit.message }}
         run: |
           if [[ "$HEAD_REF" == release-please--* ]]; then
             echo "is_release_pr=true" >> "$GITHUB_OUTPUT"
@@ -124,9 +125,16 @@ jobs:
             echo "is_release_pr=false" >> "$GITHUB_OUTPUT"
             echo "package_msi=true" >> "$GITHUB_OUTPUT"
             echo 'os_matrix=["ubuntu-latest","windows-latest","macos-latest"]' >> "$GITHUB_OUTPUT"
+          elif [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "is_release_pr=false" >> "$GITHUB_OUTPUT"
+            echo "package_msi=true" >> "$GITHUB_OUTPUT"
+            echo 'os_matrix=["ubuntu-latest","windows-latest"]' >> "$GITHUB_OUTPUT"
           else
             echo "is_release_pr=false" >> "$GITHUB_OUTPUT"
-            if [ "$EVENT_NAME" = "push" ] || [ "$EVENT_NAME" = "workflow_dispatch" ] || [ "$MSI_PACKAGING" = "true" ]; then
+            # Коммит слияния релизного PR: MSI собирает release.yml, дублировать сборку в CI не нужно.
+            if [[ "$COMMIT_SUBJECT" == "chore(main): release "* ]]; then
+              echo "package_msi=false" >> "$GITHUB_OUTPUT"
+            elif [ "$EVENT_NAME" = "push" ] || [ "$MSI_PACKAGING" = "true" ]; then
               echo "package_msi=true" >> "$GITHUB_OUTPUT"
             else
               echo "package_msi=false" >> "$GITHUB_OUTPUT"
@@ -184,13 +192,13 @@ jobs:
         env:
           IS_RELEASE_PR: ${{ needs.detect-changes.outputs.is_release_pr }}
           PACKAGE_MSI: ${{ needs.detect-changes.outputs.package_msi }}
-          CORE_OR_LIBS: ${{ (needs.detect-changes.outputs.core_or_libs == 'true' || github.event_name == 'schedule') && 'true' || 'false' }}
-          DESKTOP: ${{ (needs.detect-changes.outputs.desktop == 'true' || github.event_name == 'schedule') && 'true' || 'false' }}
+          CORE_OR_LIBS: ${{ (needs.detect-changes.outputs.core_or_libs == 'true' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'true' || 'false' }}
+          DESKTOP: ${{ (needs.detect-changes.outputs.desktop == 'true' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'true' || 'false' }}
           ANDROID: ${{ needs.detect-changes.outputs.android }}
           JS_OR_WEB: ${{ needs.detect-changes.outputs.js_or_web }}
         run: |
           if [ "$IS_RELEASE_PR" = "true" ]; then
-            ./gradlew -p build-logic test && ./gradlew :apps:desktop:help
+            env -u ANDROID_HOME -u ANDROID_SDK_ROOT ./gradlew -p build-logic test && env -u ANDROID_HOME -u ANDROID_SDK_ROOT ./gradlew :apps:desktop:help
           elif [ "${{ runner.os }}" = "Windows" ]; then
             if [ "$PACKAGE_MSI" = "true" ]; then
               ./gradlew :apps:desktop:packageMsi -Pmimir.bundleWebUi=true
@@ -202,9 +210,9 @@ jobs:
           elif [ "$CORE_OR_LIBS" != "true" ] && [ "$DESKTOP" != "true" ] && [ "$JS_OR_WEB" != "true" ] && [ "$ANDROID" = "true" ]; then
             ./gradlew -p build-logic test && ./gradlew :apps:android:testDebugUnitTest :apps:android:assembleDebug
           elif [ "$CORE_OR_LIBS" != "true" ] && [ "$DESKTOP" != "true" ] && [ "$ANDROID" != "true" ] && [ "$JS_OR_WEB" = "true" ]; then
-            ./gradlew -p build-logic test && ./gradlew :apps:obsidian-plugin:checkPlugin :apps:browser-extension:checkExtension :apps:web-ui:wasmJsBrowserDistribution :libs:ui:desktopTest
+            env -u ANDROID_HOME -u ANDROID_SDK_ROOT ./gradlew -p build-logic test && env -u ANDROID_HOME -u ANDROID_SDK_ROOT ./gradlew :apps:obsidian-plugin:checkPlugin :apps:browser-extension:checkExtension :apps:web-ui:wasmJsBrowserDistribution :libs:ui:desktopTest
           else
-            ./gradlew build --continue -Pmimir.bundleWebUi=true
+            ./gradlew build --continue
           fi
       - name: Upload test reports on failure
         if: failure()
@@ -228,6 +236,13 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+      - uses: actions/cache@v5
+        with:
+          path: |
+            /root/.gradle/caches
+            /root/.gradle/wrapper
+          key: arch-gradle-${{ hashFiles('**/*.gradle.kts', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: arch-gradle-
       - name: Build Arch package
         run: .github/scripts/build-arch.sh
 
