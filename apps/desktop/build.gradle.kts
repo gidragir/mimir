@@ -34,7 +34,7 @@ compose.desktop {
         mainClass = "dev.mimir.desktop.MainKt"
         jvmArgs += listOf("--enable-native-access=ALL-UNNAMED")
         nativeDistributions {
-            targetFormats(TargetFormat.Msi)
+            targetFormats(TargetFormat.Msi, TargetFormat.Dmg)
             packageName = providers.gradleProperty("mimir.appName").get()
             packageVersion = providers.gradleProperty("mimir.version").get()
             appResourcesRootDir.set(project.layout.projectDirectory.dir("src/packaging"))
@@ -48,6 +48,11 @@ compose.desktop {
             }
             macOS {
                 bundleID = providers.gradleProperty("mimir.appId").get()
+                // jpackage на macOS отвергает версию с мажором 0 (CFBundleVersion). Пока mimir.version = 0.x,
+                // bundle получает 1.x.y; имя dmg в релизе release.yml возвращает к настоящей версии.
+                val macVersion = macBundleVersion(providers.gradleProperty("mimir.version").get())
+                packageVersion = macVersion
+                dmgPackageVersion = macVersion
                 infoPlist {
                     extraKeysRawXml = """
                         <key>CFBundleURLTypes</key>
@@ -108,4 +113,9 @@ tasks.configureEach {
         }
         if (isDistributable) doLast(patch) else doFirst(patch)
     }
+}
+
+fun macBundleVersion(version: String): String {
+    val parts = version.substringBefore('-').split('.')
+    return if (parts.first() == "0") (listOf("1") + parts.drop(1)).joinToString(".") else version
 }

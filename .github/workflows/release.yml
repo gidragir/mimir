@@ -105,6 +105,10 @@ jobs:
             os: windows-latest
             task: :apps:desktop:packageMsi
             paths: apps/desktop/build/compose/binaries/main/msi/*.msi
+          - name: dmg
+            os: macos-latest
+            task: :apps:desktop:packageDmg
+            paths: apps/desktop/build/compose/binaries/main/dmg/*.dmg
           - name: linux-bundles
             os: ubuntu-latest
             task: :apps:android:packageReleaseApk :apps:obsidian-plugin:zipPlugin :apps:browser-extension:zipExtension
@@ -163,6 +167,15 @@ jobs:
           MIMIR_BUILD_GOOGLE_DEVICE_CLIENT_ID: ${{ secrets.MIMIR_BUILD_GOOGLE_DEVICE_CLIENT_ID }}
           MIMIR_BUILD_GOOGLE_DEVICE_CLIENT_SECRET: ${{ secrets.MIMIR_BUILD_GOOGLE_DEVICE_CLIENT_SECRET }}
         run: ./gradlew ${{ matrix.task }} -Pmimir.bundleWebUi=true
+      - name: Rename dmg to release version
+        if: matrix.name == 'dmg'
+        run: |
+          # Bundle на macOS несёт версию 1.x.y (см. macBundleVersion), файл в релизе — настоящую.
+          dir=apps/desktop/build/compose/binaries/main/dmg
+          shopt -s nullglob
+          files=("$dir"/*.dmg)
+          [ "${#files[@]}" -eq 1 ] || { echo "Ожидался один dmg, найдено ${#files[@]}"; exit 1; }
+          mv "${files[0]}" "$dir/Mimir-${TAG#v}.dmg"
       - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.name }}
@@ -253,6 +266,10 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: msi
+          path: dist
+      - uses: actions/download-artifact@v8
+        with:
+          name: dmg
           path: dist
       - uses: actions/download-artifact@v8
         with:
