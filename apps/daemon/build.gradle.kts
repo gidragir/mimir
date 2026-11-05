@@ -30,10 +30,10 @@ tasks.withType<JavaExec>().configureEach {
 }
 
 dependencies {
-    implementation(project(":core"))
-    implementation(project(":drive"))
-    api(project(":runtime"))
-    api(project(":client"))
+    implementation(project(":libs:core"))
+    implementation(project(":libs:drive"))
+    api(project(":libs:runtime"))
+    api(project(":libs:client"))
     implementation(libs.serialization.json)
     implementation(libs.kotlinx.datetime)
     implementation(libs.ktor.client.core)
@@ -55,7 +55,7 @@ dependencies {
 tasks.withType<JavaCompile>().configureEach { options.release = 26 }
 
 // Web UI раздаётся демоном: бандл :web-ui попадает в ресурсы static/
-evaluationDependsOn(":web-ui")
+evaluationDependsOn(":apps:web-ui")
 tasks.processResources {
-    from(project(":web-ui").tasks.named("wasmJsBrowserDistribution")) { into("static") }
+    from(project(":apps:web-ui").tasks.named("wasmJsBrowserDistribution")) { into("static") }
 }

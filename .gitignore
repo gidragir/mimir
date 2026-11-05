@@ -2,6 +2,8 @@
 .gradle/
 /build/
 /*/build/
+/libs/*/build/
+/apps/*/build/
 .kotlin/
 local.properties
 

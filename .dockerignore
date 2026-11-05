@@ -1,5 +1,7 @@
 /build/
 /*/build/
+/libs/*/build/
+/apps/*/build/
 **/.gradle/
 **/.kotlin/
 **/node_modules/

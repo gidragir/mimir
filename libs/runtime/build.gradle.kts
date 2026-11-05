@@ -9,9 +9,9 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            api(project(":core"))
-            api(project(":drive"))
-            api(project(":client"))
+            api(project(":libs:core"))
+            api(project(":libs:drive"))
+            api(project(":libs:client"))
             implementation(libs.ktor.client.core)
             implementation(libs.ktor.server.core)
             implementation(libs.ktor.server.cio)

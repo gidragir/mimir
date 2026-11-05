@@ -14,7 +14,7 @@ kotlin {
         compilerOptions { target = "es2015" } // class MimirPlugin : Plugin() должен быть настоящим ES-классом
     }
     sourceSets {
-        jsMain.dependencies { implementation(project(":core")) }
+        jsMain.dependencies { implementation(project(":libs:core")) }
     }
 }
 

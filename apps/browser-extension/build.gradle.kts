@@ -41,8 +41,8 @@ kotlin {
     }
     sourceSets {
         jsMain.dependencies {
-            implementation(project(":core"))
-            implementation(project(":drive"))
+            implementation(project(":libs:core"))
+            implementation(project(":libs:drive"))
             implementation(libs.ktor.client.core)
             implementation(libs.ktor.client.js)
             implementation(libs.ktor.client.content.negotiation)

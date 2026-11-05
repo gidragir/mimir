@@ -21,4 +21,20 @@ dependencyResolutionManagement {
 
 rootProject.name = "mimir"
 
-include(":core", ":drive", ":client", ":runtime", ":ui", ":app-desktop", ":daemon", ":web-ui", ":obsidian-plugin", ":browser-extension")
+// Библиотеки (libs)
+include(
+    ":libs:core",
+    ":libs:drive",
+    ":libs:client",
+    ":libs:runtime",
+    ":libs:ui",
+)
+
+// Приложения и клиенты (apps); :apps:android подключается условно через mimir.settings
+include(
+    ":apps:desktop",
+    ":apps:daemon",
+    ":apps:web-ui",
+    ":apps:obsidian-plugin",
+    ":apps:browser-extension",
+)

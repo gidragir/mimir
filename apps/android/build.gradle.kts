@@ -69,10 +69,10 @@ android {
 }
 
 dependencies {
-    implementation(project(":core"))
-    implementation(project(":drive"))
-    implementation(project(":runtime"))
-    implementation(project(":ui"))
+    implementation(project(":libs:core"))
+    implementation(project(":libs:drive"))
+    implementation(project(":libs:runtime"))
+    implementation(project(":libs:ui"))
     implementation(libs.compose.ui)
     implementation(libs.activity.compose)
     implementation(libs.androidx.browser)

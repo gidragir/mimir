@@ -17,9 +17,9 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            api(project(":core"))
-            api(project(":client"))
-            implementation(project(":drive"))
+            api(project(":libs:core"))
+            api(project(":libs:client"))
+            implementation(project(":libs:drive"))
             implementation(libs.compose.runtime)
             implementation(libs.compose.foundation)
             implementation(libs.compose.material3)
