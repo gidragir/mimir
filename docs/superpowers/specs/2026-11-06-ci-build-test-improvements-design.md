@@ -118,7 +118,7 @@
        exit 1
      fi
      ```
-2. Джобы `build`, `arch`, `docker` получают зависимость `needs: verify` (убирая дублирующиеся шаги `Tag matches mimir.version` и `Verify CI status for release commit` из матрицы `build`).
+2. Джобы `build`, `arch`, `docker` получают зависимость `needs: verify` и условие `if: ${{ !cancelled() && (needs.verify.result == 'success' || needs.verify.result == 'skipped') }}` (чтобы при `dry_run=true`, когда `verify` имеет статус `skipped`, сборочные джобы выполнялись; дублирующиеся шаги `Tag matches mimir.version` и `Verify CI status for release commit` из матрицы `build` удаляются). В цикле ожидания `check-runs` записи группируются по `.name` с выбором `max_by(.id)`, чтобы перезапуск CI после отмены/сбоя не блокировался старыми попытками.
 3. В элементе матрицы `linux-bundles` (`release.yml`):
    - Заменить `:apps:android:assembleRelease` на `:apps:android:packageReleaseApk`.
    - Заменить путь артефакта `apps/android/build/outputs/apk/release/*.apk` на `apps/android/build/distributions/*.apk`.
@@ -193,13 +193,18 @@
    dependency-analysis-plugin = { module = "com.autonomousapps:dependency-analysis-gradle-plugin", version.ref = "dependencyAnalysis" }
    ```
 2. В `build-logic/build.gradle.kts` добавить `implementation(libs.dependency.analysis.plugin)` — это помещает `dependency-analysis` в один classloader с `kotlin-gradle-plugin` и `com.android.tools.build:gradle`.
-3. В корневом `build.gradle.kts` применять `id("com.autonomousapps.dependency-analysis")` к корневому проекту и всем JVM/Android/KMP подпроектам:
+3. В корневом `build.gradle.kts` применять `id("com.autonomousapps.dependency-analysis")` к корневому проекту и JVM/Android подпроектам через `pluginManager.withPlugin`:
    ```kotlin
    subprojects {
-       apply(plugin = "com.autonomousapps.dependency-analysis")
+       listOf("org.jetbrains.kotlin.jvm", "com.android.application").forEach { id ->
+           pluginManager.withPlugin(id) {
+               apply(plugin = "com.autonomousapps.dependency-analysis")
+           }
+       }
    }
    ```
-4. В результате `./gradlew buildHealth` анализирует все подпроекты репозитория (`projectCount > 0`) и формирует непустой отчёт о графе зависимостей.
+   *(Ограничение DAGP 3.20.1: на KMP-модулях с внешними зависимостями `KmpSourceSetNameMatcher.getLowestCommonAncestor` вызывает `Graphs.lowestCommonAncestor` на пустом множестве `kmpSourceSetName` и падает с `UnsupportedOperationException: Empty collection can't be reduced`.)*
+4. В результате `./gradlew buildHealth` анализирует JVM- и Android-подпроекты репозитория (`:apps:android`, `:apps:daemon`, `:apps:desktop`, `projectCount = 3 > 0`) и формирует непустой отчёт о графе зависимостей.
 
 ---
 
@@ -245,9 +250,9 @@
    - В `mise.toml` задача `screenshots` передаёт `-Pmimir.screenshots=true`:
      `./gradlew :libs:ui:desktopTest -Pmimir.screenshots=true --rerun --tests 'dev.mimir.ui.*Screenshot*' ...`
    - В `apps/browser-extension/scripts/capture-screenshots.mjs`: добавить счётчик ошибок `let failed = false;` в блок `catch` и `if (failed) process.exit(1);` в конце скрипта.
-3. **Unit-тесты для `:apps:obsidian-plugin` и `:apps:web-ui`:**
-   - В `apps/obsidian-plugin/build.gradle.kts`: настроить `js { browser { testTask { ... } } }` (с общим `gradle/karma.config.d` и `kotlin("test")` в `jsTest`) и добавить unit-тест `apps/obsidian-plugin/src/jsTest/kotlin/dev/mimir/obsidian/ObsidianPluginTest.kt`.
-   - В `apps/web-ui/build.gradle.kts`: настроить `wasmJs { nodejs { testTask { ... } } }` с `kotlin("test")` в `wasmJsTest` и добавить unit-тест `apps/web-ui/src/wasmJsTest/kotlin/dev/mimir/webui/WebUiSmokeTest.kt`.
+3. **Unit-тесты для `:apps:obsidian-plugin` и проверка `:apps:web-ui`:**
+   - В `apps/obsidian-plugin/build.gradle.kts`: настроить `js { browser { testTask { ... } } }` (с общим `gradle/karma.config.d` и `kotlin("test")` в `jsTest`), в `webpack.config.d/obsidian.js` для `config.mode !== "production"` подставлять минимальную заглушку `obsidian` (`Plugin`, `Notice`), и добавить unit-тест `apps/obsidian-plugin/src/jsTest/kotlin/dev/mimir/obsidian/ObsidianPluginTest.kt`.
+   - Для `:apps:web-ui` (тонкая точка входа из 1 строки `ComposeViewport { MimirApp(StubSyncEngine()) }`): собственные `wasmJsNodeTest` и `wasmJsBrowserTest` не подключаются, так как `skiko.mjs` в Compose Multiplatform 1.12 требует браузерного WebGL/fetch при загрузке модуля (падает в Node.js), а Karma не поддерживает ESM `import.meta` в сгенерированном `.mjs` загрузчике Kotlin/Wasm. Логика покрывается в `:libs:core:wasmJsNodeTest`, `:libs:client:wasmJsNodeTest` и `:libs:ui:desktopTest`, сборка бандла проверяется `:apps:web-ui:wasmJsBrowserDistribution`, а отдача HTML — в `:apps:daemon:test` (`WebUiServedTest`).
 
 ---
 

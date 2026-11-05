@@ -12,8 +12,12 @@ base {
     archivesName.set("$pacmanName-$appVersion")
 }
 
-// Ключ подписи берётся из окружения; без него release остаётся неподписанным.
-val keystorePath = providers.environmentVariable("MIMIR_KEYSTORE_PATH").orNull
+// Ключ подписи берётся из окружения; при отсутствии любого из параметров release остаётся неподписанным.
+val keystorePath = providers.environmentVariable("MIMIR_KEYSTORE_PATH").orNull?.takeIf { it.isNotBlank() }
+val keystorePassword = providers.environmentVariable("MIMIR_KEYSTORE_PASSWORD").orNull?.takeIf { it.isNotBlank() }
+val keyAlias = providers.environmentVariable("MIMIR_KEY_ALIAS").orNull?.takeIf { it.isNotBlank() }
+val keyPassword = providers.environmentVariable("MIMIR_KEY_PASSWORD").orNull?.takeIf { it.isNotBlank() }
+val isSignedRelease = keystorePath != null && keystorePassword != null && keyAlias != null && keyPassword != null
 
 android {
     namespace = "${providers.gradleProperty("mimir.group").get()}.android"
@@ -60,30 +64,31 @@ android {
     }
 
     signingConfigs {
-        if (keystorePath != null) {
+        if (isSignedRelease) {
             create("release") {
-                storeFile = file(keystorePath)
-                storePassword = providers.environmentVariable("MIMIR_KEYSTORE_PASSWORD").orNull
-                keyAlias = providers.environmentVariable("MIMIR_KEY_ALIAS").orNull
-                keyPassword = providers.environmentVariable("MIMIR_KEY_PASSWORD").orNull
+                storeFile = file(checkNotNull(keystorePath))
+                storePassword = keystorePassword
+                this.keyAlias = keyAlias
+                this.keyPassword = keyPassword
             }
         }
     }
 
     buildTypes {
         release {
-            if (keystorePath != null) signingConfig = signingConfigs.getByName("release")
+            if (isSignedRelease) signingConfig = signingConfigs.getByName("release")
         }
     }
 }
 
 androidComponents {
     beforeVariants(selector().withBuildType("release")) { variantBuilder ->
-        (variantBuilder as? com.android.build.api.variant.HasUnitTestBuilder)?.enableUnitTest = false
+        (variantBuilder as com.android.build.api.variant.HasUnitTestBuilder).enableUnitTest = false
     }
 }
 
-val releaseApkFileName = if (keystorePath != null) {
+val releaseSourceApkGlob = if (isSignedRelease) "*-release.apk" else "*-release-unsigned.apk"
+val releaseApkFileName = if (isSignedRelease) {
     "$pacmanName-$appVersion.apk"
 } else {
     "$pacmanName-$appVersion-unsigned.apk"
@@ -94,7 +99,7 @@ tasks.register<Sync>("packageReleaseApk") {
     description = "Собрать релизный APK и скопировать в build/distributions с каноническим именем"
     dependsOn("assembleRelease")
     from(layout.buildDirectory.dir("outputs/apk/release")) {
-        include("*.apk")
+        include(releaseSourceApkGlob)
         rename(".*\\.apk", releaseApkFileName)
     }
     into(layout.buildDirectory.dir("distributions"))
