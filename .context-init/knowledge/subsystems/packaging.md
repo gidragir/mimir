@@ -1,23 +1,23 @@
 ---
-directory: packaging/arch/mimir.sh
+directory: packaging/arch
 source:
   kind: git
-  blob_sha: 640a87765dec5b1536ab895cb4e4f5003996a582
-  commit_sha: c4d15d5133f882d1b744714b839e702178c89e3c
+  blob_sha: d9971f85e52f228b3f9ed40b07d99a7980babefc
+  commit_sha: 26d53005b2cd507dcc6d6b2875e8475b7ca8fb6c
 generated_by:
   component: context-init
-  role: init
+  role: update
   model: none
 freshness:
-  total_entries: 1
-  sampled_entries: 1
+  total_entries: 2
+  sampled_entries: 2
   unsampled_entries: 0
   pending_child_changes: 0
 ---
 
 # Подсистема: Packaging (L1)
 
-Модуль и компоненты директории `packaging` (1 файлов)
+Модуль и компоненты директории `packaging` (2 файлов)
 
 > **Идентификатор:** `packaging`
 > **Теги:** Kotlin (Gradle), packaging
@@ -26,6 +26,7 @@ freshness:
 
 | Файл | Статус |
 | :--- | :--- |
+| `packaging/arch/build-arch.sh` | Исходный код |
 | `packaging/arch/mimir.sh` | Исходный код |
 
 ## 🔑 Ключевой контракт и экспорты

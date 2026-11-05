@@ -14,20 +14,22 @@
 
 | Скрипт | Выполняемая команда |
 | :--- | :--- |
-| `package:msi` | `rtk mise run package:msi` |
-| `package:arch` | `rtk mise run package:arch` |
-| `android` | `rtk mise run android` |
-| `build:extension` | `rtk mise run build:extension` |
-| `daemon` | `rtk mise run daemon` |
+| `extension` | `rtk mise run extension` |
 | `package:extension` | `rtk mise run package:extension` |
-| `ci:fast` | `rtk mise run ci:fast` |
-| `plugin` | `rtk mise run plugin` |
-| `web` | `rtk mise run web` |
+| `build:extension` | `rtk mise run build:extension` |
 | `desktop` | `rtk mise run desktop` |
 | `test:fast` | `rtk mise run test:fast` |
+| `android` | `rtk mise run android` |
 | `package:docker` | `rtk mise run package:docker` |
+| `package:arch` | `rtk mise run package:arch` |
+| `tokens:check` | `rtk mise run tokens:check` |
+| `web` | `rtk mise run web` |
 | `screenshots` | `rtk mise run screenshots` |
-| `extension` | `rtk mise run extension` |
+| `tokens:generate` | `rtk mise run tokens:generate` |
+| `ci:fast` | `rtk mise run ci:fast` |
+| `daemon` | `rtk mise run daemon` |
+| `plugin` | `rtk mise run plugin` |
+| `package:msi` | `rtk mise run package:msi` |
 
 ## Быстрый запуск
 ```bash

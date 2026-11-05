@@ -1,8 +1,0 @@
-{
-  "name": "mimir-monorepo",
-  "private": true,
-  "scripts": {
-    "tokens:generate": "node scripts/generate-tokens.mjs",
-    "tokens:check": "node scripts/generate-tokens.mjs --check"
-  }
-}

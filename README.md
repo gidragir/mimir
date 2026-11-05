@@ -149,6 +149,5 @@ rclone copy ":crypt,remote=/путь/к/копии/из/Drive,password=$(rclone 
 
 - Kotlin 2.4.21, JDK 27, Gradle ≥ 9.8.
 - AGP 9.5.0 (9.1.0 не работает на JDK 27: его `jlink`-трансформация падает с «cannot find the build signature»), `compileSdk` 37 (требуют зависимости Compose 1.12). Откатов на JDK 25 нет. Но Kotlin 2.4 генерирует байткод максимум для JVM 26, поэтому в JVM-модулях `javac` запускается с `--release 26` (на JDK 27).
-- В корневом `package.json` нет поля `packageManager`: оно ломает yarn, которым Kotlin/JS ставит npm-зависимости.
 - Версии библиотек в `gradle/libs.versions.toml` выставлены без проверки сборкой; при первой синхронизации их, возможно, придётся поднять.
 - Linux: Arch, системная Java (`java-runtime>=27`). Windows: MSI per-user со вшитой JRE. Android: APK вне Google Play, `MANAGE_EXTERNAL_STORAGE`. Браузер: только Chromium, Manifest V3.

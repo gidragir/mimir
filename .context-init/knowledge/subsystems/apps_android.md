@@ -2,8 +2,8 @@
 directory: apps/android
 source:
   kind: git
-  blob_sha: d072b085b0e18bff5655dec89062ae6f6cf43776
-  commit_sha: 799cec16d9d3f57d366553b65e11bd0d24956012
+  blob_sha: 671b141b50000562049535ec86d1ad61ffbb25f4
+  commit_sha: 26d53005b2cd507dcc6d6b2875e8475b7ca8fb6c
 generated_by:
   component: context-init
   role: update

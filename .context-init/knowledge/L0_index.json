@@ -6,7 +6,6 @@
   "updated_at": "2026-11-05",
   "project_type": "Kotlin (Gradle)",
   "entrypoints": [
-    "package.json",
     "mise.toml",
     "build.gradle.kts",
     "settings.gradle.kts"
@@ -16,20 +15,22 @@
     "test": "rtk mise run test",
     "run": "rtk mise run desktop",
     "custom": {
-      "package:msi": "rtk mise run package:msi",
-      "package:arch": "rtk mise run package:arch",
-      "android": "rtk mise run android",
-      "build:extension": "rtk mise run build:extension",
-      "daemon": "rtk mise run daemon",
+      "extension": "rtk mise run extension",
       "package:extension": "rtk mise run package:extension",
-      "ci:fast": "rtk mise run ci:fast",
-      "plugin": "rtk mise run plugin",
-      "web": "rtk mise run web",
+      "build:extension": "rtk mise run build:extension",
       "desktop": "rtk mise run desktop",
       "test:fast": "rtk mise run test:fast",
+      "android": "rtk mise run android",
       "package:docker": "rtk mise run package:docker",
+      "package:arch": "rtk mise run package:arch",
+      "tokens:check": "rtk mise run tokens:check",
+      "web": "rtk mise run web",
       "screenshots": "rtk mise run screenshots",
-      "extension": "rtk mise run extension"
+      "tokens:generate": "rtk mise run tokens:generate",
+      "ci:fast": "rtk mise run ci:fast",
+      "daemon": "rtk mise run daemon",
+      "plugin": "rtk mise run plugin",
+      "package:msi": "rtk mise run package:msi"
     }
   },
   "subsystems": [
@@ -1617,16 +1618,21 @@
     {
       "id": "packaging",
       "name": "Packaging",
-      "summary": "Модуль и компоненты директории `packaging` (1 файлов)",
+      "summary": "Модуль и компоненты директории `packaging` (2 файлов)",
       "l1_path": "subsystems/packaging.md",
       "tags": [
         "Kotlin (Gradle)",
         "packaging"
       ],
       "key_files": [
+        "packaging/arch/build-arch.sh",
         "packaging/arch/mimir.sh"
       ],
       "files": [
+        {
+          "path": "packaging/arch/build-arch.sh",
+          "is_entrypoint": false
+        },
         {
           "path": "packaging/arch/mimir.sh",
           "is_entrypoint": false

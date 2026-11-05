@@ -2,8 +2,8 @@
 directory: apps/browser-extension
 source:
   kind: git
-  blob_sha: 7a4fa310212b2fb0078157cd3a0c2229a6d65e8e
-  commit_sha: 799cec16d9d3f57d366553b65e11bd0d24956012
+  blob_sha: 2c4a4367bf1a02b6d08d4e456a0d62f5ae69e8d4
+  commit_sha: 26d53005b2cd507dcc6d6b2875e8475b7ca8fb6c
 generated_by:
   component: context-init
   role: update

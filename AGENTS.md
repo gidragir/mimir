@@ -53,7 +53,7 @@ Mimir — клиент синхронизации Obsidian-хранилища с
 | Runtime | `libs/runtime/`: фасад — `MimirRuntime`; сборка движка — `EngineAssembler`; вход — `login/`; настройки — `JsonRuntimeSettingsStore` |
 | Демон | composition root — `DaemonRuntime`; API — `Routes` + `ProgressDto`; конфиг, env и каталоги ОС — `DaemonConfig`; расписание — `SyncScheduler`; вход через браузер — `BrowserLoginReceiver`; индекс — `JsonSyncStateStore`, атомарная запись — `AtomicFiles.kt` |
 | UI и дизайн-система | контракт — `libs/ui/model/MimirUiModel`; экраны — `libs/ui/screens/`; крафтовые компоненты — `libs/ui/components/MimirComponents.kt`; токен-константы — `libs/ui/MimirTokens.kt`; темы — `MimirTheme`, `ObsidianStyle`; тексты — `SyncTexts`; сервисы (CompositionLocal) — `libs/ui/picker/`, `libs/ui/platform/` |
-| Дизайн-токены (Single Source of Truth) | `design/tokens.json`; генератор — `scripts/generate-tokens.mjs` (`node scripts/generate-tokens.mjs` / `--check`); артефакты — `libs/ui/MimirTokens.kt`, `apps/browser-extension/.../tokens.css` |
+| Дизайн-токены (Single Source of Truth) | `design/tokens.json`; генератор — `scripts/generate-tokens.mjs` (`mise run tokens:generate` / `tokens:check`); артефакты — `libs/ui/MimirTokens.kt`, `apps/browser-extension/.../tokens.css` |
 | Desktop | composition root — `apps/desktop/Main.kt`; встроенный/удалённый демон — `DaemonServiceFactory`; трей — `tray/`; выбор папки — `picker/`; браузер — `SystemBrowserOpener` |
 | Сборка | convention-плагины — `build-logic/src/main/kotlin/`; версии — `gradle/libs.versions.toml`; идентификаторы — `gradle.properties` |
 
@@ -158,5 +158,5 @@ Mimir — клиент синхронизации Obsidian-хранилища с
 - `libs_ui` (Ui) — Подсистема `libs/ui` с ключевыми точками входа: libs/ui/build.gradle.kts
 - `libs_ui_commonmain_kotlin_dev_mimir_ui` (Ui CommonMain Kotlin Dev Mimir Ui) — Модуль и компоненты директории `libs/ui/src/commonMain/kotlin/dev/mimir/ui` (15 файлов)
 - `libs_ui_commonmain_kotlin_dev_mimir_ui_screens` (Ui CommonMain Kotlin Dev Mimir Ui Screens) — Модуль и компоненты директории `libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens` (12 файлов)
-- `packaging` (Packaging) — Модуль и компоненты директории `packaging` (1 файлов)
+- `packaging` (Packaging) — Модуль и компоненты директории `packaging` (2 файлов)
 - `scripts` (Scripts) — Модуль и компоненты директории `scripts` (2 файлов)

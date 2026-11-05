@@ -18,10 +18,19 @@ description = "Быстрый прогон всех JVM-тестов и build-lo
 run = "./gradlew ciJvmTests"
 run_windows = "gradlew.bat ciJvmTests"
 
+[tasks."tokens:generate"]
+description = "Сгенерировать артефакты дизайн-токенов из design/tokens.json"
+run = "node scripts/generate-tokens.mjs"
+
+[tasks."tokens:check"]
+description = "Проверить, что артефакты дизайн-токенов не разошлись с design/tokens.json"
+run = "node scripts/generate-tokens.mjs --check"
+
 [tasks."ci:fast"]
 description = "Быстрая локальная предпроверка перед push (токены + actionlint + ciJvmTests)"
-run = "node scripts/generate-tokens.mjs --check && actionlint && ./gradlew ciJvmTests"
-run_windows = "node scripts/generate-tokens.mjs --check && gradlew.bat ciJvmTests"
+depends = ["tokens:check"]
+run = "actionlint && ./gradlew ciJvmTests"
+run_windows = "gradlew.bat ciJvmTests"
 
 [tasks.desktop]
 description = "Запустить десктопное приложение"

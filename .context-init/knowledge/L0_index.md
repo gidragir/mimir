@@ -4,7 +4,6 @@
 > **Описание:** Один открытый инструмент синхронизации Obsidian-хранилища на всех платформах (Linux, Windows, Android). Он ощущается как Google Drive Desktop: один раз указал папку vault и пароль, дальше всё синхронизируется само.
 
 ## 🚪 Точки входа (Root Entrypoints)
-- `package.json`
 - `mise.toml`
 - `build.gradle.kts`
 - `settings.gradle.kts`
@@ -48,7 +47,7 @@ rtk mise run desktop
 | **Ui** | Подсистема `libs/ui` с ключевыми точками входа: libs/ui/build.gradle.kts | `libs/ui/build.gradle.kts` | [subsystems/libs_ui.md](subsystems/libs_ui.md) |
 | **Ui CommonMain Kotlin Dev Mimir Ui** | Модуль и компоненты директории `libs/ui/src/commonMain/kotlin/dev/mimir/ui` (15 файлов) | `-` | [subsystems/libs_ui_commonmain_kotlin_dev_mimir_ui.md](subsystems/libs_ui_commonmain_kotlin_dev_mimir_ui.md) |
 | **Ui CommonMain Kotlin Dev Mimir Ui Screens** | Модуль и компоненты директории `libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens` (12 файлов) | `-` | [subsystems/libs_ui_commonmain_kotlin_dev_mimir_ui_screens.md](subsystems/libs_ui_commonmain_kotlin_dev_mimir_ui_screens.md) |
-| **Packaging** | Модуль и компоненты директории `packaging` (1 файлов) | `-` | [subsystems/packaging.md](subsystems/packaging.md) |
+| **Packaging** | Модуль и компоненты директории `packaging` (2 файлов) | `-` | [subsystems/packaging.md](subsystems/packaging.md) |
 | **Scripts** | Модуль и компоненты директории `scripts` (2 файлов) | `-` | [subsystems/scripts.md](subsystems/scripts.md) |
 
 ## 📋 Инварианты и правила проекта
