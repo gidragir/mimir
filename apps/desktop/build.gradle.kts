@@ -87,30 +87,28 @@ tasks.withType<JavaCompile>().configureEach { options.release = 26 }
 
 // Отключаем перезапуск Windows-лаунчера jpackage (win.norestart=true), чтобы в Диспетчере задач
 // не создавался родительский процесс-обёртка и отображался ровно один процесс Mimir.exe.
+// Логика патча намеренно не вынесена в функцию скрипта: ссылка на объект скрипта в действии
+// задачи ломает configuration cache. Захватываются только значения (каталог сборки, имя).
+val patchCfgBuildDir = layout.buildDirectory.asFile
+val patchCfgAppName = providers.gradleProperty("mimir.appName")
 tasks.configureEach {
-    if (name.startsWith("createDistributable") || name.startsWith("createReleaseDistributable")) {
-        doLast {
-            patchWindowsCfg()
-        }
-    }
-    if (name.contains("packageMsi", ignoreCase = true) || name.contains("packageReleaseMsi", ignoreCase = true)) {
-        doFirst {
-            patchWindowsCfg()
-        }
-    }
-}
-
-fun patchWindowsCfg() {
-    val buildDir = layout.buildDirectory.orNull?.asFile ?: return
-    val appName = providers.gradleProperty("mimir.appName").get()
-    if (buildDir.exists()) {
-        buildDir.walkTopDown()
-            .filter { it.isFile && it.name.equals("$appName.cfg", ignoreCase = true) }
-            .forEach { cfg ->
-                val content = cfg.readText()
-                if (!content.contains("win.norestart")) {
-                    cfg.writeText(content.replace("[Application]", "[Application]\r\nwin.norestart=true"))
-                }
+    val isDistributable = name.startsWith("createDistributable") || name.startsWith("createReleaseDistributable")
+    val isMsi = name.contains("packageMsi", ignoreCase = true) || name.contains("packageReleaseMsi", ignoreCase = true)
+    if (isDistributable || isMsi) {
+        val buildDirFile = patchCfgBuildDir.get()
+        val appName = patchCfgAppName.get()
+        val patch = Action<Task> {
+            if (buildDirFile.exists()) {
+                buildDirFile.walkTopDown()
+                    .filter { it.isFile && it.name.equals("$appName.cfg", ignoreCase = true) }
+                    .forEach { cfg ->
+                        val content = cfg.readText()
+                        if (!content.contains("win.norestart")) {
+                            cfg.writeText(content.replace("[Application]", "[Application]\r\nwin.norestart=true"))
+                        }
+                    }
             }
+        }
+        if (isDistributable) doLast(patch) else doFirst(patch)
     }
 }
