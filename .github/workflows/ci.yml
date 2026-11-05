@@ -66,6 +66,10 @@ jobs:
         env:
           MISE_TASK_RUN_AUTO_INSTALL: "false"
         run: mise run tokens:check
+      - name: Verify agent skills are in sync
+        env:
+          MISE_TASK_RUN_AUTO_INSTALL: "false"
+        run: mise run skills:check
       - name: Lint GitHub Actions workflows
         run: actionlint -color
       - uses: dorny/paths-filter@v4

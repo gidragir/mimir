@@ -110,7 +110,9 @@ Mimir — клиент синхронизации Obsidian-хранилища с
 - Поток: push в `main` → `release-please.yml` (с поддержкой `secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN` для автозапуска CI на PR без `action_required`) ведёт PR «chore(main): release <версия>» → после слияния создаётся тег `v<версия>` и `release.yml` вызывается напрямую из `release-please.yml` через `workflow_call` (matrix-сборка msi/apk/zip, Arch в контейнере, Docker в GHCR, прикрепление артефактов к GitHub Release). Триггера на push тега у `release.yml` нет (при `RELEASE_PLEASE_TOKEN` релиз запустился бы дважды). Проверка релизной сборки без публикации: `gh workflow run release.yml --ref <ветка> -f tag=v<версия> -f dry_run=true`.
 - Версию в `gradle.properties` руками не менять — только через PR Release Please.
 
-## Проектные скиллы (`.claude/skills/`)
+## Проектные скиллы (`.agents/skills/`)
+
+Единый источник скиллов для всех агентов (Antigravity, Claude Code, Codex) — `.agents/skills/<имя>/`. `.claude/skills/<имя>` — только относительный симлинк `../../.agents/skills/<имя>`: так скилл видит Claude Code. Новый скилл создаётся в `.agents/skills`, затем `mise run skills:sync` создаёт симлинк; скилл, по ошибке созданный в `.claude/skills`, команда сама переносит в `.agents/skills`. Расхождение ловят `mise run skills:check`, `ci:fast` и `detect-changes` в CI. Исключение — `impeccable`: установщик генерирует отдельную версию под каждый инструмент (`.claude/skills/impeccable` — с `/impeccable` и AskUserQuestion, `.agents/skills/impeccable` — с `$impeccable` и Codex-агентами). Эти копии не правятся и не сливаются руками, обновляются только переустановкой; список таких скиллов — `VENDOR` в `scripts/sync-skills.mjs`.
 
 - `mimir-cross-platform` — поведение на каждой платформе, платформенные сервисы за интерфейсом.
 - `mimir-design-patterns` — каталог паттернов проекта и куда класть новый код.

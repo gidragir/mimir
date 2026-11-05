@@ -26,9 +26,17 @@ run = "node scripts/generate-tokens.mjs"
 description = "Проверить, что артефакты дизайн-токенов не разошлись с design/tokens.json"
 run = "node scripts/generate-tokens.mjs --check"
 
+[tasks."skills:sync"]
+description = "Перенести проектные скиллы в .agents/skills и пересоздать симлинки в .claude/skills"
+run = "node scripts/sync-skills.mjs --fix"
+
+[tasks."skills:check"]
+description = "Проверить, что .claude/skills — только симлинки на .agents/skills (единый источник скиллов)"
+run = "node scripts/sync-skills.mjs"
+
 [tasks."ci:fast"]
-description = "Быстрая локальная предпроверка перед push (токены + actionlint + ciJvmTests)"
-depends = ["tokens:check"]
+description = "Быстрая локальная предпроверка перед push (токены + скиллы + actionlint + ciJvmTests)"
+depends = ["tokens:check", "skills:check"]
 run = "actionlint && ./gradlew ciJvmTests"
 run_windows = "gradlew.bat ciJvmTests"
 
