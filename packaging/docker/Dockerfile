@@ -11,13 +11,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends libatomic1 && r
 COPY . .
 
 RUN --mount=type=cache,target=/root/.gradle \
-    ./gradlew :daemon:installDist --no-daemon --console=plain
+    ./gradlew :apps:daemon:installDist --no-daemon --console=plain
 
 # ---- final ----
 FROM eclipse-temurin:27-jre
 RUN groupadd --system mimir && useradd --system --gid mimir --home-dir /app mimir \
     && mkdir /vault /app && chown mimir:mimir /vault
-COPY --from=build /src/daemon/build/install/daemon/lib /app/lib
+COPY --from=build /src/apps/daemon/build/install/daemon/lib /app/lib
 
 ENV MIMIR_BIND=0.0.0.0 \
     MIMIR_PORT=47821 \

@@ -14,58 +14,58 @@ run_windows = "gradlew.bat allTests"
 
 [tasks.desktop]
 description = "Запустить десктопное приложение"
-run = "./gradlew :app-desktop:run"
-run_windows = "gradlew.bat :app-desktop:run"
+run = "./gradlew :apps:desktop:run"
+run_windows = "gradlew.bat :apps:desktop:run"
 
 [tasks.android]
 description = "Установить Android-приложение на устройство"
-run = "./gradlew :app-android:installDebug"
-run_windows = "gradlew.bat :app-android:installDebug"
+run = "./gradlew :apps:android:installDebug"
+run_windows = "gradlew.bat :apps:android:installDebug"
 
 [tasks.daemon]
 description = "Запустить демон"
-run = "./gradlew :daemon:run"
-run_windows = "gradlew.bat :daemon:run"
+run = "./gradlew :apps:daemon:run"
+run_windows = "gradlew.bat :apps:daemon:run"
 
 [tasks.web]
 description = "Запустить web UI в режиме разработки"
-run = "./gradlew :web-ui:wasmJsBrowserDevelopmentRun"
-run_windows = "gradlew.bat :web-ui:wasmJsBrowserDevelopmentRun"
+run = "./gradlew :apps:web-ui:wasmJsBrowserDevelopmentRun"
+run_windows = "gradlew.bat :apps:web-ui:wasmJsBrowserDevelopmentRun"
 
 [tasks.plugin]
 description = "Собрать плагин Obsidian"
-run = "./gradlew :obsidian-plugin:assemblePlugin"
-run_windows = "gradlew.bat :obsidian-plugin:assemblePlugin"
+run = "./gradlew :apps:obsidian-plugin:assemblePlugin"
+run_windows = "gradlew.bat :apps:obsidian-plugin:assemblePlugin"
 
 [tasks.extension]
 description = "Собрать расширение браузера"
-run = "./gradlew :browser-extension:assembleExtension"
-run_windows = "gradlew.bat :browser-extension:assembleExtension"
+run = "./gradlew :apps:browser-extension:assembleExtension"
+run_windows = "gradlew.bat :apps:browser-extension:assembleExtension"
 
 [tasks."build:extension"]
 description = "Собрать расширение браузера (алиас)"
-run = "./gradlew :browser-extension:assembleExtension"
-run_windows = "gradlew.bat :browser-extension:assembleExtension"
+run = "./gradlew :apps:browser-extension:assembleExtension"
+run_windows = "gradlew.bat :apps:browser-extension:assembleExtension"
 
 [tasks.screenshots]
 description = "Сгенерировать скриншоты UI desktop и расширения браузера"
-run = "./gradlew :ui:desktopTest --rerun --tests 'dev.mimir.ui.screenshots.*' && ./gradlew :browser-extension:assembleExtension && node browser-extension/scripts/capture-screenshots.mjs"
-run_windows = "gradlew.bat :ui:desktopTest --rerun --tests dev.mimir.ui.screenshots.* && gradlew.bat :browser-extension:assembleExtension && node browser-extension/scripts/capture-screenshots.mjs"
+run = "./gradlew :libs:ui:desktopTest --rerun --tests 'dev.mimir.ui.screenshots.*' && ./gradlew :apps:browser-extension:assembleExtension && node apps/browser-extension/scripts/capture-screenshots.mjs"
+run_windows = "gradlew.bat :libs:ui:desktopTest --rerun --tests dev.mimir.ui.screenshots.* && gradlew.bat :apps:browser-extension:assembleExtension && node apps/browser-extension/scripts/capture-screenshots.mjs"
 
 [tasks."package:extension"]
 description = "Упаковать расширение в zip для релиза"
-run = "./gradlew :browser-extension:zipExtension"
-run_windows = "gradlew.bat :browser-extension:zipExtension"
+run = "./gradlew :apps:browser-extension:zipExtension"
+run_windows = "gradlew.bat :apps:browser-extension:zipExtension"
 
 [tasks."package:msi"]
 description = "Собрать MSI (только Windows)"
-run = "./gradlew :app-desktop:packageMsi"
-run_windows = "gradlew.bat :app-desktop:packageMsi"
+run = "./gradlew :apps:desktop:packageMsi"
+run_windows = "gradlew.bat :apps:desktop:packageMsi"
 
 [tasks."package:arch"]
 description = "Собрать uber-jar для пакета Arch"
-run = "./gradlew :app-desktop:packageUberJarForCurrentOS"
-run_windows = "gradlew.bat :app-desktop:packageUberJarForCurrentOS"
+run = "./gradlew :apps:desktop:packageUberJarForCurrentOS"
+run_windows = "gradlew.bat :apps:desktop:packageUberJarForCurrentOS"
 
 [tasks."package:docker"]
 description = "Собрать Docker-образ демона"

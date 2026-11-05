@@ -37,7 +37,7 @@ class UpdateCardScreenshotTest {
     )
 
     private fun shoot(dark: Boolean) {
-        val dir = File(System.getProperty("user.dir")).resolve("../build/reports/screenshots/desktop").canonicalFile.apply { mkdirs() }
+        val dir = File(System.getProperty("user.dir")).resolve("../../build/reports/screenshots/desktop").canonicalFile.apply { mkdirs() }
         for ((name, state) in states) {
             runComposeUiTest {
                 setContent {

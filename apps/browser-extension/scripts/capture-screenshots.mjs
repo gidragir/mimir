@@ -4,12 +4,12 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const rootDir = resolve(__dirname, "../..");
-const extensionHtml = resolve(rootDir, "browser-extension/build/extension/popup.html");
+const rootDir = resolve(__dirname, "../../..");
+const extensionHtml = resolve(rootDir, "apps/browser-extension/build/extension/popup.html");
 const outputDir = resolve(rootDir, "build/reports/screenshots/extension");
 
 if (!existsSync(extensionHtml)) {
-  console.error(`Extension popup.html not found at ${extensionHtml}. Run './gradlew :browser-extension:assembleExtension' first.`);
+  console.error(`Extension popup.html not found at ${extensionHtml}. Run './gradlew :apps:browser-extension:assembleExtension' first.`);
   process.exit(1);
 }
 

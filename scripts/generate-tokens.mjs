@@ -8,8 +8,8 @@ const __dirname = dirname(__filename);
 const rootDir = resolve(__dirname, '..');
 
 const tokensFile = resolve(rootDir, 'design/tokens.json');
-const kotlinOutFile = resolve(rootDir, 'ui/src/commonMain/kotlin/dev/mimir/ui/MimirTokens.kt');
-const cssOutFile = resolve(rootDir, 'browser-extension/src/jsMain/resources/tokens.css');
+const kotlinOutFile = resolve(rootDir, 'libs/ui/src/commonMain/kotlin/dev/mimir/ui/MimirTokens.kt');
+const cssOutFile = resolve(rootDir, 'apps/browser-extension/src/jsMain/resources/tokens.css');
 
 function hexToCompose(hex) {
   const clean = hex.replace('#', '').toUpperCase();

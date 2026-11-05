@@ -43,7 +43,7 @@ import kotlin.time.Instant
 @OptIn(ExperimentalTestApi::class)
 class UiScreenshotTest {
 
-    private val outputDir = File("../build/reports/screenshots/desktop").apply { mkdirs() }
+    private val outputDir = File("../../build/reports/screenshots/desktop").apply { mkdirs() }
 
     private val dummyPicker = object : PlatformFolderPicker {
         override suspend fun pickDirectory(initialPath: String?): String? = null

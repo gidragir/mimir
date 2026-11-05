@@ -3,7 +3,7 @@
 # Нужен rclone >= 1.60 и python3. Обычная сборка и тесты скрипт не запускают.
 set -euo pipefail
 
-OUT="$(cd "$(dirname "$0")/.." && pwd)/core/src/commonTest/kotlin/dev/mimir/core/RcloneVectors.kt"
+OUT="$(cd "$(dirname "$0")/.." && pwd)/libs/core/src/commonTest/kotlin/dev/mimir/core/RcloneVectors.kt"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
