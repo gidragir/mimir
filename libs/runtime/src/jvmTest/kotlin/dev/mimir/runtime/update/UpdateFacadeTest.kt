@@ -1,3 +1,5 @@
+@file:OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+
 package dev.mimir.runtime.update
 
 import dev.mimir.client.UpdateCommandException

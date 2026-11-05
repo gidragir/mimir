@@ -1,3 +1,5 @@
+@file:OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+
 package dev.mimir.desktop.tray
 
 import dev.mimir.ui.model.UpdateInstallKind

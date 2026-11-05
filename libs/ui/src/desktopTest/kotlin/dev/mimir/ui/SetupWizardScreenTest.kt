@@ -9,7 +9,7 @@ import androidx.compose.ui.test.waitUntilExactlyOneExists
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
-import androidx.compose.ui.test.runComposeUiTest
+import androidx.compose.ui.test.v2.runComposeUiTest
 import dev.mimir.ui.model.FakeMimirUiModel
 import dev.mimir.ui.model.UiLoginPoll
 import dev.mimir.ui.model.UiLoginMethod
@@ -358,7 +358,7 @@ class SetupWizardScreenTest {
         var configuredPath = ""
         val model = FakeMimirUiModel(
             fileCount = 15,
-            onConfigureVault = { configuredPath = it; 15 },
+            onConfigureVault = { configuredPath = it },
         )
         val discovery = object : VaultDiscovery {
             override suspend fun findVaults(): List<String> = listOf("/sdcard/Documents/Notes")

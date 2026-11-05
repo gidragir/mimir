@@ -1,3 +1,5 @@
+@file:OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+
 package dev.mimir.desktop
 
 import dev.mimir.client.DaemonConnectionStatus

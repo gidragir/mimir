@@ -4,7 +4,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.runComposeUiTest
+import androidx.compose.ui.test.v2.runComposeUiTest
 import dev.mimir.ui.platform.LocalStorageAccess
 import dev.mimir.ui.platform.StorageAccess
 import dev.mimir.ui.screens.setup.AccessStep

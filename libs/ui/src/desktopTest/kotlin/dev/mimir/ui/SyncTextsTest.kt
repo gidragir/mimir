@@ -6,8 +6,8 @@ import dev.mimir.core.SyncItemAction
 import dev.mimir.core.SyncStatus
 import dev.mimir.ui.model.UiBackgroundSync
 import dev.mimir.ui.screens.SyncTexts
-import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
+import kotlin.time.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
 

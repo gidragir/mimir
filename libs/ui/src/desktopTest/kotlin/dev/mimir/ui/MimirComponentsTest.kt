@@ -15,7 +15,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
-import androidx.compose.ui.test.runComposeUiTest
+import androidx.compose.ui.test.v2.runComposeUiTest
 import dev.mimir.core.SyncStatus
 import dev.mimir.ui.components.MimirButton
 import dev.mimir.ui.components.MimirButtonVariant
