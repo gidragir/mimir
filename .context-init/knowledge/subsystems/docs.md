@@ -2,8 +2,8 @@
 directory: docs/superpowers
 source:
   kind: git
-  blob_sha: e8f2b7bf5c83b1c749bd0749a38e3cbc637078a3
-  commit_sha: 77be09c21d6849c3aa20683f5a464c68907f0746
+  blob_sha: 997acf8eaa1597a2ca90cb6eae4cd0b3ceb065d3
+  commit_sha: 647d02d99ae62690f5111cb5653e49f6651aafb5
 generated_by:
   component: context-init
   role: update

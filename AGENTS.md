@@ -132,15 +132,22 @@ Mimir — клиент синхронизации Obsidian-хранилища с
 Без доступа к MCP (субагенты, скрипты): `rtk context-init pack <subsystem_id> --compress` и `rtk context-init check --compact`.
 
 ### 📦 Доступные подсистемы:
+- `app-android` (App Android) — Подсистема `app-android` с ключевыми точками входа: app-android/package.json
+- `app-desktop` (App Desktop) — Подсистема `app-desktop` с ключевыми точками входа: app-desktop/package.json
 - `apps_android` (Android) — Модуль и компоненты директории `apps/android` (15 файлов)
 - `apps_browser-extension` (Browser Extension) — Модуль и компоненты директории `apps/browser-extension` (15 файлов)
 - `apps_daemon` (Daemon) — Модуль и компоненты директории `apps/daemon` (9 файлов)
 - `apps_desktop` (Desktop) — Модуль и компоненты директории `apps/desktop` (15 файлов)
 - `apps_obsidian-plugin` (Obsidian Plugin) — Модуль и компоненты директории `apps/obsidian-plugin` (8 файлов)
 - `apps_web-ui` (Web Ui) — Модуль и компоненты директории `apps/web-ui` (2 файлов)
+- `browser-extension` (Browser Extension) — Подсистема `browser-extension` с ключевыми точками входа: browser-extension/package.json
 - `build-logic` (Build Logic) — Модуль и компоненты директории `build-logic` (5 файлов)
+- `client` (Client) — Подсистема `client` с ключевыми точками входа: client/package.json
+- `core` (Core) — Подсистема `core` с ключевыми точками входа: core/package.json
+- `daemon` (Daemon) — Подсистема `daemon` с ключевыми точками входа: daemon/package.json
 - `design` (Design) — Модуль и компоненты директории `design` (1 файлов)
 - `docs` (Docs) — Модуль и компоненты директории `docs` (15 файлов)
+- `drive` (Drive) — Подсистема `drive` с ключевыми точками входа: drive/package.json
 - `gradle` (Gradle) — Модуль и компоненты директории `gradle` (1 файлов)
 - `libs` (Libs) — Модуль и компоненты директории `libs` (15 файлов)
 - `libs_client` (Client) — Модуль и компоненты директории `libs/client` (5 файлов)
@@ -158,5 +165,9 @@ Mimir — клиент синхронизации Obsidian-хранилища с
 - `libs_ui_src` (Libs Ui Src) — Модуль и компоненты директории `libs/ui/src` (13 файлов)
 - `libs_ui_src_commonmain_kotlin_dev_mimir_ui` (Libs Ui Src CommonMain Kotlin Dev Mimir Ui) — Модуль и компоненты директории `libs/ui/src/commonMain/kotlin/dev/mimir/ui` (15 файлов)
 - `libs_ui_src_commonmain_kotlin_dev_mimir_ui_screens` (Libs Ui Src CommonMain Kotlin Dev Mimir Ui Screens) — Модуль и компоненты директории `libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens` (12 файлов)
+- `obsidian-plugin` (Obsidian Plugin) — Подсистема `obsidian-plugin` с ключевыми точками входа: obsidian-plugin/package.json
 - `packaging` (Packaging) — Модуль и компоненты директории `packaging` (1 файлов)
+- `runtime` (Runtime) — Подсистема `runtime` с ключевыми точками входа: runtime/package.json
 - `scripts` (Scripts) — Модуль и компоненты директории `scripts` (2 файлов)
+- `ui` (Ui) — Подсистема `ui` с ключевыми точками входа: ui/package.json
+- `web-ui` (Web Ui) — Подсистема `web-ui` с ключевыми точками входа: web-ui/package.json
