@@ -29,14 +29,14 @@ description: Use when creating or changing any Mimir screen, dialog, wizard step
 ## Оформление и дизайн-система
 
 - **Single Source of Truth дизайн-токенов:** `design/tokens.json` определяет визуальный язык (палитра Obsidian, радиусы 4/6/8, шкала отступов 4/8/12/16/24/32 px).
-- **Генерация и проверка рассинхронизации:** генератор `scripts/generate-tokens.mjs` транслирует токены в Kotlin Compose (`dev.mimir.ui.MimirTokens`) и веб (`tokens.css`). Проверка дрейфа обязательна: `pnpm run tokens:check` (или `node scripts/generate-tokens.mjs --check`).
+- **Генерация и проверка рассинхронизации:** генератор `scripts/generate-tokens.mjs` транслирует токены в Kotlin Compose (`dev.mimir.ui.MimirTokens`) и веб (`tokens.css`). Проверка дрейфа обязательна: `node scripts/generate-tokens.mjs --check`.
 - **Фирменные компоненты (`dev.mimir.ui.components.*`):** на экранах используются крафтовые компоненты вместо сырых Material 3 примитивов:
   - `MimirButton` (варианты `Primary`, `Secondary`, `Ghost`, `Danger`, состояния `loading`, `enabled`, компактный размер 32 dp / touch 48 dp).
   - `MimirTextField` (инсет-фон, скругление 6 dp, переключатель пароля с `contentDescription`, валидация и вывод ошибки).
   - `MimirCard` (контейнер с обводкой и фоном поверхности Obsidian).
   - `MimirStatusBadge` (светящаяся точка статуса + канонический `SyncStatus.label()`).
   - `MimirProgressBar` (детерминированный прогресс 0..1 и неопределенный режим, акцентный цвет).
-- Цвета, формы, типографика — только из `MimirTokens`, `MimirTheme` и помощников `ObsidianStyle`. Никаких `Color(0x…)` на экранах; новый токен — в `design/tokens.json` для **обеих** тем с последующим `pnpm run tokens:generate`.
+- Цвета, формы, типографика — только из `MimirTokens`, `MimirTheme` и помощников `ObsidianStyle`. Никаких `Color(0x…)` на экранах; новый токен — в `design/tokens.json` для **обеих** тем с последующим `node scripts/generate-tokens.mjs`.
 - **Геометрия полей и кнопок:** элементы в одной горизонтальной строке (поле ввода + кнопка действия) обязаны иметь одинаковую высоту (строго 56 dp для стандартных полей ввода, 44/32 dp для компактных). Использование `label` внутри `OutlinedTextField` в строках с кнопками запрещено (вызывает асимметрию и ступеньку ~8 dp) — использовать `placeholder` внутри и заголовок над полем.
 - **Векторные иконки вместо emoji:** категорически запрещено использовать emoji (`📁`, `👁`, `🙈`) в кнопках и индикаторах. Использовать строго векторные иконки из `dev.mimir.ui.components.MimirIcons` (Lucide-стиль, 18-20 dp).
 - **Определение темы:** в стилях и вспомогательных компонентах (`ObsidianStyle`) запрещено вызывать `isSystemInDarkTheme()` (игнорирует локальную тему родителя). Проверять тему через `MaterialTheme.colorScheme.surface == MimirTokens.DarkSurface`.
@@ -54,7 +54,7 @@ description: Use when creating or changing any Mimir screen, dialog, wizard step
 ## Реализация и проверка
 
 - Экран получает только `MimirUiModel` (UDF, см. `mimir-design-patterns`); вызовы модели — в корутине со своим состоянием «в процессе», UI-поток не блокируется.
-- Тесты состояний — в `ui/src/desktopTest` на `FakeMimirUiModel`: каждое состояние таблицы имеет тест.
+- Тесты состояний — в `libs/ui/src/desktopTest` на `FakeMimirUiModel`: каждое состояние таблицы имеет тест.
 - Автоматизированная скриншотная верификация обязательна (скилл `mimir-ui-test`): `mise run screenshots` генерирует снимки экранов десктопа и веб-расширения для светлой и тёмной тем без запуска графического окружения.
 
 ## Красные флаги

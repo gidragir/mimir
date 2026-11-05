@@ -18,12 +18,12 @@ Arch + niri — машина разработчика, а не продукт. �
 | macOS desktop | `.app` / DMG, системный Cocoa | нативный диалог Finder (`NSOpenPanel`) через `java.awt.FileDialog` с флагом `apple.awt.fileDialogForDirectories = "true"`; AWT-трей (`SystemTray`); путь к данным `~/Library/Application Support/mimir`; кейсонечувствительная APFS |
 | Android (Android 16 / API 36) | APK, `MANAGE_EXTERNAL_STORAGE`, `WorkManager` | нативный системный менеджер файлов `DocumentsUI` через Activity Result SAF (`ActivityResultContracts.OpenDocumentTree`); нет AWT/Swing и внешних команд; Activity пересоздаётся; платформенные сервисы с Activity Result (SAF `OpenDocumentTree`, GIS `IntentSender`) требуют composable-обёртку на базе `rememberLauncherForActivityResult` + `CompletableDeferred`; при получении `Activity.RESULT_CANCELED` от Play Services GIS обязательно проверять `intent.data` через `Identity.getAuthorizationClient(context).getAuthorizationResultFromIntent(intent)` и транслировать `ApiException` в `SystemLoginResult.Unavailable`, не маскируя ошибку под отмену пользователем; Java NIO `WatchService` не поддерживается (только `android.os.FileObserver`); `FOREGROUND_SERVICE_DATA_SYNC` ограничен 6 часами (синхронизация через `WorkManager`); обязательный edge-to-edge (`safeDrawingPadding()`); сенсорные мишени ≥ 48dp; межпроцессный loopback HTTP (`127.0.0.1`) к Obsidian заблокирован политиками WebView/Doze |
 | Docker-демон | Linux glibc, без дисплея | нет окна, браузера, трея; настройка только env-переменными; вход — Device Code; UI — web-ui по HTTP API |
-| JS-клиенты | плагин Obsidian (desktop RPC), Chromium MV3, web-ui (wasm) | нет `java.*` и прямой ФС; плагин ходит в локальный HTTP API демона (на сервере обязателен CORS); расширение Chromium (`:browser-extension`) переиспользует KMP-модули `:drive` (`GoogleDriveStorage`, `GoogleAuthClient`) и `:core` (`EncryptedRemoteStorage`, `RcloneCipher`), открывается в `chrome.sidePanel` (Master-Detail) и полноэкранной вкладке (`?mode=tab`) с fallback в Popup; в `chrome.storage.session` (RAM) хранится 80-байтный ключ `RcloneCipher`, а в `chrome.storage.local` — только зашифрованные `RemoteEntry` и `.canary_hash` |
+| JS-клиенты | плагин Obsidian (desktop RPC), Chromium MV3, web-ui (wasm) | нет `java.*` и прямой ФС; плагин ходит в локальный HTTP API демона (на сервере обязателен CORS); расширение Chromium (`:apps:browser-extension`) переиспользует KMP-модули `:libs:drive` (`GoogleDriveStorage`, `GoogleAuthClient`) и `:libs:core` (`EncryptedRemoteStorage`, `RcloneCipher`), открывается в `chrome.sidePanel` (Master-Detail) и полноэкранной вкладке (`?mode=tab`) с fallback в Popup; в `chrome.storage.session` (RAM) хранится 80-байтный ключ `RcloneCipher`, а в `chrome.storage.local` — только зашифрованные `RemoteEntry` и `.canary_hash` |
 
 ## Рецепт
 
 1. **До кода** заполнить в спеке/плане таблицу «Платформы»: цель → реализация / запасной путь / «скрыто, потому что…». Пустая строка = задача не продумана.
-2. **Общее — интерфейс, частное — реализация.** Контракт живёт в общем слое: в `ui` — CompositionLocal (`LocalFolderPicker`, `LocalUriHandler`, `LocalBringToFront`), в `core` — порт или минимальный `expect/actual`. Реализации — в модуле точки входа (`app-desktop/…/picker`, `…/tray`).
+2. **Общее — интерфейс, частное — реализация.** Контракт живёт в общем слое: в `libs/ui` — CompositionLocal (`LocalFolderPicker`, `LocalUriHandler`, `LocalBringToFront`), в `libs/core` — порт или минимальный `expect/actual`. Реализации — в модуле точки входа (`apps/desktop/…/picker`, `…/tray`).
 3. **Выбор реализации — одна фабрика** (`defaultFolderPicker()`, `createTray()`): 
    - **Диалоги выбора папки/файла ОБЯЗАНЫ вызывать стандартный системный проводник ОС:**
      - Windows → Нативный Проводник Windows (`WindowsFolderPicker`: `FolderBrowserDialog` с `AutoUpgradeEnabled = true` поверх окна).
@@ -31,10 +31,10 @@ Arch + niri — машина разработчика, а не продукт. �
      - Linux → Нативный файловый менеджер среды (Nautilus/Dolphin) через XDG Portal (`PortalFolderPicker`), fallback на `zenity`/`kdialog`.
      - Android → Нативный системный менеджер файлов `DocumentsUI` через SAF (`AndroidFolderPicker`).
    - Swing `JFileChooser` допускается **исключительно** как аварийный headless/unsupported fallback и **обязан** предварительно устанавливать `UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName())` для исключения устаревшего стиля Metal.
-   - No-op допустим только там, где нет ни специфичного, ни общего API; на desktop общий путь почти всегда есть (`SystemTray`/`TrayIcon.displayMessage`, `Desktop`, Swing). Цель, отложенная на потом, — отдельная задача в плане, а не «в долге». Проверки `os.name`/env — только в фабриках и конструкторах с параметрами по умолчанию (как `SystemBrowserOpener(osName, launch, browse)`), никогда в `core`/`ui`.
+   - No-op допустим только там, где нет ни специфичного, ни общего API; на desktop общий путь почти всегда есть (`SystemTray`/`TrayIcon.displayMessage`, `Desktop`, Swing). Цель, отложенная на потом, — отдельная задача в плане, а не «в долге». Проверки `os.name`/env — только в фабриках и конструкторах с параметрами по умолчанию (как `SystemBrowserOpener(osName, launch, browse)`), никогда в `libs/core`/`libs/ui`.
 4. **Хост-специфичное — надстройка, не единственный путь.** Антипример: `CompositorFocus` работает только под niri, на Windows/GNOME молчит — пришлось перепроектировать (спека `uri-scheme-login`).
 5. **Пути**: относительные пути vault — всегда `/` (`RemotePath`); пути ОС — только `Path`, без склейки строк; каталоги данных — только через `DaemonConfig` (`defaultConfigDir`). Новые имена файлов проверять на правила Windows.
-6. **Внешние команды** (`ProcessBuilder`) — только в `app-desktop`, с тайм-аутом, перехватом `IOException` и запасным путём.
+6. **Внешние команды** (`ProcessBuilder`) — только в `apps/desktop`, с тайм-аутом, перехватом `IOException` и запасным путём.
 
 ## Проверка
 
@@ -45,7 +45,7 @@ Arch + niri — машина разработчика, а не продукт. �
 ## Красные флаги
 
 - «Под niri работает» без строк про Windows/Android/Docker.
-- `os.name`, `System.getenv`, `ProcessBuilder`, `java.awt` в `core` или `ui/commonMain`.
+- `os.name`, `System.getenv`, `ProcessBuilder`, `java.awt` в `libs/core` или `libs/ui/commonMain`.
 - Linux-only библиотека в `commonMain` или без запасного пути.
 - Захардкоженные `/home`, `~/.config`, `\n` в путях, `File.separator` в относительных путях vault.
 - Функция, которой нет на платформе, но кнопка для неё видна.
@@ -56,5 +56,5 @@ Arch + niri — машина разработчика, а не продукт. �
 - Инициализация платформенных Android-сервисов с Activity Result через `remember { Service(this) }` без лаунчера.
 - Трактовка любого `RESULT_CANCELED` в Google Play Services как отмены пользователем без проверки `ApiException` в `intent.data`.
 - Сенсорные мишени < 48 dp на мобильных экранах; отсутствие `safeDrawingPadding()`.
-- Встраивание Content Script в DOM `drive.google.com`, дублирование Google Drive API поверх `fetch` в обход `:drive` или сохранение расшифрованных имён/текстов заметок в `chrome.storage.local` в `:browser-extension`.
+- Встраивание Content Script в DOM `drive.google.com`, дублирование Google Drive API поверх `fetch` в обход `:libs:drive` или сохранение расшифрованных имён/текстов заметок в `chrome.storage.local` в `:apps:browser-extension`.
 - Всплывающие десктопные поповеры/виджеты без флага `Window.Type.POPUP`, ломающие тайлинг в Wayland niri/Sway.

@@ -15,8 +15,8 @@ UI Mimir работает на нескольких платформах (дес
 
 | Платформа | Инструмент | Механизм | Эталон в коде |
 |---|---|---|---|
-| **Desktop Compose (`:ui`)** | Compose Multiplatform Test + Skia | `captureToImage().toAwtImage()` на оффскрин-поверхности Skia в `runDesktopComposeUiTest` | `ui/src/desktopTest/kotlin/dev/mimir/ui/screenshots/UiScreenshotTest.kt` |
-| **Browser Extension (`:browser-extension`)** | Chromium Headless (`--headless=new`) + Node.js | Загрузка `popup.html?mock=<state>` с подстановкой `FakeExtensionPlatform` | `browser-extension/scripts/capture-screenshots.mjs` |
+| **Desktop Compose (`:libs:ui`)** | Compose Multiplatform Test + Skia | `captureToImage().toAwtImage()` на оффскрин-поверхности Skia в `runDesktopComposeUiTest` | `libs/ui/src/desktopTest/kotlin/dev/mimir/ui/screenshots/UiScreenshotTest.kt` |
+| **Browser Extension (`:apps:browser-extension`)** | Chromium Headless (`--headless=new`) + Node.js | Загрузка `popup.html?mock=<state>` с подстановкой `FakeExtensionPlatform` | `apps/browser-extension/scripts/capture-screenshots.mjs` |
 
 ## Команды
 
@@ -25,10 +25,10 @@ UI Mimir работает на нескольких платформах (дес
 rtk mise run screenshots
 
 # Запуск только Compose UI скриншотов:
-rtk ./gradlew :ui:desktopTest --rerun --tests 'dev.mimir.ui.screenshots.*'
+rtk ./gradlew :libs:ui:desktopTest --rerun --tests 'dev.mimir.ui.screenshots.*'
 
 # Запуск только скриншотов расширения (требует предварительной сборки расширения):
-rtk ./gradlew :browser-extension:assembleExtension && node browser-extension/scripts/capture-screenshots.mjs
+rtk ./gradlew :apps:browser-extension:assembleExtension && node browser-extension/scripts/capture-screenshots.mjs
 ```
 
 Скриншоты сохраняются в:

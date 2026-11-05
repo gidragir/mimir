@@ -5,16 +5,16 @@ description: Use when adding or changing a cloud storage adapter in Mimir (Googl
 
 # Адаптер облачного хранилища
 
-## Контракт (`core`, пакет `dev.mimir.core`)
+## Контракт (`libs/core`, пакет `dev.mimir.core`)
 
 - `RemoteStorage`: `list`, `stat`, `read`, `write`, `delete` над `RemotePath` ("/"-разделённый, без ведущего "/", пустой — корень) и `kotlinx.io.Source`.
 - `RemoteStorageProvider`: `id`, `displayName`, `capabilities: StorageCapabilities(changeFeed)`, `create(config)`.
 - Регистрация: `RemoteStorageRegistry.register(provider)`; дубликат `id` → `IllegalArgumentException`.
-- Эталон адаптера и фейк для тестов — `InMemoryRemoteStorage` (`core/testing`).
+- Эталон адаптера и фейк для тестов — `InMemoryRemoteStorage` (`libs/core/testing`).
 
 ## Правила
 
-- Адаптер живёт в своём модуле (как `drive`), зависит только от `:core`.
+- Адаптер живёт в своём модуле (как `libs/drive`), зависит только от `:libs:core`.
 - Шифрование адаптер **не делает**: его добавляет `EncryptedRemoteStorage(inner, cipher)` — по сегментам пути и по содержимому. Адаптер видит уже зашифрованные пути.
 - Область доступа минимальна: для Google — ровно `drive.file`, `openid`, `email`, `profile` (`GoogleAuthConfig.scopes`, спека 6.4); расширять только по спеке.
 - Движок выбирает поведение по `capabilities`, а не по типу адаптера (`mimir-design-patterns`). Квоты, постраничный листинг, `fields=`, повторы и потоки вместо массивов — по `mimir-sync-io`.

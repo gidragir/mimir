@@ -13,20 +13,20 @@
 | Модуль | Назначение |
 |---|---|
 | `build-logic` | convention-плагины Gradle, определение Android SDK |
-| `core` | KMP (jvm, android, js, wasmJs): порты, реестр облаков, декоратор шифрования, `RcloneCipher`, заглушки |
-| `drive` | адаптер Google Drive (заглушка) |
-| `ui` | общий Compose-интерфейс для desktop, Android и web |
-| `app-desktop` | запускалка для Windows и Linux, трей |
-| `app-android` | запускалка для Android |
-| `client` | HTTP-клиент, DTO и интерфейс удалённого демона |
-| `runtime` | общая логика демона и Android (KMP jvm/android): движок, вход в Google, база состояния, планировщик |
-| `daemon` | headless-движок и локальный HTTP API (`127.0.0.1:47821`) |
-| `web-ui` | сборка `ui` под wasmJs, раздаётся демоном |
-| `obsidian-plugin` | плагин Obsidian на Kotlin/JS (работает и на телефоне) |
-| `browser-extension` | расширение Chromium (MV3) на Kotlin/JS |
+| `libs/core` | KMP (jvm, android, js, wasmJs): порты, реестр облаков, декоратор шифрования, `RcloneCipher`, заглушки |
+| `libs/drive` | адаптер Google Drive (заглушка) |
+| `libs/ui` | общий Compose-интерфейс для desktop, Android и web |
+| `apps/desktop` | запускалка для Windows и Linux, трей |
+| `apps/android` | запускалка для Android |
+| `libs/client` | HTTP-клиент, DTO и интерфейс удалённого демона |
+| `libs/runtime` | общая логика демона и Android (KMP jvm/android): движок, вход в Google, база состояния, планировщик |
+| `apps/daemon` | headless-движок и локальный HTTP API (`127.0.0.1:47821`) |
+| `apps/web-ui` | сборка `libs/ui` под wasmJs, раздаётся демоном |
+| `apps/obsidian-plugin` | плагин Obsidian на Kotlin/JS (работает и на телефоне) |
+| `apps/browser-extension` | расширение Chromium (MV3) на Kotlin/JS |
 | `packaging/` | Arch PKGBUILD, Docker |
 
-Зависимости идут только вниз: точки входа → `ui` → `drive` → `core`.
+Зависимости идут только вниз: точки входа → `libs/ui` → `libs/drive` → `libs/core`.
 
 ## Скачивание и установка
 
@@ -76,11 +76,11 @@ curl -s 127.0.0.1:47821/health
 
 ### Браузер для js-тестов
 
-Тесты `core` и `drive` на таргете js идут в headless Chromium (Karma). Если Chrome/Chromium не находится сам, укажите путь: `CHROME_BIN=/usr/bin/chromium` (в `mise.local.toml` — см. `mise.local.toml.example` — или в окружении). Тесты wasmJs идут в Node.js: в Karma+Chromium общий для wasm klib падает на `import.meta`.
+Тесты `libs/core` и `libs/drive` на таргете js идут в headless Chromium (Karma). Если Chrome/Chromium не находится сам, укажите путь: `CHROME_BIN=/usr/bin/chromium` (в `mise.local.toml` — см. `mise.local.toml.example` — или в окружении). Тесты wasmJs идут в Node.js: в Karma+Chromium общий для wasm klib падает на `import.meta`.
 
 ### Что проверяется только с SDK или в CI
 
-Задачи `:app-android:*` (в том числе `ManifestPermissionsTest` и `assembleDebug`) выполняются только при наличии Android SDK (проверены на Arch с SDK из Android Studio: `ANDROID_HOME=~/Android/Sdk`); без SDK они пропускаются, в CI на Linux идут с `setup-android`. MSI (`package:msi`) собирается и проверяется только на Windows-раннере в CI. Остальное (сборка, тесты, Docker, пакет Arch) проверяется на Arch.
+Задачи `:apps:android:*` (в том числе `ManifestPermissionsTest` и `assembleDebug`) выполняются только при наличии Android SDK (проверены на Arch с SDK из Android Studio: `ANDROID_HOME=~/Android/Sdk`); без SDK они пропускаются, в CI на Linux идут с `setup-android`. MSI (`package:msi`) собирается и проверяется только на Windows-раннере в CI. Остальное (сборка, тесты, Docker, пакет Arch) проверяется на Arch.
 
 ### Android
 
@@ -108,7 +108,7 @@ curl -s 127.0.0.1:47821/health
 2. **Два OAuth-клиента в одном проекте.** Тип «Desktop app» нужен для входа кнопкой через браузер (loopback + PKCE); тип «TVs and Limited Input devices» — для Device Code (Docker-демон, вход с другого устройства). Google не позволяет использовать один клиент для обоих способов, а refresh-токен обновляется только тем клиентом, который его выдал.
 3. **Publishing status — «In production».** Право `drive.file` нечувствительное, security-аудит не нужен; достаточно пройти проверку бренда. В статусе «Testing» войти могут только добавленные тестовые пользователи, а refresh-токены истекают через 7 дней.
 4. **Файлы rclone.** Файлы, созданные rclone с другим client ID, под `drive.file` Mimir не видит. Чтобы работать с ними вместе, укажите в rclone client ID этого же проекта.
-5. **Секреты релиза.** Client ID и secret кладутся в `mise.local.toml` при разработке и в GitHub Secrets при релизе: `MIMIR_BUILD_GOOGLE_DESKTOP_CLIENT_ID`, `MIMIR_BUILD_GOOGLE_DESKTOP_CLIENT_SECRET`, `MIMIR_BUILD_GOOGLE_DEVICE_CLIENT_ID`, `MIMIR_BUILD_GOOGLE_DEVICE_CLIENT_SECRET`. Значения вшиваются в BuildConfig модуля `daemon` и попадают в сборки msi, arch и apk; без них сборка и тесты проходят, а вход в Google в такой сборке недоступен. Секрет Desktop-клиента у устанавливаемого приложения секретом не является (защита — PKCE и согласие пользователя).
+5. **Секреты релиза.** Client ID и secret кладутся в `mise.local.toml` при разработке и в GitHub Secrets при релизе: `MIMIR_BUILD_GOOGLE_DESKTOP_CLIENT_ID`, `MIMIR_BUILD_GOOGLE_DESKTOP_CLIENT_SECRET`, `MIMIR_BUILD_GOOGLE_DEVICE_CLIENT_ID`, `MIMIR_BUILD_GOOGLE_DEVICE_CLIENT_SECRET`. Значения вшиваются в BuildConfig модуля `apps/daemon` и попадают в сборки msi, arch и apk; без них сборка и тесты проходят, а вход в Google в такой сборке недоступен. Секрет Desktop-клиента у устанавливаемого приложения секретом не является (защита — PKCE и согласие пользователя).
 
 ### Свой OAuth-клиент
 
@@ -127,7 +127,7 @@ curl -s 127.0.0.1:47821/health
 
 ## Совместимость с rclone
 
-`RcloneCipher` (модуль `core`, чистый Kotlin на jvm, android, js и wasmJs) бит-в-бит совместим с rclone crypt в режиме `filename_encryption = standard`, `directory_name_encryption = true`, `filename_encoding = base32`:
+`RcloneCipher` (модуль `libs/core`, чистый Kotlin на jvm, android, js и wasmJs) бит-в-бит совместим с rclone crypt в режиме `filename_encryption = standard`, `directory_name_encryption = true`, `filename_encoding = base32`:
 
 - Ключи: `scrypt(password, salt, N=16384, r=8, p=1, dkLen=80)`; соль — `password2` или стандартная соль rclone. Байты 0..31 — ключ данных, 32..63 — ключ имён, 64..79 — tweak имён.
 - Файл: `RCLONE\0\0` + nonce (24 байта) + блоки до 64 КиБ открытого текста в NaCl `secretbox` (XSalsa20-Poly1305, +16 байт тега на блок). Пустой файл — 32 байта заголовка.
@@ -139,16 +139,16 @@ curl -s 127.0.0.1:47821/health
 rclone copy ":crypt,remote=/путь/к/копии/из/Drive,password=$(rclone obscure 'пароль')[,password2=$(rclone obscure 'соль')]:" ./vault-plain
 ```
 
-Оговорки (общие с rclone): размеры и время изменения файлов в Drive остаются видны; усечение файла ровно по границе блока не обнаруживается — у формата нет финального маркера. Первое получение ключей (scrypt) на js и wasm занимает порядка секунды, в проверках этапа — не дольше нескольких секунд вместе с запуском браузера. Golden-векторы лежат в `core/src/commonTest/kotlin/dev/mimir/core/RcloneVectors.kt`; их генерирует `scripts/gen-rclone-vectors.sh` (нужен rclone ≥ 1.60), а опциональный `RcloneInteropTest` (jvm) сверяется с живым rclone, если он есть в `PATH`.
+Оговорки (общие с rclone): размеры и время изменения файлов в Drive остаются видны; усечение файла ровно по границе блока не обнаруживается — у формата нет финального маркера. Первое получение ключей (scrypt) на js и wasm занимает порядка секунды, в проверках этапа — не дольше нескольких секунд вместе с запуском браузера. Golden-векторы лежат в `libs/core/src/commonTest/kotlin/dev/mimir/core/RcloneVectors.kt`; их генерирует `scripts/gen-rclone-vectors.sh` (нужен rclone ≥ 1.60), а опциональный `RcloneInteropTest` (jvm) сверяется с живым rclone, если он есть в `PATH`.
 
 ## Релизы
 
-Версия одна на все модули, управляется через changesets: изменение, влияющее на релиз, сопровождается `pnpm changeset`. Push в `main` ведёт PR «chore: version packages»; после слияния ставится тег `v<версия>` и запускается `release.yml`: MSI, APK, пакет Arch, zip плагина и расширения, образ Docker в GHCR, публикация в GitHub Release. Версию в `gradle.properties` руками не менять.
+Версия одна на все модули (`mimir.version` в `gradle.properties`) и управляется Release Please: изменения коммитятся по Conventional Commits, push в `main` ведёт PR «chore: release v<версия>»; после слияния ставится тег `v<версия>` и вызывается `release.yml`: MSI, APK, пакет Arch, zip плагина и расширения, образ Docker в GHCR, прикрепление артефактов к GitHub Release. Версию в `gradle.properties` руками не менять.
 
 ## Версии
 
 - Kotlin 2.4.21, JDK 27, Gradle ≥ 9.8.
 - AGP 9.5.0 (9.1.0 не работает на JDK 27: его `jlink`-трансформация падает с «cannot find the build signature»), `compileSdk` 37 (требуют зависимости Compose 1.12). Откатов на JDK 25 нет. Но Kotlin 2.4 генерирует байткод максимум для JVM 26, поэтому в JVM-модулях `javac` запускается с `--release 26` (на JDK 27).
-- В корневом `package.json` нет поля `packageManager`: оно ломает yarn, которым Kotlin/JS ставит npm-зависимости; версия pnpm задаётся в `pnpm/action-setup` (CI).
+- В корневом `package.json` нет поля `packageManager`: оно ломает yarn, которым Kotlin/JS ставит npm-зависимости.
 - Версии библиотек в `gradle/libs.versions.toml` выставлены без проверки сборкой; при первой синхронизации их, возможно, придётся поднять.
 - Linux: Arch, системная Java (`java-runtime>=27`). Windows: MSI per-user со вшитой JRE. Android: APK вне Google Play, `MANAGE_EXTERNAL_STORAGE`. Браузер: только Chromium, Manifest V3.

@@ -13,20 +13,20 @@ Mimir — многоплатформенный продукт с одним дв
 
 | Нужно | Паттерн | Эталон в коде |
 |---|---|---|
-| Новая внешняя зависимость (облако, ФС, секреты, сеть, часы) | Порт и адаптер: интерфейс в `core/api`, реализация снаружи | `RemoteStorage` ↔ `GoogleDriveStorage`; `LocalVault` ↔ `FileSystemLocalVault` |
+| Новая внешняя зависимость (облако, ФС, секреты, сеть, часы) | Порт и адаптер: интерфейс в `libs/core/api`, реализация снаружи | `RemoteStorage` ↔ `GoogleDriveStorage`; `LocalVault` ↔ `FileSystemLocalVault` |
 | Сквозное поведение поверх порта (шифрование, кэш, лимиты, метрики, повторы) | Декоратор, адаптер не трогается | `EncryptedRemoteStorage(inner, cipher)` |
 | Подключаемые варианты (облака, способы входа) | Реестр + фабрика | `RemoteStorageRegistry`, `RemoteStorageProvider.create` |
 | Поведение зависит от возможностей | Стратегия, выбор по флагам, не по типу | `StorageCapabilities(changeFeed)`, `ConflictResolver` |
 | Новое поведение синхронизации | План → исполнение: чистое решение отдельно от эффектов | `SyncPlanBuilder` → `SyncAction` → `DefaultSyncEngine.apply` |
 | Состояния и результаты | `sealed` + исчерпывающий `when` | `SyncStatus`, `SyncPhase`, `SyncAction`, `UiBrowserPoll` |
 | Наблюдаемое состояние | `StateFlow`, однонаправленный поток данных: экран читает состояние, события — `suspend`-методы модели | `SyncEngine.progress`, `MimirUiModel` |
-| Один бэкенд — много клиентов | Фасад + удалённый заместитель + адаптер к UI в общем KMP-модуле `:client` | `DaemonService` ← `DaemonRuntime` / `HttpDaemonClient`; DTO и HTTP-клиент не изолируются в десктопном модуле; `DaemonServiceUiModel` → `MimirUiModel` |
+| Один бэкенд — много клиентов | Фасад + удалённый заместитель + адаптер к UI в общем KMP-модуле `:libs:client` | `DaemonService` ← `DaemonRuntime` / `HttpDaemonClient`; DTO и HTTP-клиент не изолируются в десктопном модуле; `DaemonServiceUiModel` → `MimirUiModel` |
 | Платформенный сервис в Compose | CompositionLocal + фабрика. На Android при наличии Activity Result: composable-хелпер `remember<Service>(activity)` на базе `rememberLauncherForActivityResult` + `CompletableDeferred` | `LocalFolderPicker` + `defaultFolderPicker()` (desktop); `rememberAndroidFolderPicker`, `rememberActivitySystemAccountLogin` (Android) |
-| Сборка графа объектов | Composition root, внедрение через конструктор | `DaemonRuntime`, `app-desktop/Main.kt`, `DaemonServiceFactory` |
+| Сборка графа объектов | Composition root, внедрение через конструктор | `DaemonRuntime`, `apps/desktop/Main.kt`, `DaemonServiceFactory` |
 | Тестируемые побочные эффекты | Параметры-функции со значениями по умолчанию | `SystemBrowserOpener(osName, launch, browse)` |
 | Хранение состояния | Репозиторий + атомарная запись | `SyncStateStore` → `JsonSyncStateStore`, `writeFileAtomically` (`AtomicFiles.kt`) |
-| Тестовый двойник порта | In-memory фейк в `core/testing` | `InMemoryRemoteStorage`, `FakeMimirUiModel` |
-| Платформенный примитив в `core` | минимальный `expect/actual` | источник случайности, символьные ссылки |
+| Тестовый двойник порта | In-memory фейк в `libs/core/testing` | `InMemoryRemoteStorage`, `FakeMimirUiModel` |
+| Платформенный примитив в `libs/core` | минимальный `expect/actual` | источник случайности, символьные ссылки |
 
 ## Рецепт
 
@@ -37,9 +37,9 @@ Mimir — многоплатформенный продукт с одним дв
 
 ## Красные флаги
 
-- `when (platform)`, `is GoogleDriveStorage`, `if (cloud == "drive")` в `core`/`ui`.
+- `when (platform)`, `is GoogleDriveStorage`, `if (cloud == "drive")` в `libs/core`/`libs/ui`.
 - `object`-синглтон с состоянием, сервис-локатор, `GlobalScope`.
-- Логика синхронизации в `daemon`, `ui` или точке входа (спека: единый бэкенд).
+- Логика синхронизации в `apps/daemon`, `libs/ui` или точке входа (спека: единый бэкенд).
 - Скопированный кусок из соседнего класса вместо общего типа.
-- Размещение клиентских DTO и `HttpDaemonClient` в платформенных запускалках (`app-desktop`) вместо `:client`.
+- Размещение клиентских DTO и `HttpDaemonClient` в платформенных запускалках (`apps/desktop`) вместо `:libs:client`.
 - Новый интерфейс без фейка и без теста контракта.

@@ -196,14 +196,19 @@ include(
     ":apps:obsidian-plugin",
     ":apps:browser-extension",
 )
+// Модуль :apps:android подключается условно через convention-плагин mimir.settings
+// (build-logic/src/main/kotlin/mimir.settings.settings.gradle.kts) при наличии Android SDK.
+```
 
-// Android подключается условно
-if (dev.mimir.build.AndroidSdk.isAvailable(rootDir)) {
-    if (File(rootDir, "apps/android").isDirectory) {
-        include(":apps:android")
-    }
+В `build-logic/src/main/kotlin/mimir.settings.settings.gradle.kts`:
+```kotlin
+import dev.mimir.build.AndroidSdk
+import org.gradle.api.logging.Logging
+
+if (AndroidSdk.isAvailable(rootDir)) {
+    if (File(rootDir, "apps/android").isDirectory) include(":apps:android")
 } else {
-    org.gradle.api.logging.Logging.getLogger("mimir").warn("Android SDK not found: skipping Android targets")
+    Logging.getLogger("mimir").warn("Android SDK not found: skipping Android targets")
 }
 ```
 
@@ -224,9 +229,9 @@ GitHub Action `google-github-actions/release-please-action` выполняет �
 3. В теле PR ведётся автогенерируемый `CHANGELOG.md` с красивой группировкой по компонентам (`desktop`, `extension`, `core` и т.д.).
 4. При слиянии этого PR:
    * Бампается `mimir.version` в `gradle.properties`.
-   * Ставится Git-тег `v0.3.0`.
-   * Создаётся GitHub Release.
-5. Создание тега `v*` прозрачно запускает существующий `.github/workflows/release.yml`, который компилирует и подписывает Windows MSI, Android APK и архивы расширений.
+   * Ставится Git-тег `v0.3.0` (`"include-component-in-tag": false`).
+   * Создаётся GitHub Release со структурированным списком изменений.
+5. Поскольку теги, созданные стандартным `GITHUB_TOKEN`, не триггерят другие workflows по событию `on: push: tags`, workflow `release-please.yml` при `release_created == 'true'` явно вызывает `.github/workflows/release.yml` через `workflow_call` (передавая `tag_name`), который компилирует, подписывает и прикрепляет к созданному релизу Windows MSI, Android APK, пакет Arch, архивы плагина/расширения и публикует Docker-образ.
 
 ### 3.2 Конфигурация `.github/release-please-config.json`
 
@@ -236,6 +241,7 @@ GitHub Action `google-github-actions/release-please-action` выполняет �
     ".": {
       "release-type": "simple",
       "package-name": "mimir",
+      "include-component-in-tag": false,
       "bump-minor-pre-major": true,
       "bump-patch-for-minor-pre-major": true,
       "extra-files": [
@@ -270,7 +276,7 @@ GitHub Action `google-github-actions/release-please-action` выполняет �
 }
 ```
 
-### 3.3 Workflow `.github/workflows/release-please.yml`
+### 3.3 Workflow `.github/workflows/release-please.yml` и интеграция с `release.yml`
 
 ```yaml
 name: Release Please
@@ -280,6 +286,10 @@ on:
     branches:
       - main
 
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
 permissions:
   contents: write
   pull-requests: write
@@ -287,13 +297,31 @@ permissions:
 jobs:
   release-please:
     runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
       - uses: google-github-actions/release-please-action@v4
         id: release
         with:
           config-file: .github/release-please-config.json
           manifest-file: .github/.release-please-manifest.json
+
+  release:
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    permissions:
+      contents: write
+      packages: write
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: ${{ needs.release-please.outputs.tag_name }}
+    secrets: inherit
 ```
+
+В `.github/workflows/release.yml`:
+* Обновляются пути задач и артефактов (`:apps:desktop:packageMsi`, `apps/desktop/build/...`, `:apps:android:assembleRelease`, `apps/android/build/...`, `:apps:obsidian-plugin:zipPlugin`, `apps/obsidian-plugin/build/...`, `:apps:browser-extension:zipExtension`, `apps/browser-extension/build/...`).
+* В шаге `softprops/action-gh-release@v2` выставляется `generate_release_notes: false`, чтобы при ручном теге или вызове из `release-please.yml` артефакты прикреплялись к релизу без затирания и дублирования структурированного описания от Release Please.
 
 ---
 
@@ -307,16 +335,16 @@ jobs:
 flowchart TD
     Change[Изменения в PR / Push] --> Filter{Paths Filter}
     
-    Filter -->|libs/**, build-logic/**, gradle/**| FullMatrix[Полный прогон: Linux, Windows, macOS]
+    Filter -->|libs/**, build-logic/**, gradle/**, apps/daemon/**| FullMatrix[Полный прогон: Linux, Windows, macOS]
     Filter -->|apps/desktop/**, packaging/windows/**| DesktopMatrix[Linux + Windows + macOS]
     Filter -->|apps/android/**| AndroidRun[Linux + Android SDK]
     Filter -->|apps/web-ui/**, apps/obsidian-plugin/**, apps/browser-extension/**| LinuxJSRun[Linux: Node / Karma / Webpack]
-    Filter -->|docs/**, *.md| SkipAll[Пропуск тяжелых сборок]
+    Filter -->|docs/**, README.md, .context-init/**| SkipAll[Пропуск через paths-ignore]
 ```
 
 ### 4.2 Обновление `.github/workflows/ci.yml`
 
-1. Добавляется предваряющая джоба `detect-changes` на базе `dorny/paths-filter@v3`:
+1. Добавляется предваряющая джоба `detect-changes` на базе `dorny/paths-filter@v3`, формирующая динамический JSON-массив `os_matrix` (так как в GitHub Actions нельзя задать `if` для отдельных элементов статического массива `strategy.matrix.os`):
 ```yaml
   detect-changes:
     name: Detect Changed Modules
@@ -326,8 +354,11 @@ flowchart TD
       desktop: ${{ steps.filter.outputs.desktop }}
       android: ${{ steps.filter.outputs.android }}
       js_or_web: ${{ steps.filter.outputs.js_or_web }}
+      os_matrix: ${{ steps.matrix.outputs.os_matrix }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: dorny/paths-filter@v3
         id: filter
         with:
@@ -339,10 +370,14 @@ flowchart TD
               - 'build.gradle.kts'
               - 'settings.gradle.kts'
               - 'gradle.properties'
+              - 'mise.toml'
+              - '.github/workflows/ci.yml'
             desktop:
               - 'apps/desktop/**'
+              - 'apps/daemon/**'
               - 'packaging/windows/**'
               - 'packaging/arch/**'
+              - 'packaging/docker/**'
             android:
               - 'apps/android/**'
             js_or_web:
@@ -351,13 +386,20 @@ flowchart TD
               - 'apps/browser-extension/**'
               - 'design/**'
               - 'scripts/**'
+      - id: matrix
+        run: |
+          if [ "${{ steps.filter.outputs.core_or_libs }}" = "true" ] || [ "${{ steps.filter.outputs.desktop }}" = "true" ]; then
+            echo 'os_matrix=["ubuntu-latest","windows-latest","macos-latest"]' >> "$GITHUB_OUTPUT"
+          else
+            echo 'os_matrix=["ubuntu-latest"]' >> "$GITHUB_OUTPUT"
+          fi
 ```
 
-2. Джоба `build` конфигурирует условия запуска матричных ОС:
-   * **Linux (`ubuntu-latest`):** запускается всегда (базовая проверка, unit-тесты, JS-тесты, сборка демона).
-   * **Windows (`windows-latest`):** запускается **только** если `needs.detect-changes.outputs.core_or_libs == 'true' || needs.detect-changes.outputs.desktop == 'true'`.
-   * **macOS (`macos-latest`):** запускается **только** если `needs.detect-changes.outputs.core_or_libs == 'true' || needs.detect-changes.outputs.desktop == 'true'`.
-   
+2. Джоба `build` потребляет `os: ${{ fromJSON(needs.detect-changes.outputs.os_matrix) }}`:
+   * **Linux (`ubuntu-latest`):** запускается всегда (базовая проверка, unit-тесты, JS-тесты, Android, сборка демона).
+   * **Windows (`windows-latest`) и macOS (`macos-latest`):** включаются в матрицу **только** если `core_or_libs == 'true' || desktop == 'true'` (включая `apps/daemon/**`, от которого зависит `apps/desktop`).
+3. Бывшая джоба `changesets` в `ci.yml` заменяется на легковесную джобу `tokens` (`node scripts/generate-tokens.mjs --check`), не требующую `pnpm install`.
+
 Это исключает очереди и экономит до 35 минут на каждом PR, затрагивающем только веб/мобильные/скриптовые компоненты.
 
 ---
@@ -365,10 +407,10 @@ flowchart TD
 ## 5. Гигиена зависимостей (`com.autonomousapps.dependency-analysis`)
 
 ### 5.1 Подключение плагина
-В `gradle/libs.versions.toml`:
+В `gradle/libs.versions.toml` используется версия `3.20.1`, совместимая с Gradle 9.8+, Kotlin 2.4.21 (`kotlin-bom:2.4.21`) и байткодом JVM 26 (`asm-relocated:9.10.1.0`):
 ```toml
 [versions]
-dependencyAnalysis = "2.10.1"
+dependencyAnalysis = "3.20.1"
 
 [plugins]
 dependency-analysis = { id = "com.autonomousapps.dependency-analysis", version.ref = "dependencyAnalysis" }
@@ -378,23 +420,32 @@ dependency-analysis = { id = "com.autonomousapps.dependency-analysis", version.r
 ```kotlin
 plugins {
     alias(libs.plugins.dependency.analysis)
-    // ...
+    alias(libs.plugins.compose.multiplatform) apply false
+    alias(libs.plugins.compose.compiler) apply false
+    alias(libs.plugins.buildconfig) apply false
 }
 
 dependencyAnalysis {
     structure {
         ignoreKtx(true)
     }
+    issues {
+        all {
+            onAny {
+                severity("warn")
+            }
+        }
+    }
 }
 ```
 
 ### 5.2 Использование
-* Команда `./gradlew buildHealth` локально анализирует весь монорепозиторий и генерирует отчет в `build/reports/dependency-analysis/build-health-report.txt`.
+* Команда `./gradlew buildHealth` локально анализирует монорепозиторий и генерирует отчет в `build/reports/dependency-analysis/build-health-report.txt`.
 * Плагин находит:
   * Неиспользуемые зависимости (`UnusedDependencies`).
   * Зависимости, объявленные как `api`, но используемые строго внутренне (замена на `implementation` исключает транзитивную перекомпиляцию потребителей).
   * Транзитивные зависимости, к классам которых есть прямое обращение, но они не объявлены явно (`UsedTransitiveDependencies`).
-* В `ci.yml` на этапе PR опционально включается быстрая задача `./gradlew checkBuildHealth` для предотвращения деградации архитектуры.
+* Режим `severity("warn")` гарантирует, что специфичные для Compose Multiplatform и KMP синтетические зависимости не блокируют сборку ложными срабатываниями.
 
 ---
 
@@ -402,12 +453,12 @@ dependencyAnalysis {
 
 | Шаг | Действие | Затрагиваемые файлы |
 |---|---|---|
-| **1. Зависимости** | Подключение `com.autonomousapps.dependency-analysis` в `libs.versions.toml` и `build.gradle.kts`. | `gradle/libs.versions.toml`, `build.gradle.kts` |
-| **2. Перемещение папок** | Перенос директорий `core`, `drive`, `client`, `runtime`, `ui` $\to$ `libs/`<br>Перенос `app-desktop`, `app-android`, `daemon`, `web-ui`, `obsidian-plugin`, `browser-extension` $\to$ `apps/`. | Файловая система (git mv) |
-| **3. Конфигурация сборки** | Обновление `settings.gradle.kts`, ссылок `project(":libs:...")` в `build.gradle.kts` всех модулей, Dockerfile демона и `mise.toml`. | `settings.gradle.kts`, `apps/**/build.gradle.kts`, `packaging/docker/Dockerfile`, `mise.toml` |
-| **4. Удаление Changesets** | Удаление 11 `package.json` и `CHANGELOG.md` из подмодулей, `pnpm-workspace.yaml`, каталога `.changeset/`, скриптов `sync-version.mjs` и `tag-release.mjs`. | Удаление файлов |
-| **5. Release Please** | Создание `.github/release-please-config.json`, `.github/.release-please-manifest.json`, workflow `release-please.yml`, удаление `changesets.yml`. | `.github/*` |
-| **6. Оптимизация CI** | Внедрение `dorny/paths-filter` в `ci.yml` для условий на Windows/macOS раннеры. | `.github/workflows/ci.yml` |
+| **1. Зависимости** | Подключение `com.autonomousapps.dependency-analysis` (`3.20.1`) в `libs.versions.toml` и `build.gradle.kts`. | `gradle/libs.versions.toml`, `build.gradle.kts` |
+| **2. Перемещение папок** | Перенос директорий `core`, `drive`, `client`, `runtime`, `ui` $\to$ `libs/`<br>Перенос `app-desktop` $\to$ `apps/desktop`, `app-android` $\to$ `apps/android`, `daemon`, `web-ui`, `obsidian-plugin`, `browser-extension` $\to$ `apps/`. | Файловая система (`git mv`), `.gitignore` (`/libs/*/build/`, `/apps/*/build/`) |
+| **3. Конфигурация сборки и путей** | Обновление `settings.gradle.kts`, `mimir.settings.settings.gradle.kts`, ссылок `project(":libs:...")` / `project(":apps:...")` во всех `build.gradle.kts`, путей в скриптах токенов, скриншотов, векторов rclone, упаковки Arch/Docker и `mise.toml`. | `settings.gradle.kts`, `build-logic/src/main/kotlin/mimir.settings.settings.gradle.kts`, `libs/**/build.gradle.kts`, `apps/**/build.gradle.kts`, `scripts/generate-tokens.mjs`, `scripts/gen-rclone-vectors.sh`, `apps/browser-extension/scripts/capture-screenshots.mjs`, `libs/ui/src/desktopTest/**/UiScreenshotTest.kt`, `libs/ui/src/desktopTest/**/UpdateCardScreenshotTest.kt`, `.github/scripts/build-arch.sh`, `packaging/docker/Dockerfile`, `mise.toml` |
+| **4. Удаление Changesets** | Удаление 11 `package.json` и `CHANGELOG.md` из подмодулей, `pnpm-workspace.yaml`, каталога `.changeset/`, скриптов `sync-version.mjs` и `tag-release.mjs`, очистка корневого `package.json`. | Удаление файлов, `package.json` |
+| **5. Release Please и Release CI** | Создание `.github/release-please-config.json`, `.github/.release-please-manifest.json`, workflow `release-please.yml` (с вызовом `release.yml`), обновление путей в `release.yml`, удаление `changesets.yml`. | `.github/release-please-config.json`, `.github/.release-please-manifest.json`, `.github/workflows/release-please.yml`, `.github/workflows/release.yml` |
+| **6. Оптимизация CI и документация** | Внедрение `dorny/paths-filter` и проверки токенов в `ci.yml`, синхронизация карты модулей в `AGENTS.md`, `README.md` и скиллах `.agents/skills/mimir-*`. | `.github/workflows/ci.yml`, `AGENTS.md`, `README.md`, `.agents/skills/mimir-*/SKILL.md` |
 
 ---
 

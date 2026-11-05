@@ -21,14 +21,64 @@ permissions:
   contents: read
 
 jobs:
+  detect-changes:
+    name: Detect Changed Modules
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      core_or_libs: ${{ steps.filter.outputs.core_or_libs }}
+      desktop: ${{ steps.filter.outputs.desktop }}
+      android: ${{ steps.filter.outputs.android }}
+      js_or_web: ${{ steps.filter.outputs.js_or_web }}
+      os_matrix: ${{ steps.matrix.outputs.os_matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            core_or_libs:
+              - 'libs/**'
+              - 'build-logic/**'
+              - 'gradle/**'
+              - 'build.gradle.kts'
+              - 'settings.gradle.kts'
+              - 'gradle.properties'
+              - 'mise.toml'
+              - '.github/workflows/ci.yml'
+            desktop:
+              - 'apps/desktop/**'
+              - 'apps/daemon/**'
+              - 'packaging/windows/**'
+              - 'packaging/arch/**'
+              - 'packaging/docker/**'
+            android:
+              - 'apps/android/**'
+            js_or_web:
+              - 'apps/web-ui/**'
+              - 'apps/obsidian-plugin/**'
+              - 'apps/browser-extension/**'
+              - 'design/**'
+              - 'scripts/**'
+      - id: matrix
+        run: |
+          if [ "${{ steps.filter.outputs.core_or_libs }}" = "true" ] || [ "${{ steps.filter.outputs.desktop }}" = "true" ]; then
+            echo 'os_matrix=["ubuntu-latest","windows-latest","macos-latest"]' >> "$GITHUB_OUTPUT"
+          else
+            echo 'os_matrix=["ubuntu-latest"]' >> "$GITHUB_OUTPUT"
+          fi
+
   build:
     name: build (${{ matrix.os }})
+    needs: detect-changes
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: ${{ fromJSON(needs.detect-changes.outputs.os_matrix) }}
     defaults:
       run:
         shell: bash
@@ -70,27 +120,16 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
-  changesets:
-    name: versions and changesets
+  tokens:
+    name: design tokens sync
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
           persist-credentials: false
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10.18.0 # не в package.json: поле packageManager ломает yarn, которым Kotlin/JS ставит npm-зависимости
       - uses: actions/setup-node@v4
         with:
           node-version: lts/*
-      # Пока нет pnpm-lock.yaml; после его коммита убрать --no-frozen-lockfile и добавить cache: pnpm в setup-node.
-      - run: pnpm install --no-frozen-lockfile
-      - name: Versions of packages and gradle.properties are in sync
-        run: pnpm run version:check
-      - name: Changeset status (pull requests)
-        if: github.event_name == 'pull_request'
-        # Информативно: правки без релизного смысла (docs, ci) changeset не требуют.
-        continue-on-error: true
-        run: pnpm exec changeset status --since=origin/${{ github.base_ref }}
+      - name: Verify design tokens are in sync
+        run: node scripts/generate-tokens.mjs --check

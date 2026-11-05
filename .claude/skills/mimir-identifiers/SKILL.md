@@ -13,7 +13,7 @@ description: Use when a Mimir name, version, id, port, UUID or other long-lived 
 
 | Куда | Как |
 |---|---|
-| Kotlin-код | `BuildConfig` модуля `core` (`APP_NAME`, `VERSION`, `APP_ID`, `OBSIDIAN_PLUGIN_ID`, `API_DEFAULT_PORT`). Новое поле — в `buildConfig {}` в `core/build.gradle.kts` через `providers.gradleProperty(...)` |
+| Kotlin-код | `BuildConfig` модуля `libs/core` (`APP_NAME`, `VERSION`, `APP_ID`, `OBSIDIAN_PLUGIN_ID`, `API_DEFAULT_PORT`). Новое поле — в `buildConfig {}` в `libs/core/build.gradle.kts` через `providers.gradleProperty(...)` |
 | Gradle-скрипты и convention-плагины | `providers.gradleProperty("mimir.…")` |
 | Манифесты/шаблоны (Obsidian `manifest.template.json`, расширение, Android `strings.xml`) | подстановка при сборке (`processResources`/`resValue`/задача сборки), шаблон без литералов |
 | compose desktop (`nativeDistributions`) | `packageName`/`packageVersion`/`upgradeUuid` из properties |

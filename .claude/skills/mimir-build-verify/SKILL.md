@@ -16,12 +16,12 @@ description: Use when you need to build, test or verify a change in the Mimir re
 | Вся сборка + тесты | `mise run build` |
 | Все тесты | `mise run test` |
 | build-logic | `./gradlew -p build-logic test` |
-| core / drive | `./gradlew :core:allTests`, `./gradlew :drive:allTests` (jvm, js, wasmJs; js/wasm — Karma + headless Chrome) |
-| ui | `./gradlew :ui:desktopTest`, `./gradlew :ui:compileKotlinWasmJs` |
-| desktop | `./gradlew :app-desktop:test`, `:app-desktop:packageUberJarForCurrentOS` |
-| daemon | `./gradlew :daemon:test`, затем `mise run daemon` и `curl -s 127.0.0.1:47821/health` |
-| android | `./gradlew :app-android:testDebugUnitTest`, `:app-android:assembleDebug` |
-| plugin / extension | `./gradlew :obsidian-plugin:checkPlugin`, `:browser-extension:checkExtension` |
+| core / drive | `./gradlew :libs:core:allTests`, `./gradlew :libs:drive:allTests` (jvm, js, wasmJs; js/wasm — Karma + headless Chrome) |
+| ui | `./gradlew :libs:ui:desktopTest`, `./gradlew :libs:ui:compileKotlinWasmJs` |
+| desktop | `./gradlew :apps:desktop:test`, `:apps:desktop:packageUberJarForCurrentOS` |
+| daemon | `./gradlew :apps:daemon:test`, затем `mise run daemon` и `curl -s 127.0.0.1:47821/health` |
+| android | `./gradlew :apps:android:testDebugUnitTest`, `:apps:android:assembleDebug` |
+| plugin / extension | `./gradlew :apps:obsidian-plugin:checkPlugin`, `:apps:browser-extension:checkExtension` |
 | Скриншоты UI (desktop + extension) | `mise run screenshots` (headless-рендеринг в `build/reports/screenshots/`) |
 
 Первый запуск на новой машине: `gradlew` создаётся командой `mise x gradle@9.8 -- gradle wrapper --gradle-version <9.x ≥ 9.8>`.
@@ -31,13 +31,13 @@ description: Use when you need to build, test or verify a change in the Mimir re
 1. **Без Android SDK** (`ANDROID_HOME`/`ANDROID_SDK_ROOT` не заданы, нет `sdk.dir` в `local.properties`): `mise run build` проходит, в выводе `Android SDK not found: skipping Android targets`. Обратите внимание: `local.properties` имеет приоритет над `-Pandroid.sdk.dir=`, поэтому для локальной проверки сборки без SDK необходимо временно переименовать `local.properties` (например, `mv local.properties local.properties.bak`).
 2. **Без `mise.local.toml`**: сборка и тесты проходят без секретов.
 3. **Смена переменных в `mise.local.toml`**: если изменялись `MIMIR_*` (OAuth-клиенты, пути, порты), а приложение запускается через `:run`, убедиться, что Gradle Daemon не держит старое окружение (`./gradlew --stop`).
-4. **Все цели изменённого модуля**, а не только JVM: `allTests` для `core`/`drive`, `:ui:compileKotlinWasmJs`, Android при наличии SDK. Ветвления по ОС покрыты юнит-тестами с подставленными `osName`/`env`; Windows и macOS проверяет CI-матрица — в отчёте сказать, что руками не проверено (`mimir-cross-platform`).
+4. **Все цели изменённого модуля**, а не только JVM: `allTests` для `libs/core`/`libs/drive`, `:libs:ui:compileKotlinWasmJs`, Android при наличии SDK. Ветвления по ОС покрыты юнит-тестами с подставленными `osName`/`env`; Windows и macOS проверяет CI-матрица — в отчёте сказать, что руками не проверено (`mimir-cross-platform`).
 5. **Изменён UI** — визуальная проверка по `mimir-ui-ux` (скриншоты обеих тем и минимального размера окна).
 6. Падение любого из пунктов — дефект, а не «особенность окружения».
 
 ### Проверка на Android эмуляторе
 
-- **Сборка и установка**: `./gradlew :app-android:assembleDebug && adb install -r app-android/build/outputs/apk/debug/app-android-debug.apk`
+- **Сборка и установка**: `./gradlew :apps:android:assembleDebug && adb install -r apps/android/build/outputs/apk/debug/apps/android-debug.apk`
 - **Запуск Activity**: `adb shell am start -n dev.mimir.app/dev.mimir.android.MainActivity` (appId = `dev.mimir.app`)
 - **Запуск эмулятора под Wayland (Niri / Sway)**: встроенный Qt SDK не имеет плагина wayland, запуск требует Xwayland:
   `QT_QPA_PLATFORM=xcb emulator -avd <avd_name> -netdelay none -netspeed full`
@@ -45,7 +45,7 @@ description: Use when you need to build, test or verify a change in the Mimir re
 ## CI и кроссплатформенная матрица
 
 - **Windows Runners**: На `windows-latest` обязателен экспорт `JAVA_HOME=$(mise where java | tr '\\' '/')` в `$GITHUB_ENV` и `$GITHUB_PATH`.
-- **Karma в CI**: Chrome в headless-режиме на Ubuntu CI требует лаунчера `ChromeHeadlessCI` с флагами `--no-sandbox --disable-dev-shm-usage --disable-gpu --headless=new` (`browser-extension/karma.config.d/headless.js`), а также таймаута mocha 120 с (`browser-extension/karma.config.d/mocha-timeout.js`) из-за scrypt в JS.
+- **Karma в CI**: Chrome в headless-режиме на Ubuntu CI требует лаунчера `ChromeHeadlessCI` с флагами `--no-sandbox --disable-dev-shm-usage --disable-gpu --headless=new` (`apps/browser-extension/karma.config.d/headless.js`), а также таймаута mocha 120 с (`apps/browser-extension/karma.config.d/mocha-timeout.js`) из-за scrypt в JS.
 - **Сплющивание dist в Release**: Перед расчетом контрольных сумм `dist/` очищается от вложенных папок во избежание ошибки `sha256sum: directory`.
 
 ## TDD
