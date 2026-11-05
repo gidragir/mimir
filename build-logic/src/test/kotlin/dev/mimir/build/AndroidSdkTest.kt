@@ -20,7 +20,10 @@ class AndroidSdkTest {
 
     @Test
     fun `available when local properties has sdk dir`() {
-        File(tmpRoot, "local.properties").writeText("sdk.dir=${existingDir.path}\n")
+        // Через Properties.store: на Windows путь содержит '\', который в .properties экранируется.
+        File(tmpRoot, "local.properties").outputStream().use {
+            java.util.Properties().apply { setProperty("sdk.dir", existingDir.path) }.store(it, null)
+        }
         assertTrue(AndroidSdk.isAvailable(tmpRoot, emptyMap()))
     }
 

@@ -55,3 +55,7 @@ tasks.withType<Test>().configureEach {
         filter { excludeTestsMatching("*ScreenshotTest") }
     }
 }
+
+// UI-тесты :libs:ui живут только в desktopTest; wasmJs-тестов нет, поэтому проверка Compose
+// (CMP-4906, требует binaries.executable() для бандла Skiko) здесь ложно срабатывает в `build`.
+tasks.matching { it.name == "checkComposeUiTestConfigurationForWasmJs" }.configureEach { enabled = false }
