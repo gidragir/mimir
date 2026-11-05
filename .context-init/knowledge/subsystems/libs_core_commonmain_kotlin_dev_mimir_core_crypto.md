@@ -3,10 +3,10 @@ directory: libs/core/src/commonMain/kotlin/dev/mimir/core/crypto
 source:
   kind: git
   blob_sha: 0482f8f9762bb7ef35527e84872a8592c97fb537
-  commit_sha: 77be09c21d6849c3aa20683f5a464c68907f0746
+  commit_sha: c4d15d5133f882d1b744714b839e702178c89e3c
 generated_by:
   component: context-init
-  role: update
+  role: init
   model: none
 freshness:
   total_entries: 15
@@ -44,10 +44,19 @@ freshness:
 
 ## 🔑 Ключевой контракт и экспорты
 ```text
-class EncryptedRemoteStorage(...) : ChangeFeedStorage
+internal class Aes256(key: ByteArray)
+fun encryptBlock(b: ByteArray): ByteArray
+fun decryptBlock(b: ByteArray): ByteArray
+fun xtime(a: Int): Int = ((a shl 1) xor (if (a and 0x80 != 0) 0x11B else 0)) and 0xFF
+fun mul(a: Int, b: Int): Int
+fun rotl(v: Int, n: Int) = ((v shl n) or (v shr (8 - n))) and 0xFF
+internal object Base32Hex
+fun encode(data: ByteArray): String
+fun decode(text: String): ByteArray
+object CanaryVerifier
 ```
 
 ## 🧪 Запуск и тестирование
 ```bash
-rtk ./gradlew test
+rtk mise run test
 ```

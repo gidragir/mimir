@@ -7,7 +7,7 @@ description: Use when a Mimir name, version, id, port, UUID or other long-lived 
 
 Единственный источник правды — `gradle.properties`:
 
-`mimir.appName`, `mimir.version`, `mimir.group`, `mimir.appId`, `mimir.obsidianPluginId`, `mimir.pacmanName`, `mimir.dockerImage`, `mimir.msiUpgradeUuid`, `mimir.apiDefaultPort`.
+`mimir.appName`, `mimir.version`, `mimir.group`, `mimir.appId`, `mimir.obsidianPluginId`, `mimir.pacmanName`, `mimir.dockerImage`, `mimir.msiUpgradeUuid`, `mimir.apiDefaultPort`, `mimir.extensionPublicKey`, `mimir.githubOwner`, `mimir.githubRepo`.
 
 ## Как использовать
 
@@ -23,5 +23,6 @@ description: Use when a Mimir name, version, id, port, UUID or other long-lived 
 
 - Новый идентификатор: сначала строка в `gradle.properties`, потом использование. Не вводить второй источник.
 - Никаких литералов `"Mimir"`, `"0.1.0"`, `47821`, `"dev.mimir.app"` в коде/манифестах — тесты тоже берут значения из `BuildConfig`, где это возможно (заведомо константы протокола вроде `Mimir: not connected` — часть спеки и остаются строкой).
+- `mimir.version` не менять вручную в фича-ветках — версия управляется автоматически через Release Please (`.github/release-please-config.json` → `extra-files`).
 - `mimir.msiUpgradeUuid` не менять после первого релиза MSI — иначе обновления перестанут находить старую установку.
 - Секреты (OAuth, keystore) — не здесь: только `mise.local.toml` и GitHub Secrets.

@@ -6,18 +6,29 @@
 
 | Задача | Команда |
 | :--- | :--- |
-| **Сборка** | `rtk ./gradlew build` |
-| **Тестирование** | `rtk ./gradlew test` |
-| **Запуск** | `rtk ./gradlew run` |
+| **Сборка** | `rtk mise run build` |
+| **Тестирование** | `rtk mise run test` |
+| **Запуск** | `rtk mise run desktop` |
 
 ## Пользовательские скрипты и задачи
 
 | Скрипт | Выполняемая команда |
 | :--- | :--- |
-| `runner` | `mise (task runner)` |
+| `package:msi` | `rtk mise run package:msi` |
+| `extension` | `rtk mise run extension` |
+| `android` | `rtk mise run android` |
+| `package:extension` | `rtk mise run package:extension` |
+| `package:docker` | `rtk mise run package:docker` |
+| `build:extension` | `rtk mise run build:extension` |
+| `package:arch` | `rtk mise run package:arch` |
+| `screenshots` | `rtk mise run screenshots` |
+| `daemon` | `rtk mise run daemon` |
+| `desktop` | `rtk mise run desktop` |
+| `web` | `rtk mise run web` |
+| `plugin` | `rtk mise run plugin` |
 
 ## Быстрый запуск
 ```bash
-rtk ./gradlew build
-rtk ./gradlew test
+rtk mise run build
+rtk mise run test
 ```

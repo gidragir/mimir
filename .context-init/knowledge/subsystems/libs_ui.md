@@ -1,23 +1,23 @@
 ---
-directory: libs/ui
+directory: libs/ui/build.gradle.kts
 source:
   kind: git
-  blob_sha: 7ee4ab6c44fa36e94f05468b5ae949a6e21a379a
-  commit_sha: 77be09c21d6849c3aa20683f5a464c68907f0746
+  blob_sha: 1a7c079d90e235924574610be567d604d4e77d8e
+  commit_sha: c4d15d5133f882d1b744714b839e702178c89e3c
 generated_by:
   component: context-init
-  role: update
+  role: init
   model: none
 freshness:
-  total_entries: 14
-  sampled_entries: 14
+  total_entries: 1
+  sampled_entries: 1
   unsampled_entries: 0
   pending_child_changes: 0
 ---
 
-# Подсистема: Libs Ui (L1)
+# Подсистема: Ui (L1)
 
-Модуль и компоненты директории `libs/ui` (14 файлов)
+Подсистема `libs/ui` с ключевыми точками входа: libs/ui/build.gradle.kts
 
 > **Идентификатор:** `libs_ui`
 > **Теги:** Kotlin (Gradle), libs_ui
@@ -26,30 +26,9 @@ freshness:
 
 | Файл | Статус |
 | :--- | :--- |
-| `libs/ui/build.gradle.kts` | Исходный код |
-| `libs/ui/src/desktopTest/kotlin/dev/mimir/ui/AccessStepTest.kt` | Исходный код |
-| `libs/ui/src/desktopTest/kotlin/dev/mimir/ui/ConflictsScreenTest.kt` | Исходный код |
-| `libs/ui/src/desktopTest/kotlin/dev/mimir/ui/GoogleStepSystemAccountTest.kt` | Исходный код |
-| `libs/ui/src/desktopTest/kotlin/dev/mimir/ui/MimirComponentsTest.kt` | Исходный код |
-| `libs/ui/src/desktopTest/kotlin/dev/mimir/ui/MimirThemeTest.kt` | Исходный код |
-| `libs/ui/src/desktopTest/kotlin/dev/mimir/ui/MobileAdaptationTest.kt` | Исходный код |
-| `libs/ui/src/desktopTest/kotlin/dev/mimir/ui/SetupWizardScreenTest.kt` | Исходный код |
-| `libs/ui/src/desktopTest/kotlin/dev/mimir/ui/StatusScreenTest.kt` | Исходный код |
-| `libs/ui/src/desktopTest/kotlin/dev/mimir/ui/StorageAccessBannerTest.kt` | Исходный код |
-| `libs/ui/src/desktopTest/kotlin/dev/mimir/ui/SyncTextsTest.kt` | Исходный код |
-| `libs/ui/src/desktopTest/kotlin/dev/mimir/ui/UpdateCardScreenshotTest.kt` | Исходный код |
-| `libs/ui/src/desktopTest/kotlin/dev/mimir/ui/UpdateCardTest.kt` | Исходный код |
-| `libs/ui/src/desktopTest/kotlin/dev/mimir/ui/screenshots/UiScreenshotTest.kt` | Исходный код |
-
-## 🔑 Ключевой контракт и экспорты
-```text
-class AccessStepTest
-class ConflictsScreenTest
-class GoogleStepSystemAccountTest
-class MimirComponentsTest
-```
+| `libs/ui/build.gradle.kts` | ⭐ Точка входа |
 
 ## 🧪 Запуск и тестирование
 ```bash
-rtk ./gradlew test
+rtk mise run test
 ```

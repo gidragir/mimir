@@ -29,4 +29,4 @@ description: Use when adding or changing a cloud storage adapter in Mimir (Googl
 - Для реального адаптера: поведение `list` (только прямые потомки), `stat` для отсутствующего пути (`null`), `write`→`read` round-trip — на общем наборе, который прогоняется и для `InMemoryRemoteStorage`.
 - Бюджет запросов: число HTTP-вызовов `listAll`/`stat`/`write` на N файлов фиксируется тестом на `MockEngine`; 429/5xx — повтор, нет сети — `RemoteUnavailableException`.
 
-Запуск: `./gradlew :<module>:allTests` (см. `mimir-build-verify`).
+Запуск: `./gradlew :libs:<module>:allTests` (см. `mimir-build-verify`).

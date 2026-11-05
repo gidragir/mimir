@@ -3,10 +3,10 @@ directory: build-logic
 source:
   kind: git
   blob_sha: a4683cac7b0f097d293306f5de6b6d5562b87fc2
-  commit_sha: 77be09c21d6849c3aa20683f5a464c68907f0746
+  commit_sha: c4d15d5133f882d1b744714b839e702178c89e3c
 generated_by:
   component: context-init
-  role: update
+  role: init
   model: none
 freshness:
   total_entries: 5
@@ -17,7 +17,7 @@ freshness:
 
 # Подсистема: Build Logic (L1)
 
-Модуль и компоненты директории `build-logic` (5 файлов)
+Подсистема `build-logic` с ключевыми точками входа: build-logic/build.gradle.kts
 
 > **Идентификатор:** `build-logic`
 > **Теги:** Kotlin (Gradle), build-logic
@@ -26,7 +26,7 @@ freshness:
 
 | Файл | Статус |
 | :--- | :--- |
-| `build-logic/build.gradle.kts` | Исходный код |
+| `build-logic/build.gradle.kts` | ⭐ Точка входа |
 | `build-logic/settings.gradle.kts` | Исходный код |
 | `build-logic/src/main/kotlin/mimir.android-support.gradle.kts` | Исходный код |
 | `build-logic/src/main/kotlin/mimir.kmp-library.gradle.kts` | Исходный код |
@@ -34,5 +34,5 @@ freshness:
 
 ## 🧪 Запуск и тестирование
 ```bash
-rtk ./gradlew test
+rtk mise run test
 ```

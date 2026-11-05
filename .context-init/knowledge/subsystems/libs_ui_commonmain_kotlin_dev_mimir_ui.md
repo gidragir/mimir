@@ -3,10 +3,10 @@ directory: libs/ui/src/commonMain/kotlin/dev/mimir/ui
 source:
   kind: git
   blob_sha: 1d4ff715aa82390f9496af5d2f33f3dc201f3cea
-  commit_sha: 77be09c21d6849c3aa20683f5a464c68907f0746
+  commit_sha: c4d15d5133f882d1b744714b839e702178c89e3c
 generated_by:
   component: context-init
-  role: update
+  role: init
   model: none
 freshness:
   total_entries: 15
@@ -42,7 +42,21 @@ freshness:
 | `libs/ui/src/commonMain/kotlin/dev/mimir/ui/model/UpdateUiState.kt` | Исходный код |
 | `libs/ui/src/commonMain/kotlin/dev/mimir/ui/platform/SystemAccountLogin.kt` | Исходный код |
 
+## 🔑 Ключевой контракт и экспорты
+```text
+enum class Destination
+companion object
+fun fromString(value: String?): Destination = when (value?.lowercase())
+fun MimirApp( model: MimirUiModel, touchInput: Boolean = false, initialDestination: Destination = Destination.Status, )
+fun MimirApp( engine: SyncEngine, touchInput: Boolean = false, initialDestination: Destination = Destination.Status, ) = MimirApp(remember(engine)
+fun MimirAppPreview()
+fun MimirTheme(content: @Composable () -> Unit)
+object MimirTokens
+object Dark
+object Light
+```
+
 ## 🧪 Запуск и тестирование
 ```bash
-rtk ./gradlew test
+rtk mise run test
 ```

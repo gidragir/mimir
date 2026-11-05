@@ -3,10 +3,10 @@ directory: libs/core
 source:
   kind: git
   blob_sha: 9974a32848a3f78d589730200c029947b95bafea
-  commit_sha: 77be09c21d6849c3aa20683f5a464c68907f0746
+  commit_sha: c4d15d5133f882d1b744714b839e702178c89e3c
 generated_by:
   component: context-init
-  role: update
+  role: init
   model: none
 freshness:
   total_entries: 15
@@ -15,9 +15,9 @@ freshness:
   pending_child_changes: 0
 ---
 
-# Подсистема: Libs Core (L1)
+# Подсистема: Core (L1)
 
-Модуль и компоненты директории `libs/core` (15 файлов)
+Подсистема `libs/core` с ключевыми точками входа: libs/core/build.gradle.kts
 
 > **Идентификатор:** `libs_core`
 > **Теги:** Kotlin (Gradle), libs_core
@@ -26,7 +26,7 @@ freshness:
 
 | Файл | Статус |
 | :--- | :--- |
-| `libs/core/build.gradle.kts` | Исходный код |
+| `libs/core/build.gradle.kts` | ⭐ Точка входа |
 | `libs/core/src/androidMain/kotlin/dev/mimir/core/crypto/AndroidKeystoreSecretStore.kt` | Исходный код |
 | `libs/core/src/androidMain/kotlin/dev/mimir/core/crypto/RandomNonce.android.kt` | Исходный код |
 | `libs/core/src/androidMain/kotlin/dev/mimir/core/fs/AndroidFileObserverVaultWatcher.kt` | Исходный код |
@@ -44,10 +44,19 @@ freshness:
 
 ## 🔑 Ключевой контракт и экспорты
 ```text
+internal class AndroidKeystoreCipher(private val alias: String) : SecretCipher
+override fun encrypt(plain: ByteArray): ByteArray
+override fun decrypt(encrypted: ByteArray): ByteArray
+override fun get(key: String): String? = prefs.getString(key, null)
+override fun put(key: String, value: String) = prefs.edit().putString(key, value).apply()
+override fun remove(key: String) = prefs.edit().remove(key).apply()
+fun AndroidKeystoreSecretStore( context: Context, prefsName: String = "[REDACTED]"
+internal actual fun randomNonce(): ByteArray = ByteArray(24).also(secureRandom::nextBytes)
 class AndroidFileObserverVaultWatcher( private val root: File, rules: SyncRules = SyncRules(), private val debounce: Duration = 1.seconds, echoTtl: Duration = 2.seconds, private val clock: Clock = Clock.System, ) : VaultWatcher
+data class FsEvent(val dir: File, val event: Int, val path: String?) : WatcherEvent
 ```
 
 ## 🧪 Запуск и тестирование
 ```bash
-rtk ./gradlew test
+rtk mise run test
 ```

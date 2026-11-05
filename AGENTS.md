@@ -26,14 +26,15 @@ Mimir — клиент синхронизации Obsidian-хранилища с
 | `build-logic` | convention-плагины: `mimir.settings`, `mimir.android-support`, `mimir.kmp-library`; `AndroidSdk` |
 | `libs/core` | чистый Kotlin (jvm, js, wasmJs, android): порты, шифрование, локальная ФС, движок синхронизации, фейки для тестов |
 | `libs/drive` | адаптер Google Drive: HTTP, OAuth, путь→id, загрузка |
+| `libs/client` | контракт `DaemonService`, HTTP-клиент `HttpDaemonClient`, общие DTO демона и автообновлений (jvm, js, wasmJs, android) |
 | `libs/runtime` | общая логика демона и Android (KMP jvm/android): движок, вход в Google, база состояния, планировщик |
-| `apps/daemon` | единый бэкенд: сборка движка, HTTP API, планировщик, вход в Google (встраивается в desktop или работает отдельно/в Docker) |
 | `libs/ui` | общий Compose-интерфейс (desktop + wasmJs, Android при SDK) |
+| `apps/daemon` | единый бэкенд: сборка движка, HTTP API, планировщик, вход в Google (встраивается в desktop или работает отдельно/в Docker) |
 | `apps/desktop` | окно, трей, выбор папки, браузер; встроенный или удалённый демон |
-| `apps/android`, `apps/web-ui`, `apps/obsidian-plugin`, `apps/browser-extension` | тонкие точки входа (пока заготовки) |
+| `apps/android`, `apps/web-ui`, `apps/obsidian-plugin`, `apps/browser-extension` | клиентские точки входа (Android APK, Wasm-клиент демона, плагин Obsidian, автономное Chromium MV3-расширение) |
 | `packaging/`, `.github/` | Arch PKGBUILD, Docker, CI (ubuntu/windows/macos) и релиз |
 
-Зависимости идут только вниз: точки входа → `libs/ui` → `libs/drive` → `libs/core`. `libs/core` не знает ничего о платформе.
+Зависимости идут только вниз: точки входа (`apps/*`) → `libs/ui` / `libs/runtime` → `libs/client` / `libs/drive` → `libs/core`. `libs/core` не знает ничего о платформе.
 
 ## Карта кода (где искать)
 
@@ -47,24 +48,25 @@ Mimir — клиент синхронизации Obsidian-хранилища с
 | Синхронизация | `libs/core/…/sync/`: решение — `SyncPlanBuilder` → `SyncPlan`; исполнение — `DefaultSyncEngine`; `ConflictResolver`, `SyncIndex` + `SyncStateStore`, `SyncProgress`, `RemoteExceptions` |
 | Правила синхронизации | `libs/core/…/rules/` (`SyncRules`, `GlobMatcher`) |
 | Фейки для тестов | `libs/core/…/testing/`: `InMemoryRemoteStorage`, `InMemoryLocalVault`; UI — `libs/ui/model/FakeMimirUiModel` |
-| Google Drive | `libs/drive/`: порт — `GoogleDriveStorage`; токены, retry, ошибки сети — `libs/client/DriveHttpClient`; OAuth/PKCE — `auth/`; путь→id и кэш — `path/DrivePathResolver`; загрузка (resumable) — `upload/DriveUploader` |
+| Google Drive | `libs/drive/`: порт — `GoogleDriveStorage`; токены, retry, ошибки сети — `client/DriveHttpClient`; OAuth/PKCE — `auth/`; путь→id и кэш — `path/DrivePathResolver`; загрузка (resumable) — `upload/DriveUploader` |
+| Клиент демона | `libs/client/`: контракт — `DaemonService`; HTTP-клиент — `HttpDaemonClient`; DTO — `DaemonDto`, `UpdateDto` |
 | Runtime | `libs/runtime/`: фасад — `MimirRuntime`; сборка движка — `EngineAssembler`; вход — `login/`; настройки — `JsonRuntimeSettingsStore` |
 | Демон | composition root — `DaemonRuntime`; API — `Routes` + `ProgressDto`; конфиг, env и каталоги ОС — `DaemonConfig`; расписание — `SyncScheduler`; вход через браузер — `BrowserLoginReceiver`; индекс — `JsonSyncStateStore`, атомарная запись — `AtomicFiles.kt` |
 | UI и дизайн-система | контракт — `libs/ui/model/MimirUiModel`; экраны — `libs/ui/screens/`; крафтовые компоненты — `libs/ui/components/MimirComponents.kt`; токен-константы — `libs/ui/MimirTokens.kt`; темы — `MimirTheme`, `ObsidianStyle`; тексты — `SyncTexts`; сервисы (CompositionLocal) — `libs/ui/picker/`, `libs/ui/platform/` |
 | Дизайн-токены (Single Source of Truth) | `design/tokens.json`; генератор — `scripts/generate-tokens.mjs` (`node scripts/generate-tokens.mjs` / `--check`); артефакты — `libs/ui/MimirTokens.kt`, `apps/browser-extension/.../tokens.css` |
-| Desktop | composition root — `apps/desktop/Main.kt`; встроенный/удалённый демон — `DaemonServiceFactory`; HTTP-клиент — `HttpDaemonClient`; трей — `tray/`; выбор папки — `picker/`; браузер — `SystemBrowserOpener` |
+| Desktop | composition root — `apps/desktop/Main.kt`; встроенный/удалённый демон — `DaemonServiceFactory`; трей — `tray/`; выбор папки — `picker/`; браузер — `SystemBrowserOpener` |
 | Сборка | convention-плагины — `build-logic/src/main/kotlin/`; версии — `gradle/libs.versions.toml`; идентификаторы — `gradle.properties` |
 
 ## Правила
 
-- **Идентификаторы** (`mimir.appName`, `mimir.version`, `mimir.group`, `mimir.appId`, `mimir.obsidianPluginId`, `mimir.pacmanName`, `mimir.dockerImage`, `mimir.msiUpgradeUuid`, `mimir.apiDefaultPort`) живут только в `gradle.properties`. В код и манифесты попадают через BuildConfig / `processResources` / генерацию, литералами не дублируются.
+- **Идентификаторы** (`mimir.appName`, `mimir.version`, `mimir.group`, `mimir.appId`, `mimir.obsidianPluginId`, `mimir.pacmanName`, `mimir.dockerImage`, `mimir.msiUpgradeUuid`, `mimir.apiDefaultPort`, `mimir.extensionPublicKey`, `mimir.githubOwner`, `mimir.githubRepo`) живут только в `gradle.properties`. В код и манифесты попадают через BuildConfig / `processResources` / генерацию, литералами не дублируются.
 - Пакет: `dev.mimir.<module>`. Версии зависимостей — только в `gradle/libs.versions.toml`.
-- Gradle: Kotlin DSL, configuration cache и build cache включены — не ломать их.
+- Gradle: Kotlin DSL, configuration cache и build cache включены — не ломать их. Контроль графа зависимостей (`api` vs `implementation`, неиспользуемые зависимости) осуществляется плагином `com.autonomousapps.dependency-analysis` (`./gradlew buildHealth`, режим `severity("warn")`).
 - **Android SDK необязателен**: без него `mise run build` обязан проходить, пропуская Android-таргеты с предупреждением `Android SDK not found: skipping Android targets`. Не добавлять безусловных ссылок на `:apps:android` и Android-плагины.
 - **Секреты и окружение Gradle Daemon**: секреты живут только в `mise.local.toml` (в `.gitignore`) и GitHub Secrets. Сборка и тесты проходят без единого секрета. Задачи `JavaExec` (`:apps:desktop:run`, `:apps:daemon:run`) обязаны явно синхронизировать переменные `MIMIR_*` через `providers.environmentVariablesPrefixedBy("MIMIR_")`, очищая унаследованные ключи демона. При кардинальной смене переменных в `mise.local.toml` выполнять `./gradlew --stop`.
 - **Docker-образ демона** строится на glibc-базе (`eclipse-temurin:27-jdk` / `27-jre`), а не на alpine: Kotlin/JS скачивает Node под glibc.
 - **Android**: нужны AGP ≥ 9.4 и compileSdk 37 (иначе jlink `JdkImageTransform` падает на JDK 27, а Compose 1.12 требует compileSdk 37).
-- Шифрование реализовано (`RcloneCipher`, совместим с rclone crypt, чистый Kotlin в `libs/core`; `expect/actual` в `libs/core` — только источник случайности и проверка символьных ссылок). Синхронизация, Google Drive и OAuth реализованы; заглушками (`NotImplementedError` с осмысленным сообщением) остаются `StubSyncEngine` и точки входа Android/web/плагина/расширения. Пароль в `RcloneCipher` передаётся в открытом виде; golden-векторы `RcloneVectors.kt` генерирует `scripts/gen-rclone-vectors.sh` (нужен rclone), обычные сборка и тесты rclone не требуют.
+- Шифрование реализовано (`RcloneCipher`, совместим с rclone crypt, чистый Kotlin в `libs/core`; `expect/actual` в `libs/core` — только источник случайности и проверка символьных ссылок). Синхронизация, Google Drive, OAuth и клиентские точки входа реализованы; заглушкой (`NotImplementedError` с осмысленным сообщением) остаётся только `StubSyncEngine`. Пароль в `RcloneCipher` передаётся в открытом виде; golden-векторы `RcloneVectors.kt` генерирует `scripts/gen-rclone-vectors.sh` (нужен rclone), обычные сборка и тесты rclone не требуют.
 - **Google OAuth-клиенты**: две пары — `MIMIR_GOOGLE_DESKTOP_CLIENT_ID/SECRET` (вход через браузер) и `MIMIR_GOOGLE_DEVICE_CLIENT_ID/SECRET` (Device Code); старые `MIMIR_GOOGLE_CLIENT_*` — алиас Device-пары. Вшитые значения (`MIMIR_BUILD_GOOGLE_*`) живут только в BuildConfig `apps/daemon` и `apps/android` (Desktop-пара допустима в BuildConfig `apps/android` для fallback-входа через браузер; не в `libs/core`: он попадает в JS-бандлы), в Docker-образ не вшиваются — Docker-демон настраивается переменными окружения. В локальной разработке `apps/android/build.gradle.kts` читает `MIMIR_BUILD_GOOGLE_DESKTOP_*` с fallback на `MIMIR_GOOGLE_DESKTOP_*` из `mise.local.toml`. Для нативного системного входа на Android (GIS) в Google Cloud Console регистрируется OAuth-клиент типа Android с пакетом `dev.mimir.app` и SHA-1 ключа (debug: `84:05:F0:7B:51:7F:DA:C0:F7:7B:9D:B3:27:F6:37:97:C1:A4:56:3C`); при его отсутствии активируется fallback в браузер через Desktop-клиент.
 - **Linux-лаунчеры** (`run` в `apps/desktop/build.gradle.kts`, `packaging/arch/mimir.sh`) выставляют `_JAVA_AWT_WM_NONREPARENTING=1` — иначе под niri окно рисуется только в левом верхнем углу.
 - **Десктопное оформление**: главное окно использует бесшовный заголовок на Compose (Obsidian CSD) без стандартного белого заголовка ОС; трей — Compose-поповер (`Window.Type.POPUP` для защиты от тайлинга на Linux) с сохранением D-Bus меню для Linux-панелей.
@@ -81,6 +83,7 @@ Mimir — клиент синхронизации Obsidian-хранилища с
 - **Тестирование корутин и фоновых компонентов**: При тестировании классов с долгоживущими корутинами или периодическими тикерами (`MimirRuntime`, `SyncScheduler`, бесконечные `flow.collect`) категорически запрещено вызывать `testScheduler.advanceUntilIdle()` в `runTest` — это приводит к бесконечному циклу прокрутки виртуального времени. Использовать явный сдвиг на фиксированное время (`advanceTimeBy`), изолированные фейки контрактов (`SyncRunner`) вместо полного рантайма или завершать `scope.cancel()` перед окончанием теста.
 - **Kotlin/JS исключения и UTF-8**: В JS-рантайме нативные JavaScript ошибки (в частности, `TypeError: URI malformed` при невалидной UTF-8 последовательности в `decodeToString(throwOnInvalidSequence = true)` или `Buffer.readString()`) наследуются от `Throwable` и нативного `Error`, но НЕ являются подклассами `kotlin.Exception`. Блоки `catch (e: Exception)` пропускают их, приводя к необработанным крашам тестов. В коде шифрования, валидации канареек и чтения внешних потоков перехватывать `Throwable` с обязательным пробросом `CancellationException`.
 - **Compose Multiplatform UI Preview**: В кроссплатформенном модуле `:libs:ui` для аннотации `@Preview` в `commonMain` использовать строго DSL Compose-плагина `implementation(compose.components.uiToolingPreview)`. Замена на внешний Maven-артефакт `org.jetbrains.compose.ui:ui-tooling-preview` ломает таргет `wasmJs`, в котором этот артефакт отсутствует.
+- **Выборочный запуск CI и кроссплатформенная матрица**: В `.github/workflows/ci.yml` джоб `detect-changes` (`dorny/paths-filter@v3`) вычисляет затронутые подсистемы и формирует динамическую матрицу ОС (`os_matrix`). Изменения в `libs/**`, `build-logic/**`, `apps/desktop/**` или `apps/daemon/**` запускают матрицу `ubuntu-latest` + `windows-latest` (`macos-latest` исключён из блокирующего PR-чека из-за очередей раннеров и вызывается опционально через `workflow_dispatch` с `run_macos=true`). Изменения только в `apps/android/**` или `apps/obsidian-plugin/**` пропускают Windows; релизные PR (`release-please--*`) запускают только быструю проверку версии на `ubuntu-latest` (`./gradlew -p build-logic test && ./gradlew :apps:desktop:help`) без пробуждения Windows. На `ubuntu-latest` выполняется полный `mise run build` (все KMP/JS/Wasm/Android тесты), а на `windows-latest` — строго десктопные тесты и упаковка инсталлятора (`./gradlew :apps:desktop:test :apps:desktop:packageMsi`) без дублирования общих библиотечных и Karma JS-тестов.
 - **CI Runners, Java и Symlinks на Windows**: На раннерах `windows-latest` GitHub Actions системная переменная `JAVA_HOME` по умолчанию выставлена на Java 17; плагин `mise-action` не переопределяет её — шаги сборки обязаны нормализовать `java_home=$(mise where java | tr '\\' '/')` и экспортировать в `$GITHUB_ENV` и `$GITHUB_PATH`. Для корректной работы Kotlin/JS (Yarn Workspaces symlinks в `node_modules`) и глубокой вложенности пакетов на Windows-раннере обязательно включать Developer Mode (`AllowDevelopmentWithoutDevLicense = 1`), `LongPathsEnabled = 1` и `git config --global core.symlinks true / core.longpaths true` перед шагом сборки.
 - **Windows MSI обновления и лаунчер**: Инсталлятор Windows (`jpackage` / WiX) выполняет автоматический `MajorUpgrade` только при повышении версии (`0.2.1 > 0.2.0`). Переустановка нового билда с идентичной версией блокируется Windows Installer (ошибка 1638: «Уже установлена другая версия этого продукта») и при локальном тестировании требует предварительного удаления старой версии. В конфиг `<app>.cfg` jpackage jvm-лаунчера на Windows добавляется `win.norestart=true`, исключающий дублирование процесса-обёртки в Диспетчере задач.
 - **Karma ChromeHeadless и таймауты в CI**: Тесты браузерного расширения (`:apps:browser-extension:jsBrowserTest`) в Linux-контейнерах CI требуют флагов `--no-sandbox --disable-setuid-sandbox --disable-dev-shm-usage --disable-gpu --headless=new` (`headless.js`), а из-за вычислений scrypt в JS — таймаута mocha не менее 120 с (`apps/browser-extension/karma.config.d/mocha-timeout.js`), аналогично модулю `:libs:core`.
@@ -101,9 +104,9 @@ Mimir — клиент синхронизации Obsidian-хранилища с
 
 ## Релизы
 
-- Версионирование — Release Please (`.github/release-please-config.json`, `.github/.release-please-manifest.json`). Версия одна на все модули — `mimir.version` в `gradle.properties` (между маркерами `x-release-please-start-version` / `end`, не удалять); тег строго `v<версия>`.
+- Версионирование — Release Please (`.github/release-please-config.json`, `.github/.release-please-manifest.json`). Версия одна на все модули — `mimir.version` в `gradle.properties` (обновляется автоматически через секцию `extra-files` типа `properties` в `.github/release-please-config.json`); тег строго `v<версия>` (`include-component-in-tag: false`).
 - Изменение, влияющее на релиз, сопровождается Conventional Commit (`feat`, `fix`, `perf`, `refactor`; `docs`/`chore`/`ci` в changelog не попадают). Файлы `.changeset/` и `package.json` в модулях не используются.
-- Поток: push в `main` → `release-please.yml` ведёт PR «chore: release v<версия>» → после слияния ставится тег и `release.yml` вызывается через `workflow_call` (matrix-сборка msi/apk/zip, Arch в контейнере, Docker в GHCR, прикрепление артефактов к GitHub Release).
+- Поток: push в `main` → `release-please.yml` (с поддержкой `secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN` для автозапуска CI на PR без `action_required`) ведёт PR «chore(main): release <версия>» → после слияния создаётся тег `v<версия>` и `release.yml` вызывается напрямую из `release-please.yml` через `workflow_call` (matrix-сборка msi/apk/zip, Arch в контейнере, Docker в GHCR, прикрепление артефактов к GitHub Release).
 - Версию в `gradle.properties` руками не менять — только через PR Release Please.
 
 ## Проектные скиллы (`.claude/skills/`)
@@ -132,42 +135,27 @@ Mimir — клиент синхронизации Obsidian-хранилища с
 Без доступа к MCP (субагенты, скрипты): `rtk context-init pack <subsystem_id> --compress` и `rtk context-init check --compact`.
 
 ### 📦 Доступные подсистемы:
-- `app-android` (App Android) — Подсистема `app-android` с ключевыми точками входа: app-android/package.json
-- `app-desktop` (App Desktop) — Подсистема `app-desktop` с ключевыми точками входа: app-desktop/package.json
-- `apps_android` (Android) — Модуль и компоненты директории `apps/android` (15 файлов)
-- `apps_browser-extension` (Browser Extension) — Модуль и компоненты директории `apps/browser-extension` (15 файлов)
-- `apps_daemon` (Daemon) — Модуль и компоненты директории `apps/daemon` (9 файлов)
-- `apps_desktop` (Desktop) — Модуль и компоненты директории `apps/desktop` (15 файлов)
-- `apps_obsidian-plugin` (Obsidian Plugin) — Модуль и компоненты директории `apps/obsidian-plugin` (8 файлов)
-- `apps_web-ui` (Web Ui) — Модуль и компоненты директории `apps/web-ui` (2 файлов)
-- `browser-extension` (Browser Extension) — Подсистема `browser-extension` с ключевыми точками входа: browser-extension/package.json
-- `build-logic` (Build Logic) — Модуль и компоненты директории `build-logic` (5 файлов)
-- `client` (Client) — Подсистема `client` с ключевыми точками входа: client/package.json
-- `core` (Core) — Подсистема `core` с ключевыми точками входа: core/package.json
-- `daemon` (Daemon) — Подсистема `daemon` с ключевыми точками входа: daemon/package.json
+- `apps_android` (Android) — Подсистема `apps/android` с ключевыми точками входа: apps/android/build.gradle.kts
+- `apps_browser-extension` (Browser Extension) — Подсистема `apps/browser-extension` с ключевыми точками входа: apps/browser-extension/build.gradle.kts
+- `apps_browser-extension_jsmain` (Browser Extension JsMain) — Модуль и компоненты директории `apps/browser-extension/src/jsMain` (3 файлов)
+- `apps_browser-extension_jsmain_kotlin_dev_mimir_extension` (Browser Extension JsMain Kotlin Dev Mimir Extension) — Модуль и компоненты директории `apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension` (8 файлов)
+- `apps_browser-extension_jsmain_kotlin_dev_mimir_extension_ui` (Browser Extension JsMain Kotlin Dev Mimir Extension Ui) — Модуль и компоненты директории `apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/ui` (8 файлов)
+- `apps_daemon` (Daemon) — Подсистема `apps/daemon` с ключевыми точками входа: apps/daemon/build.gradle.kts
+- `apps_desktop` (Desktop) — Подсистема `apps/desktop` с ключевыми точками входа: apps/desktop/build.gradle.kts
+- `apps_obsidian-plugin` (Obsidian Plugin) — Подсистема `apps/obsidian-plugin` с ключевыми точками входа: apps/obsidian-plugin/build.gradle.kts
+- `apps_web-ui` (Web Ui) — Подсистема `apps/web-ui` с ключевыми точками входа: apps/web-ui/build.gradle.kts
+- `build-logic` (Build Logic) — Подсистема `build-logic` с ключевыми точками входа: build-logic/build.gradle.kts
 - `design` (Design) — Модуль и компоненты директории `design` (1 файлов)
-- `docs` (Docs) — Модуль и компоненты директории `docs` (15 файлов)
-- `drive` (Drive) — Подсистема `drive` с ключевыми точками входа: drive/package.json
-- `gradle` (Gradle) — Модуль и компоненты директории `gradle` (1 файлов)
-- `libs` (Libs) — Модуль и компоненты директории `libs` (15 файлов)
-- `libs_client` (Client) — Модуль и компоненты директории `libs/client` (5 файлов)
-- `libs_core` (Libs Core) — Модуль и компоненты директории `libs/core` (15 файлов)
+- `libs_client` (Client) — Подсистема `libs/client` с ключевыми точками входа: libs/client/build.gradle.kts
+- `libs_core` (Core) — Подсистема `libs/core` с ключевыми точками входа: libs/core/build.gradle.kts
 - `libs_core_commonmain_kotlin_dev_mimir_core` (Core CommonMain Kotlin Dev Mimir Core) — Модуль и компоненты директории `libs/core/src/commonMain/kotlin/dev/mimir/core` (15 файлов)
 - `libs_core_commonmain_kotlin_dev_mimir_core_crypto` (Core CommonMain Kotlin Dev Mimir Core Crypto) — Модуль и компоненты директории `libs/core/src/commonMain/kotlin/dev/mimir/core/crypto` (15 файлов)
-- `libs_core_src` (Libs Core Src) — Модуль и компоненты директории `libs/core/src` (15 файлов)
-- `libs_core_src_commonmain_kotlin_dev_mimir_core` (Libs Core Src CommonMain Kotlin Dev Mimir Core) — Модуль и компоненты директории `libs/core/src/commonMain/kotlin/dev/mimir/core` (15 файлов)
-- `libs_core_src_commonmain_kotlin_dev_mimir_core_crypto` (Libs Core Src CommonMain Kotlin Dev Mimir Core Crypto) — Модуль и компоненты директории `libs/core/src/commonMain/kotlin/dev/mimir/core/crypto` (15 файлов)
-- `libs_drive` (Drive) — Модуль и компоненты директории `libs/drive` (15 файлов)
-- `libs_runtime` (Libs Runtime) — Модуль и компоненты директории `libs/runtime` (15 файлов)
-- `libs_ui` (Libs Ui) — Модуль и компоненты директории `libs/ui` (14 файлов)
+- `libs_core_commonmain_kotlin_dev_mimir_core_sync` (Core CommonMain Kotlin Dev Mimir Core Sync) — Модуль и компоненты директории `libs/core/src/commonMain/kotlin/dev/mimir/core/sync` (13 файлов)
+- `libs_drive` (Drive) — Подсистема `libs/drive` с ключевыми точками входа: libs/drive/build.gradle.kts
+- `libs_runtime` (Runtime) — Подсистема `libs/runtime` с ключевыми точками входа: libs/runtime/build.gradle.kts
+- `libs_runtime_commonmain` (Runtime CommonMain) — Модуль и компоненты директории `libs/runtime/src/commonMain` (15 файлов)
+- `libs_ui` (Ui) — Подсистема `libs/ui` с ключевыми точками входа: libs/ui/build.gradle.kts
 - `libs_ui_commonmain_kotlin_dev_mimir_ui` (Ui CommonMain Kotlin Dev Mimir Ui) — Модуль и компоненты директории `libs/ui/src/commonMain/kotlin/dev/mimir/ui` (15 файлов)
 - `libs_ui_commonmain_kotlin_dev_mimir_ui_screens` (Ui CommonMain Kotlin Dev Mimir Ui Screens) — Модуль и компоненты директории `libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens` (12 файлов)
-- `libs_ui_src` (Libs Ui Src) — Модуль и компоненты директории `libs/ui/src` (13 файлов)
-- `libs_ui_src_commonmain_kotlin_dev_mimir_ui` (Libs Ui Src CommonMain Kotlin Dev Mimir Ui) — Модуль и компоненты директории `libs/ui/src/commonMain/kotlin/dev/mimir/ui` (15 файлов)
-- `libs_ui_src_commonmain_kotlin_dev_mimir_ui_screens` (Libs Ui Src CommonMain Kotlin Dev Mimir Ui Screens) — Модуль и компоненты директории `libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens` (12 файлов)
-- `obsidian-plugin` (Obsidian Plugin) — Подсистема `obsidian-plugin` с ключевыми точками входа: obsidian-plugin/package.json
 - `packaging` (Packaging) — Модуль и компоненты директории `packaging` (1 файлов)
-- `runtime` (Runtime) — Подсистема `runtime` с ключевыми точками входа: runtime/package.json
 - `scripts` (Scripts) — Модуль и компоненты директории `scripts` (2 файлов)
-- `ui` (Ui) — Подсистема `ui` с ключевыми точками входа: ui/package.json
-- `web-ui` (Web Ui) — Подсистема `web-ui` с ключевыми точками входа: web-ui/package.json

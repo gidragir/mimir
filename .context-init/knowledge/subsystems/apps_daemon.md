@@ -3,7 +3,7 @@ directory: apps/daemon
 source:
   kind: git
   blob_sha: a1682b793767034db55ba014ff45b18ab6afeab8
-  commit_sha: 77be09c21d6849c3aa20683f5a464c68907f0746
+  commit_sha: c4d15d5133f882d1b744714b839e702178c89e3c
 generated_by:
   component: context-init
   role: update
@@ -17,7 +17,7 @@ freshness:
 
 # Подсистема: Daemon (L1)
 
-Модуль и компоненты директории `apps/daemon` (9 файлов)
+Подсистема `apps/daemon` с ключевыми точками входа: apps/daemon/build.gradle.kts
 
 > **Идентификатор:** `apps_daemon`
 > **Теги:** Kotlin (Gradle), apps_daemon
@@ -26,7 +26,7 @@ freshness:
 
 | Файл | Статус |
 | :--- | :--- |
-| `apps/daemon/build.gradle.kts` | Исходный код |
+| `apps/daemon/build.gradle.kts` | ⭐ Точка входа |
 | `apps/daemon/src/main/kotlin/dev/mimir/daemon/DaemonConfig.kt` | Исходный код |
 | `apps/daemon/src/main/kotlin/dev/mimir/daemon/DaemonService.kt` | Исходный код |
 | `apps/daemon/src/main/kotlin/dev/mimir/daemon/DockerLogNotifyApplier.kt` | Исходный код |
@@ -38,11 +38,19 @@ freshness:
 
 ## 🔑 Ключевой контракт и экспорты
 ```text
+data class DaemonConfig( val bind: String = "127.0.0.1", val port: Int = BuildConfig.API_DEFAULT_PORT, val vaultPath: String? = null, val token: String? = null, val password: String? = null, val passwordFile: String? = null, val googleDesktopClientId: String? = null, val googl...
+fun resolvePassword(): String?
+fun isPasswordFileInsecure(): Boolean
+fun save(configDir: String? = null)
+override fun toString(): String = "DaemonConfig(bind=$bind, port=$port, vaultPath=$vaultPath, token=$
+fun load(configDir: String? = null, env: Map<String, String> = System.getenv()): DaemonConfig
+fun readFile(configDir: String): DaemonConfig
+fun DaemonConfig.Companion.fromEnv(env: Map<String, String>): DaemonConfig = DaemonConfig().applyEnv(env)
 class DaemonSettingsStore(initial: DaemonConfig) : RuntimeSettingsStore
-class DockerLogNotifyApplier( private val log: (String) -> Unit = applierLogger::info, ) : UpdateApplier
+override fun load() = RuntimeConfig( dataDir = Paths.get(configDir), vaultPath = config.vaultPath, syncIntervalSeconds = config.syncIntervalSeconds, syncParallelism = config.syncParallelism, rootFolder = config.rootFolder, )
 ```
 
 ## 🧪 Запуск и тестирование
 ```bash
-rtk ./gradlew test
+rtk mise run test
 ```

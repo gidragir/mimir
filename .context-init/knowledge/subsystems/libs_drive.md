@@ -3,10 +3,10 @@ directory: libs/drive
 source:
   kind: git
   blob_sha: a9c182c315da6f0ddd1ece2d8d3d677ebd5eda26
-  commit_sha: 77be09c21d6849c3aa20683f5a464c68907f0746
+  commit_sha: c4d15d5133f882d1b744714b839e702178c89e3c
 generated_by:
   component: context-init
-  role: update
+  role: init
   model: none
 freshness:
   total_entries: 15
@@ -17,7 +17,7 @@ freshness:
 
 # Подсистема: Drive (L1)
 
-Модуль и компоненты директории `libs/drive` (15 файлов)
+Подсистема `libs/drive` с ключевыми точками входа: libs/drive/build.gradle.kts
 
 > **Идентификатор:** `libs_drive`
 > **Теги:** Kotlin (Gradle), libs_drive
@@ -26,7 +26,7 @@ freshness:
 
 | Файл | Статус |
 | :--- | :--- |
-| `libs/drive/build.gradle.kts` | Исходный код |
+| `libs/drive/build.gradle.kts` | ⭐ Точка входа |
 | `libs/drive/src/commonMain/kotlin/dev/mimir/drive/GoogleDriveStorage.kt` | Исходный код |
 | `libs/drive/src/commonMain/kotlin/dev/mimir/drive/GoogleDriveStorageProvider.kt` | Исходный код |
 | `libs/drive/src/commonMain/kotlin/dev/mimir/drive/api/DriveDto.kt` | Исходный код |
@@ -45,10 +45,18 @@ freshness:
 ## 🔑 Ключевой контракт и экспорты
 ```text
 class GoogleDriveStorage( private val client: DriveHttpClient? = null, private val pathResolver: DrivePathResolver? = null, ) : ChangeFeedStorage
-class RefreshingTokenSource( private val storage: TokenStorage, private val clients: GoogleAuthClients, private val clock: Clock = Clock.System, ) : AccessTokenSource
+override suspend fun getLatestChangeToken(): String
+override suspend fun getChanges(sinceToken: String): RemoteChangesResult
+override suspend fun list(dir: RemotePath): List<RemoteEntry>
+override suspend fun listAll(root: RemotePath, onProgress: (folders: Int, files: Int) -> Unit): List<RemoteEntry>
+suspend fun walk(folderId: String, dir: RemotePath)
+override suspend fun stat(path: RemotePath): RemoteEntry?
+override suspend fun read(path: RemotePath): Source
+override suspend fun write(path: RemotePath, data: Source): RemoteEntry
+override suspend fun delete(path: RemotePath)
 ```
 
 ## 🧪 Запуск и тестирование
 ```bash
-rtk ./gradlew test
+rtk mise run test
 ```

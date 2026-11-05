@@ -3,10 +3,10 @@ directory: apps/android
 source:
   kind: git
   blob_sha: db7e8b9688324ad0b36e5f5df66bfa29001c66ef
-  commit_sha: 77be09c21d6849c3aa20683f5a464c68907f0746
+  commit_sha: c4d15d5133f882d1b744714b839e702178c89e3c
 generated_by:
   component: context-init
-  role: update
+  role: init
   model: none
 freshness:
   total_entries: 15
@@ -17,7 +17,7 @@ freshness:
 
 # Подсистема: Android (L1)
 
-Модуль и компоненты директории `apps/android` (15 файлов)
+Подсистема `apps/android` с ключевыми точками входа: apps/android/build.gradle.kts
 
 > **Идентификатор:** `apps_android`
 > **Теги:** Kotlin (Gradle), apps_android
@@ -26,7 +26,7 @@ freshness:
 
 | Файл | Статус |
 | :--- | :--- |
-| `apps/android/build.gradle.kts` | Исходный код |
+| `apps/android/build.gradle.kts` | ⭐ Точка входа |
 | `apps/android/src/main/kotlin/dev/mimir/android/ActivitySystemAccountLogin.kt` | Исходный код |
 | `apps/android/src/main/kotlin/dev/mimir/android/AndroidRuntimeFactory.kt` | Исходный код |
 | `apps/android/src/main/kotlin/dev/mimir/android/MainActivity.kt` | Исходный код |
@@ -45,12 +45,18 @@ freshness:
 ## 🔑 Ключевой контракт и экспорты
 ```text
 class ActivitySystemAccountLogin( private val context: Context, private val accountPrefs: SharedPreferences, private val launchIntentSender: (suspend (IntentSenderRequest) -> ActivityResult)? = null, registry: ActivityResultRegistry? = null, ) : SystemAccountLogin
+override suspend fun authorize(): SystemLoginResult
+fun rememberActivitySystemAccountLogin( activity: ComponentActivity, accountPrefs: SharedPreferences, ): ActivitySystemAccountLogin
+object AndroidRuntimeFactory
+fun defaultHttpClient(): HttpClient = HttpClient(CIO)
+fun create( context: Context, httpClient: HttpClient = defaultHttpClient(), scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default), ): MimirRuntime
+override suspend fun quiesce(): Boolean = runtimeRef?.quiesceForUpdate() ?: false
+override suspend fun resume()
 class MainActivity : ComponentActivity()
-class MimirAppLifecycleObserver( private val runtime: () -> MimirRuntime, private val workScheduler: () -> SyncWorkScheduler, private val scope: CoroutineScope, ) : DefaultLifecycleObserver
-class MimirApplication : Application(), Configuration.Provider
+override fun onCreate(savedInstanceState: Bundle?)
 ```
 
 ## 🧪 Запуск и тестирование
 ```bash
-rtk ./gradlew test
+rtk mise run test
 ```

@@ -3,10 +3,10 @@ directory: scripts
 source:
   kind: git
   blob_sha: fb7ae3d1c322d1718f29e5dbef78ecb392810120
-  commit_sha: 77be09c21d6849c3aa20683f5a464c68907f0746
+  commit_sha: c4d15d5133f882d1b744714b839e702178c89e3c
 generated_by:
   component: context-init
-  role: update
+  role: init
   model: none
 freshness:
   total_entries: 2
@@ -37,5 +37,5 @@ export function generateCss(tokens)
 
 ## 🧪 Запуск и тестирование
 ```bash
-rtk ./gradlew test
+rtk mise run test
 ```

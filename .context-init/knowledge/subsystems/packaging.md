@@ -3,10 +3,10 @@ directory: packaging/arch/mimir.sh
 source:
   kind: git
   blob_sha: 640a87765dec5b1536ab895cb4e4f5003996a582
-  commit_sha: 0ca8c0bfc25f095f72fe8f8aff5beb38597b19dd
+  commit_sha: c4d15d5133f882d1b744714b839e702178c89e3c
 generated_by:
   component: context-init
-  role: update
+  role: init
   model: none
 freshness:
   total_entries: 1
@@ -35,5 +35,5 @@ export _JAVA_AWT_WM_NONREPARENTING=1 exec java -jar /usr/share/java/mimir/mimir.
 
 ## 🧪 Запуск и тестирование
 ```bash
-rtk ./gradlew test
+rtk mise run test
 ```

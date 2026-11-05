@@ -28,7 +28,7 @@ rtk mise run screenshots
 rtk ./gradlew :libs:ui:desktopTest --rerun --tests 'dev.mimir.ui.screenshots.*'
 
 # Запуск только скриншотов расширения (требует предварительной сборки расширения):
-rtk ./gradlew :apps:browser-extension:assembleExtension && node browser-extension/scripts/capture-screenshots.mjs
+rtk ./gradlew :apps:browser-extension:assembleExtension && node apps/browser-extension/scripts/capture-screenshots.mjs
 ```
 
 Скриншоты сохраняются в:

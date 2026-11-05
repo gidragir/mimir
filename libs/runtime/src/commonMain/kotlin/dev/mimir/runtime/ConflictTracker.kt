@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.io.files.Path
 import java.nio.file.Files
 import java.nio.file.Paths
@@ -32,6 +34,7 @@ internal class ConflictTracker(
 ) {
     private val _conflicts = MutableStateFlow<List<ConflictFileEntry>>(emptyList())
     val conflicts: StateFlow<List<ConflictFileEntry>> = _conflicts.asStateFlow()
+    private val refreshMutex = Mutex()
 
     private var job: Job? = null
     private var watcher: VaultWatcher? = null
@@ -61,10 +64,10 @@ internal class ConflictTracker(
         watcher = null
     }
 
-    suspend fun refresh(): List<ConflictFileEntry> {
+    suspend fun refresh(): List<ConflictFileEntry> = refreshMutex.withLock {
         val found = vault()?.let { vault -> ConflictFiles.find(vault.list().map { it.relativePath }) } ?: emptyList()
         _conflicts.value = found
-        return found
+        found
     }
 
     suspend fun resolve(originalPath: String, conflictPath: String, keepConflict: Boolean) {

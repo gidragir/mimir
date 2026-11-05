@@ -43,26 +43,28 @@ jobs:
             os: windows-latest
             task: :apps:desktop:packageMsi
             paths: apps/desktop/build/compose/binaries/main/msi/*.msi
-          - name: apk
+          - name: linux-bundles
             os: ubuntu-latest
-            task: :apps:android:assembleRelease
-            paths: apps/android/build/outputs/apk/release/*.apk
-            android: true
-          - name: obsidian-plugin
-            os: ubuntu-latest
-            task: :apps:obsidian-plugin:zipPlugin
+            task: :apps:android:assembleRelease :apps:obsidian-plugin:zipPlugin :apps:browser-extension:zipExtension
             paths: |
+              apps/android/build/outputs/apk/release/*.apk
               apps/obsidian-plugin/build/distributions/*.zip
               apps/obsidian-plugin/build/plugin/main.js
               apps/obsidian-plugin/build/plugin/manifest.json
-          - name: browser-extension
-            os: ubuntu-latest
-            task: :apps:browser-extension:zipExtension
-            paths: apps/browser-extension/build/distributions/*.zip
+              apps/browser-extension/build/distributions/*.zip
+            android: true
     defaults:
       run:
         shell: bash
     steps:
+      - name: Configure Windows environment (Developer Mode, symlinks, long paths)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock" /t REG_DWORD /f /v "AllowDevelopmentWithoutDevLicense" /d "1"
+          reg add "HKLM\SYSTEM\CurrentControlSet\Control\FileSystem" /v "LongPathsEnabled" /t REG_DWORD /d 1 /f
+          git config --global core.symlinks true
+          git config --global core.longpaths true
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.TAG }}
@@ -194,15 +196,7 @@ jobs:
           path: dist
       - uses: actions/download-artifact@v4
         with:
-          name: apk
-          path: dist
-      - uses: actions/download-artifact@v4
-        with:
-          name: obsidian-plugin
-          path: dist
-      - uses: actions/download-artifact@v4
-        with:
-          name: browser-extension
+          name: linux-bundles
           path: dist
       - uses: actions/download-artifact@v4
         with:

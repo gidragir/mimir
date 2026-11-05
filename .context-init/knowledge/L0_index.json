@@ -7,25 +7,41 @@
   "project_type": "Kotlin (Gradle)",
   "entrypoints": [
     "package.json",
-    "mise.toml"
+    "mise.toml",
+    "build.gradle.kts",
+    "settings.gradle.kts"
   ],
   "commands": {
-    "build": "rtk ./gradlew build",
-    "test": "rtk ./gradlew test",
-    "run": "rtk ./gradlew run",
+    "build": "rtk mise run build",
+    "test": "rtk mise run test",
+    "run": "rtk mise run desktop",
     "custom": {
-      "runner": "mise (task runner)"
+      "package:msi": "rtk mise run package:msi",
+      "extension": "rtk mise run extension",
+      "android": "rtk mise run android",
+      "package:extension": "rtk mise run package:extension",
+      "package:docker": "rtk mise run package:docker",
+      "build:extension": "rtk mise run build:extension",
+      "package:arch": "rtk mise run package:arch",
+      "screenshots": "rtk mise run screenshots",
+      "daemon": "rtk mise run daemon",
+      "desktop": "rtk mise run desktop",
+      "web": "rtk mise run web",
+      "plugin": "rtk mise run plugin"
     }
   },
   "subsystems": [
     {
       "id": "apps_android",
       "name": "Android",
-      "summary": "Модуль и компоненты директории `apps/android` (15 файлов)",
+      "summary": "Подсистема `apps/android` с ключевыми точками входа: apps/android/build.gradle.kts",
       "l1_path": "subsystems/apps_android.md",
       "tags": [
         "Kotlin (Gradle)",
         "apps_android"
+      ],
+      "entrypoints": [
+        "apps/android/build.gradle.kts"
       ],
       "key_files": [
         "apps/android/build.gradle.kts",
@@ -47,7 +63,7 @@
       "files": [
         {
           "path": "apps/android/build.gradle.kts",
-          "is_entrypoint": false
+          "is_entrypoint": true
         },
         {
           "path": "apps/android/src/main/kotlin/dev/mimir/android/ActivitySystemAccountLogin.kt",
@@ -108,47 +124,120 @@
       ],
       "key_symbols": [
         "class ActivitySystemAccountLogin( private val context: Context, private val accountPrefs: SharedPreferences, private val launchIntentSender: (suspend (IntentSenderRequest) -> ActivityResult)? = null, registry: ActivityResultRegistry? = null, ) : SystemAccountLogin",
+        "override suspend fun authorize(): SystemLoginResult",
+        "fun rememberActivitySystemAccountLogin( activity: ComponentActivity, accountPrefs: SharedPreferences, ): ActivitySystemAccountLogin",
+        "object AndroidRuntimeFactory",
+        "fun defaultHttpClient(): HttpClient = HttpClient(CIO)",
+        "fun create( context: Context, httpClient: HttpClient = defaultHttpClient(), scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default), ): MimirRuntime",
+        "override suspend fun quiesce(): Boolean = runtimeRef?.quiesceForUpdate() ?: false",
+        "override suspend fun resume()",
         "class MainActivity : ComponentActivity()",
-        "class MimirAppLifecycleObserver( private val runtime: () -> MimirRuntime, private val workScheduler: () -> SyncWorkScheduler, private val scope: CoroutineScope, ) : DefaultLifecycleObserver",
-        "class MimirApplication : Application(), Configuration.Provider"
+        "override fun onCreate(savedInstanceState: Bundle?)"
       ],
       "summary_source": "heuristic"
     },
     {
       "id": "apps_browser-extension",
       "name": "Browser Extension",
-      "summary": "Модуль и компоненты директории `apps/browser-extension` (15 файлов)",
+      "summary": "Подсистема `apps/browser-extension` с ключевыми точками входа: apps/browser-extension/build.gradle.kts",
       "l1_path": "subsystems/apps_browser-extension.md",
       "tags": [
         "Kotlin (Gradle)",
         "apps_browser-extension"
       ],
+      "entrypoints": [
+        "apps/browser-extension/build.gradle.kts"
+      ],
       "key_files": [
         "apps/browser-extension/build.gradle.kts",
+        "apps/browser-extension/karma.config.d/headless.js",
+        "apps/browser-extension/karma.config.d/mocha-timeout.js",
+        "apps/browser-extension/manifest.template.json",
         "apps/browser-extension/scripts/capture-screenshots.mjs",
-        "apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/Popup.kt",
-        "apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/markdown/SafeMarkdownRenderer.kt",
-        "apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/platform/ChromeExtensionPlatform.kt",
-        "apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/platform/ExtensionPlatform.kt",
-        "apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/ui/AuthScreens.kt",
-        "apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/ui/ExtensionController.kt",
-        "apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/ui/ExtensionUiState.kt",
-        "apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/ui/GoogleExtensionAuthHandler.kt",
-        "apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/ui/PopupDomView.kt",
-        "apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/update/ExtensionUpdateController.kt",
-        "apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/vault/VaultTreeBuilder.kt",
-        "apps/browser-extension/src/jsMain/resources/popup.css",
-        "apps/browser-extension/src/jsMain/resources/tokens.css"
+        "apps/browser-extension/scripts/check-extension.mjs"
       ],
       "files": [
         {
           "path": "apps/browser-extension/build.gradle.kts",
+          "is_entrypoint": true
+        },
+        {
+          "path": "apps/browser-extension/karma.config.d/headless.js",
+          "is_entrypoint": false
+        },
+        {
+          "path": "apps/browser-extension/karma.config.d/mocha-timeout.js",
+          "is_entrypoint": false
+        },
+        {
+          "path": "apps/browser-extension/manifest.template.json",
           "is_entrypoint": false
         },
         {
           "path": "apps/browser-extension/scripts/capture-screenshots.mjs",
           "is_entrypoint": false
         },
+        {
+          "path": "apps/browser-extension/scripts/check-extension.mjs",
+          "is_entrypoint": false
+        }
+      ],
+      "key_symbols": [
+        "fun googleSecret(name: String) = providers.environmentVariable(\"MIMIR_BUILD_GOOGLE_$name\")"
+      ],
+      "summary_source": "heuristic"
+    },
+    {
+      "id": "apps_browser-extension_jsmain",
+      "name": "Browser Extension JsMain",
+      "summary": "Модуль и компоненты директории `apps/browser-extension/src/jsMain` (3 файлов)",
+      "l1_path": "subsystems/apps_browser-extension_jsmain.md",
+      "tags": [
+        "Kotlin (Gradle)",
+        "apps_browser-extension_jsmain"
+      ],
+      "key_files": [
+        "apps/browser-extension/src/jsMain/resources/background.js",
+        "apps/browser-extension/src/jsMain/resources/popup.css",
+        "apps/browser-extension/src/jsMain/resources/tokens.css"
+      ],
+      "files": [
+        {
+          "path": "apps/browser-extension/src/jsMain/resources/background.js",
+          "is_entrypoint": false
+        },
+        {
+          "path": "apps/browser-extension/src/jsMain/resources/popup.css",
+          "is_entrypoint": false
+        },
+        {
+          "path": "apps/browser-extension/src/jsMain/resources/tokens.css",
+          "is_entrypoint": false
+        }
+      ],
+      "parent": "apps_browser-extension",
+      "summary_source": "heuristic"
+    },
+    {
+      "id": "apps_browser-extension_jsmain_kotlin_dev_mimir_extension",
+      "name": "Browser Extension JsMain Kotlin Dev Mimir Extension",
+      "summary": "Модуль и компоненты директории `apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension` (8 файлов)",
+      "l1_path": "subsystems/apps_browser-extension_jsmain_kotlin_dev_mimir_extension.md",
+      "tags": [
+        "Kotlin (Gradle)",
+        "apps_browser-extension_jsmain_kotlin_dev_mimir_extension"
+      ],
+      "key_files": [
+        "apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/Popup.kt",
+        "apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/markdown/SafeMarkdownRenderer.kt",
+        "apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/platform/ChromeExtensionPlatform.kt",
+        "apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/platform/ExtensionPlatform.kt",
+        "apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/platform/FakeExtensionPlatform.kt",
+        "apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/update/ExtensionUpdateController.kt",
+        "apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/update/WebExtensionNotifyApplier.kt",
+        "apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/vault/VaultTreeBuilder.kt"
+      ],
+      "files": [
         {
           "path": "apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/Popup.kt",
           "is_entrypoint": false
@@ -166,7 +255,63 @@
           "is_entrypoint": false
         },
         {
+          "path": "apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/platform/FakeExtensionPlatform.kt",
+          "is_entrypoint": false
+        },
+        {
+          "path": "apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/update/ExtensionUpdateController.kt",
+          "is_entrypoint": false
+        },
+        {
+          "path": "apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/update/WebExtensionNotifyApplier.kt",
+          "is_entrypoint": false
+        },
+        {
+          "path": "apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/vault/VaultTreeBuilder.kt",
+          "is_entrypoint": false
+        }
+      ],
+      "key_symbols": [
+        "fun main()",
+        "object SafeMarkdownRenderer",
+        "fun render( document: Document, markdown: String, onWikilinkClick: (String) -> Unit =",
+        "fun stripMarkdownToPlainText(markdown: String): String",
+        "fun flush()",
+        "fun wrapped(tag: String, inner: String): HTMLElement",
+        "class ChromeExtensionPlatform : ExtensionPlatform",
+        "override fun observeSessionKey(key: String, onChanged: (String?) -> Unit)",
+        "override suspend fun getSessionString(key: String): String? = readString(session, key)",
+        "override suspend fun setSessionString(key: String, value: String) = writeString(session, key, value)"
+      ],
+      "parent": "apps_browser-extension_jsmain_kotlin_dev_mimir",
+      "summary_source": "heuristic"
+    },
+    {
+      "id": "apps_browser-extension_jsmain_kotlin_dev_mimir_extension_ui",
+      "name": "Browser Extension JsMain Kotlin Dev Mimir Extension Ui",
+      "summary": "Модуль и компоненты директории `apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/ui` (8 файлов)",
+      "l1_path": "subsystems/apps_browser-extension_jsmain_kotlin_dev_mimir_extension_ui.md",
+      "tags": [
+        "Kotlin (Gradle)",
+        "apps_browser-extension_jsmain_kotlin_dev_mimir_extension_ui"
+      ],
+      "key_files": [
+        "apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/ui/AuthScreens.kt",
+        "apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/ui/DomKit.kt",
+        "apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/ui/ExtensionController.kt",
+        "apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/ui/ExtensionUiState.kt",
+        "apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/ui/FakeExtensionAuthHandler.kt",
+        "apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/ui/GoogleExtensionAuthHandler.kt",
+        "apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/ui/PopupDomView.kt",
+        "apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/ui/UpdateBannerView.kt"
+      ],
+      "files": [
+        {
           "path": "apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/ui/AuthScreens.kt",
+          "is_entrypoint": false
+        },
+        {
+          "path": "apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/ui/DomKit.kt",
           "is_entrypoint": false
         },
         {
@@ -178,6 +323,10 @@
           "is_entrypoint": false
         },
         {
+          "path": "apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/ui/FakeExtensionAuthHandler.kt",
+          "is_entrypoint": false
+        },
+        {
           "path": "apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/ui/GoogleExtensionAuthHandler.kt",
           "is_entrypoint": false
         },
@@ -186,35 +335,36 @@
           "is_entrypoint": false
         },
         {
-          "path": "apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/update/ExtensionUpdateController.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/vault/VaultTreeBuilder.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "apps/browser-extension/src/jsMain/resources/popup.css",
-          "is_entrypoint": false
-        },
-        {
-          "path": "apps/browser-extension/src/jsMain/resources/tokens.css",
+          "path": "apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/ui/UpdateBannerView.kt",
           "is_entrypoint": false
         }
       ],
       "key_symbols": [
-        "class ChromeExtensionPlatform : ExtensionPlatform"
+        "internal class AuthScreens( private val dom: DomKit, private val controller: ExtensionController, private val platform: ExtensionPlatform, private val scope: CoroutineScope, )",
+        "fun loading(message: String, details: String? = null): HTMLElement = dom.el(\"section\", \"screen center\").also",
+        "fun authRequired(state: ExtensionUiState.AuthRequired): HTMLElement",
+        "fun unlockRequired(state: ExtensionUiState.UnlockRequired): HTMLElement",
+        "internal class DomKit(val document: Document)",
+        "fun el(tag: String, className: String? = null, text: String? = null, testId: String? = null): HTMLElement",
+        "fun button(label: String, className: String = \"btn\", testId: String? = null, title: String? = null, onClick: () -> Unit): HTMLButtonElement",
+        "fun input(type: String, placeholder: String? = null, testId: String? = null): HTMLInputElement",
+        "interface ExtensionAuthHandler",
+        "suspend fun currentAccount(): Account?"
       ],
+      "parent": "apps_browser-extension_jsmain_kotlin_dev_mimir_extension",
       "summary_source": "heuristic"
     },
     {
       "id": "apps_daemon",
       "name": "Daemon",
-      "summary": "Модуль и компоненты директории `apps/daemon` (9 файлов)",
+      "summary": "Подсистема `apps/daemon` с ключевыми точками входа: apps/daemon/build.gradle.kts",
       "l1_path": "subsystems/apps_daemon.md",
       "tags": [
         "Kotlin (Gradle)",
         "apps_daemon"
+      ],
+      "entrypoints": [
+        "apps/daemon/build.gradle.kts"
       ],
       "key_files": [
         "apps/daemon/build.gradle.kts",
@@ -230,7 +380,7 @@
       "files": [
         {
           "path": "apps/daemon/build.gradle.kts",
-          "is_entrypoint": false
+          "is_entrypoint": true
         },
         {
           "path": "apps/daemon/src/main/kotlin/dev/mimir/daemon/DaemonConfig.kt",
@@ -266,19 +416,30 @@
         }
       ],
       "key_symbols": [
+        "data class DaemonConfig( val bind: String = \"127.0.0.1\", val port: Int = BuildConfig.API_DEFAULT_PORT, val vaultPath: String? = null, val token: String? = null, val password: String? = null, val passwordFile: String? = null, val googleDesktopClientId: String? = null, val googl...",
+        "fun resolvePassword(): String?",
+        "fun isPasswordFileInsecure(): Boolean",
+        "fun save(configDir: String? = null)",
+        "override fun toString(): String = \"DaemonConfig(bind=$bind, port=$port, vaultPath=$vaultPath, token=$",
+        "fun load(configDir: String? = null, env: Map<String, String> = System.getenv()): DaemonConfig",
+        "fun readFile(configDir: String): DaemonConfig",
+        "fun DaemonConfig.Companion.fromEnv(env: Map<String, String>): DaemonConfig = DaemonConfig().applyEnv(env)",
         "class DaemonSettingsStore(initial: DaemonConfig) : RuntimeSettingsStore",
-        "class DockerLogNotifyApplier( private val log: (String) -> Unit = applierLogger::info, ) : UpdateApplier"
+        "override fun load() = RuntimeConfig( dataDir = Paths.get(configDir), vaultPath = config.vaultPath, syncIntervalSeconds = config.syncIntervalSeconds, syncParallelism = config.syncParallelism, rootFolder = config.rootFolder, )"
       ],
       "summary_source": "heuristic"
     },
     {
       "id": "apps_desktop",
       "name": "Desktop",
-      "summary": "Модуль и компоненты директории `apps/desktop` (15 файлов)",
+      "summary": "Подсистема `apps/desktop` с ключевыми точками входа: apps/desktop/build.gradle.kts",
       "l1_path": "subsystems/apps_desktop.md",
       "tags": [
         "Kotlin (Gradle)",
         "apps_desktop"
+      ],
+      "entrypoints": [
+        "apps/desktop/build.gradle.kts"
       ],
       "key_files": [
         "apps/desktop/build.gradle.kts",
@@ -300,7 +461,7 @@
       "files": [
         {
           "path": "apps/desktop/build.gradle.kts",
-          "is_entrypoint": false
+          "is_entrypoint": true
         },
         {
           "path": "apps/desktop/src/main/kotlin/dev/mimir/desktop/DaemonServiceFactory.kt",
@@ -360,18 +521,30 @@
         }
       ],
       "key_symbols": [
-        "class DesktopBackend(...) : AutoCloseable"
+        "fun patchWindowsCfg()",
+        "class DesktopBackend(...) : AutoCloseable",
+        "enum class Mode",
+        "override fun close() = onClose()",
+        "object DaemonServiceFactory",
+        "suspend fun create( config: DaemonConfig, platform: TargetPlatform = detectTargetPlatform(System.getProperty(\"os.name\").orEmpty(), System.getProperty(\"os.arch\").orEmpty()), updateTempDir: Path = Path.of(System.getProperty(\"java.io.tmpdir\"), \"mimir-updates\"), ): DesktopBackend",
+        "override suspend fun quiesce() = runtimeRef.get()?.quiesceForUpdate() ?: false",
+        "override suspend fun resume()",
+        "override suspend fun shutdown()",
+        "fun main(args: Array<String>)"
       ],
       "summary_source": "heuristic"
     },
     {
       "id": "apps_obsidian-plugin",
       "name": "Obsidian Plugin",
-      "summary": "Модуль и компоненты директории `apps/obsidian-plugin` (8 файлов)",
+      "summary": "Подсистема `apps/obsidian-plugin` с ключевыми точками входа: apps/obsidian-plugin/build.gradle.kts",
       "l1_path": "subsystems/apps_obsidian-plugin.md",
       "tags": [
         "Kotlin (Gradle)",
         "apps_obsidian-plugin"
+      ],
+      "entrypoints": [
+        "apps/obsidian-plugin/build.gradle.kts"
       ],
       "key_files": [
         "apps/obsidian-plugin/build.gradle.kts",
@@ -386,7 +559,7 @@
       "files": [
         {
           "path": "apps/obsidian-plugin/build.gradle.kts",
-          "is_entrypoint": false
+          "is_entrypoint": true
         },
         {
           "path": "apps/obsidian-plugin/manifest.template.json",
@@ -420,18 +593,28 @@
       "key_symbols": [
         "class Plugin",
         "class Notice",
-        "class MimirPlugin : Plugin()"
+        "class MimirPlugin : Plugin()",
+        "override fun onload()",
+        "override fun onunload()",
+        "external class DataAdapter",
+        "fun exists(path: String): Promise<Boolean>",
+        "fun readBinary(path: String): Promise<ArrayBuffer>",
+        "fun writeBinary(path: String, data: ArrayBuffer): Promise<Unit>",
+        "external class Vault"
       ],
       "summary_source": "heuristic"
     },
     {
       "id": "apps_web-ui",
       "name": "Web Ui",
-      "summary": "Модуль и компоненты директории `apps/web-ui` (2 файлов)",
+      "summary": "Подсистема `apps/web-ui` с ключевыми точками входа: apps/web-ui/build.gradle.kts",
       "l1_path": "subsystems/apps_web-ui.md",
       "tags": [
         "Kotlin (Gradle)",
         "apps_web-ui"
+      ],
+      "entrypoints": [
+        "apps/web-ui/build.gradle.kts"
       ],
       "key_files": [
         "apps/web-ui/build.gradle.kts",
@@ -440,23 +623,29 @@
       "files": [
         {
           "path": "apps/web-ui/build.gradle.kts",
-          "is_entrypoint": false
+          "is_entrypoint": true
         },
         {
           "path": "apps/web-ui/src/wasmJsMain/kotlin/dev/mimir/web/Main.kt",
           "is_entrypoint": false
         }
       ],
+      "key_symbols": [
+        "fun main()"
+      ],
       "summary_source": "heuristic"
     },
     {
       "id": "build-logic",
       "name": "Build Logic",
-      "summary": "Модуль и компоненты директории `build-logic` (5 файлов)",
+      "summary": "Подсистема `build-logic` с ключевыми точками входа: build-logic/build.gradle.kts",
       "l1_path": "subsystems/build-logic.md",
       "tags": [
         "Kotlin (Gradle)",
         "build-logic"
+      ],
+      "entrypoints": [
+        "build-logic/build.gradle.kts"
       ],
       "key_files": [
         "build-logic/build.gradle.kts",
@@ -468,7 +657,7 @@
       "files": [
         {
           "path": "build-logic/build.gradle.kts",
-          "is_entrypoint": false
+          "is_entrypoint": true
         },
         {
           "path": "build-logic/settings.gradle.kts",
@@ -510,228 +699,16 @@
       "summary_source": "heuristic"
     },
     {
-      "id": "docs",
-      "name": "Docs",
-      "summary": "Модуль и компоненты директории `docs` (15 файлов)",
-      "l1_path": "subsystems/docs.md",
-      "tags": [
-        "Kotlin (Gradle)",
-        "docs"
-      ],
-      "key_files": [
-        "docs/superpowers/plans/2026-10-23-mimir-drive.md",
-        "docs/superpowers/plans/2026-10-24-mimir-desktop-polish.md",
-        "docs/superpowers/plans/2026-10-24-mimir-desktop.md",
-        "docs/superpowers/plans/2026-10-24-mimir-obsidian-ui-and-onboarding.md",
-        "docs/superpowers/plans/2026-10-24-mimir-uri-scheme-login.md",
-        "docs/superpowers/plans/2026-10-26-mimir-improvements.md",
-        "docs/superpowers/plans/2026-10-27-mimir-android.md",
-        "docs/superpowers/plans/2026-11-01-mimir-browser-extension.md",
-        "docs/superpowers/plans/2026-11-03-cross-platform-auto-updates.md",
-        "docs/superpowers/plans/2026-11-03-web-ui-docker.md",
-        "docs/superpowers/plans/2026-11-05-monorepo-structure-and-ci-pipeline.md",
-        "docs/superpowers/specs/2026-10-24-mimir-daemon-design.md",
-        "docs/superpowers/specs/2026-11-01-mimir-browser-extension-design.md",
-        "docs/superpowers/specs/2026-11-03-cross-platform-auto-updates-design.md",
-        "docs/superpowers/specs/2026-11-04-monorepo-structure-and-ci-pipeline-design.md"
-      ],
-      "files": [
-        {
-          "path": "docs/superpowers/plans/2026-10-23-mimir-drive.md",
-          "is_entrypoint": false
-        },
-        {
-          "path": "docs/superpowers/plans/2026-10-24-mimir-desktop-polish.md",
-          "is_entrypoint": false
-        },
-        {
-          "path": "docs/superpowers/plans/2026-10-24-mimir-desktop.md",
-          "is_entrypoint": false
-        },
-        {
-          "path": "docs/superpowers/plans/2026-10-24-mimir-obsidian-ui-and-onboarding.md",
-          "is_entrypoint": false
-        },
-        {
-          "path": "docs/superpowers/plans/2026-10-24-mimir-uri-scheme-login.md",
-          "is_entrypoint": false
-        },
-        {
-          "path": "docs/superpowers/plans/2026-10-26-mimir-improvements.md",
-          "is_entrypoint": false
-        },
-        {
-          "path": "docs/superpowers/plans/2026-10-27-mimir-android.md",
-          "is_entrypoint": false
-        },
-        {
-          "path": "docs/superpowers/plans/2026-11-01-mimir-browser-extension.md",
-          "is_entrypoint": false
-        },
-        {
-          "path": "docs/superpowers/plans/2026-11-03-cross-platform-auto-updates.md",
-          "is_entrypoint": false
-        },
-        {
-          "path": "docs/superpowers/plans/2026-11-03-web-ui-docker.md",
-          "is_entrypoint": false
-        },
-        {
-          "path": "docs/superpowers/plans/2026-11-05-monorepo-structure-and-ci-pipeline.md",
-          "is_entrypoint": false
-        },
-        {
-          "path": "docs/superpowers/specs/2026-10-24-mimir-daemon-design.md",
-          "is_entrypoint": false
-        },
-        {
-          "path": "docs/superpowers/specs/2026-11-01-mimir-browser-extension-design.md",
-          "is_entrypoint": false
-        },
-        {
-          "path": "docs/superpowers/specs/2026-11-03-cross-platform-auto-updates-design.md",
-          "is_entrypoint": false
-        },
-        {
-          "path": "docs/superpowers/specs/2026-11-04-monorepo-structure-and-ci-pipeline-design.md",
-          "is_entrypoint": false
-        }
-      ],
-      "key_symbols": [
-        "class ChangeFeedStorageTest",
-        "class GoogleAuthClients(val desktop: GoogleAuthClient?, val device: GoogleAuthClient?)",
-        "class CanaryCheckTest",
-        "class ConfigureVaultTest",
-        "class MimirThemeTest",
-        "class AwtFolderPickerTest",
-        "class SingleInstanceManager(socketPath: Path? = null) : AutoCloseable",
-        "class SingleInstanceManagerTest"
-      ],
-      "summary_source": "heuristic"
-    },
-    {
-      "id": "gradle",
-      "name": "Gradle",
-      "summary": "Модуль и компоненты директории `gradle` (1 файлов)",
-      "l1_path": "subsystems/gradle.md",
-      "tags": [
-        "Kotlin (Gradle)",
-        "gradle"
-      ],
-      "key_files": [
-        "gradle/libs.versions.toml"
-      ],
-      "files": [
-        {
-          "path": "gradle/libs.versions.toml",
-          "is_entrypoint": false
-        }
-      ],
-      "summary_source": "heuristic"
-    },
-    {
-      "id": "libs",
-      "name": "Libs",
-      "summary": "Модуль и компоненты директории `libs` (15 файлов)",
-      "l1_path": "subsystems/libs.md",
-      "tags": [
-        "Kotlin (Gradle)",
-        "libs"
-      ],
-      "key_files": [
-        "libs/client/src/commonMain/kotlin/dev/mimir/client/DaemonDto.kt",
-        "libs/client/src/commonMain/kotlin/dev/mimir/client/DaemonService.kt",
-        "libs/client/src/commonMain/kotlin/dev/mimir/client/HttpDaemonClient.kt",
-        "libs/client/src/commonMain/kotlin/dev/mimir/client/UpdateDto.kt",
-        "libs/drive/src/commonMain/kotlin/dev/mimir/drive/GoogleDriveStorage.kt",
-        "libs/drive/src/commonMain/kotlin/dev/mimir/drive/GoogleDriveStorageProvider.kt",
-        "libs/drive/src/commonMain/kotlin/dev/mimir/drive/api/DriveDto.kt",
-        "libs/drive/src/commonMain/kotlin/dev/mimir/drive/auth/AccessTokenSource.kt",
-        "libs/drive/src/commonMain/kotlin/dev/mimir/drive/auth/BrowserLogin.kt",
-        "libs/drive/src/commonMain/kotlin/dev/mimir/drive/auth/GoogleAuthClient.kt",
-        "libs/drive/src/commonMain/kotlin/dev/mimir/drive/client/DriveHttpClient.kt",
-        "libs/drive/src/commonMain/kotlin/dev/mimir/drive/client/DriveHttpException.kt",
-        "libs/drive/src/commonMain/kotlin/dev/mimir/drive/client/RetryPolicy.kt",
-        "libs/drive/src/commonMain/kotlin/dev/mimir/drive/path/DrivePathResolver.kt",
-        "libs/drive/src/commonMain/kotlin/dev/mimir/drive/upload/DriveUploader.kt"
-      ],
-      "files": [
-        {
-          "path": "libs/client/src/commonMain/kotlin/dev/mimir/client/DaemonDto.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/client/src/commonMain/kotlin/dev/mimir/client/DaemonService.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/client/src/commonMain/kotlin/dev/mimir/client/HttpDaemonClient.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/client/src/commonMain/kotlin/dev/mimir/client/UpdateDto.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/drive/src/commonMain/kotlin/dev/mimir/drive/GoogleDriveStorage.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/drive/src/commonMain/kotlin/dev/mimir/drive/GoogleDriveStorageProvider.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/drive/src/commonMain/kotlin/dev/mimir/drive/api/DriveDto.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/drive/src/commonMain/kotlin/dev/mimir/drive/auth/AccessTokenSource.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/drive/src/commonMain/kotlin/dev/mimir/drive/auth/BrowserLogin.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/drive/src/commonMain/kotlin/dev/mimir/drive/auth/GoogleAuthClient.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/drive/src/commonMain/kotlin/dev/mimir/drive/client/DriveHttpClient.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/drive/src/commonMain/kotlin/dev/mimir/drive/client/DriveHttpException.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/drive/src/commonMain/kotlin/dev/mimir/drive/client/RetryPolicy.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/drive/src/commonMain/kotlin/dev/mimir/drive/path/DrivePathResolver.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/drive/src/commonMain/kotlin/dev/mimir/drive/upload/DriveUploader.kt",
-          "is_entrypoint": false
-        }
-      ],
-      "key_symbols": [
-        "class HttpDaemonClient( private val baseUrl: String, private val token: String? = null, scope: CoroutineScope, private val httpClient: HttpClient = defaultDaemonHttpClient(), pollInterval: Duration = 1.seconds, ) : DaemonService",
-        "class UpdateCommandException(...) : IllegalStateException(message) /** * Единственное место, где по тексту ошибки менеджера определяется причина (менеджер отдаёт только строку). * [retryAft...",
-        "class GoogleDriveStorage( private val client: DriveHttpClient? = null, private val pathResolver: DrivePathResolver? = null, ) : ChangeFeedStorage"
-      ],
-      "summary_source": "heuristic"
-    },
-    {
       "id": "libs_client",
       "name": "Client",
-      "summary": "Модуль и компоненты директории `libs/client` (5 файлов)",
+      "summary": "Подсистема `libs/client` с ключевыми точками входа: libs/client/build.gradle.kts",
       "l1_path": "subsystems/libs_client.md",
       "tags": [
         "Kotlin (Gradle)",
         "libs_client"
+      ],
+      "entrypoints": [
+        "libs/client/build.gradle.kts"
       ],
       "key_files": [
         "libs/client/build.gradle.kts",
@@ -743,7 +720,7 @@
       "files": [
         {
           "path": "libs/client/build.gradle.kts",
-          "is_entrypoint": false
+          "is_entrypoint": true
         },
         {
           "path": "libs/client/src/commonMain/kotlin/dev/mimir/client/DaemonDto.kt",
@@ -763,19 +740,30 @@
         }
       ],
       "key_symbols": [
-        "class HttpDaemonClient( private val baseUrl: String, private val token: String? = null, scope: CoroutineScope, private val httpClient: HttpClient = defaultDaemonHttpClient(), pollInterval: Duration = 1.seconds, ) : DaemonService",
-        "class UpdateCommandException(...) : IllegalStateException(message) /** * Единственное место, где по тексту ошибки менеджера определяется причина (менеджер отдаёт только строку). * [retryAft..."
+        "fun DaemonSyncProgressDto.toModel(...): SyncProgress = SyncProgress( phase = parseSnake<SyncPhase>(phase), startedAt = Instant.parse(startedAt), finishedAt = finishedAt?.let(Instant::parse), applyingStartedAt = applyingStartedAt?.let(Instant::parse), scanned = scanned, folders...",
+        "data class DaemonStatusDto( val status: String, val label: String, val vaultPath: String? = null, val lastSyncAt: String? = null, val isLocked: Boolean, val activeConflicts: Int, val accountEmail: String? = null, val progress: DaemonSyncProgressDto? = null, )",
+        "data class DaemonSyncProgressDto( val phase: String, val startedAt: String, val finishedAt: String? = null, val applyingStartedAt: String? = null, val scanned: Int = 0, val foldersScanned: Int = 0, val total: Int = 0, val done: Int = 0, val bytesTotal: Long = 0, val bytesDone:...",
+        "data class DaemonSyncItemDto( val path: String, val action: String, )",
+        "data class DaemonCompletedItemDto( val path: String, val action: String, val at: String, )",
+        "data class DaemonSyncProblemDto( val path: String, val action: String, val kind: String, val detail: String, )",
+        "data class DaemonConflictItemDto( val originalPath: String, val conflictPath: String, val createdAt: String, )",
+        "data class DaemonConflictsResponse( val conflicts: List<DaemonConflictItemDto>, )",
+        "data class DaemonResolveConflictRequest( val originalPath: String, val conflictPath: String, val resolution: String, // \"keep_original\" | \"keep_conflict\" )",
+        "data class DaemonResolveConflictResponse( val status: String, val path: String, )"
       ],
       "summary_source": "heuristic"
     },
     {
       "id": "libs_core",
-      "name": "Libs Core",
-      "summary": "Модуль и компоненты директории `libs/core` (15 файлов)",
+      "name": "Core",
+      "summary": "Подсистема `libs/core` с ключевыми точками входа: libs/core/build.gradle.kts",
       "l1_path": "subsystems/libs_core.md",
       "tags": [
         "Kotlin (Gradle)",
         "libs_core"
+      ],
+      "entrypoints": [
+        "libs/core/build.gradle.kts"
       ],
       "key_files": [
         "libs/core/build.gradle.kts",
@@ -797,7 +785,7 @@
       "files": [
         {
           "path": "libs/core/build.gradle.kts",
-          "is_entrypoint": false
+          "is_entrypoint": true
         },
         {
           "path": "libs/core/src/androidMain/kotlin/dev/mimir/core/crypto/AndroidKeystoreSecretStore.kt",
@@ -857,7 +845,16 @@
         }
       ],
       "key_symbols": [
-        "class AndroidFileObserverVaultWatcher( private val root: File, rules: SyncRules = SyncRules(), private val debounce: Duration = 1.seconds, echoTtl: Duration = 2.seconds, private val clock: Clock = Clock.System, ) : VaultWatcher"
+        "internal class AndroidKeystoreCipher(private val alias: String) : SecretCipher",
+        "override fun encrypt(plain: ByteArray): ByteArray",
+        "override fun decrypt(encrypted: ByteArray): ByteArray",
+        "override fun get(key: String): String? = prefs.getString(key, null)",
+        "override fun put(key: String, value: String) = prefs.edit().putString(key, value).apply()",
+        "override fun remove(key: String) = prefs.edit().remove(key).apply()",
+        "fun AndroidKeystoreSecretStore( context: Context, prefsName: String = \"[REDACTED]\"",
+        "internal actual fun randomNonce(): ByteArray = ByteArray(24).also(secureRandom::nextBytes)",
+        "class AndroidFileObserverVaultWatcher( private val root: File, rules: SyncRules = SyncRules(), private val debounce: Duration = 1.seconds, echoTtl: Duration = 2.seconds, private val clock: Clock = Clock.System, ) : VaultWatcher",
+        "data class FsEvent(val dir: File, val event: Int, val path: String?) : WatcherEvent"
       ],
       "summary_source": "heuristic"
     },
@@ -871,23 +868,27 @@
         "libs_core_commonmain_kotlin_dev_mimir_core"
       ],
       "key_files": [
+        "libs/core/src/commonMain/kotlin/dev/mimir/core/api/LocalVault.kt",
         "libs/core/src/commonMain/kotlin/dev/mimir/core/api/RemoteStorage.kt",
         "libs/core/src/commonMain/kotlin/dev/mimir/core/fs/FileSystemLocalVault.kt",
+        "libs/core/src/commonMain/kotlin/dev/mimir/core/fs/PollingVaultWatcher.kt",
         "libs/core/src/commonMain/kotlin/dev/mimir/core/rules/GlobMatcher.kt",
-        "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/ActionExecutor.kt",
-        "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/ConflictResolver.kt",
-        "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/DefaultSyncEngine.kt",
-        "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/SyncPlan.kt",
-        "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/SyncPlanBuilder.kt",
         "libs/core/src/commonMain/kotlin/dev/mimir/core/testing/CountingRemoteStorage.kt",
         "libs/core/src/commonMain/kotlin/dev/mimir/core/testing/InMemoryLocalVault.kt",
         "libs/core/src/commonMain/kotlin/dev/mimir/core/testing/InMemoryRemoteStorage.kt",
+        "libs/core/src/commonMain/kotlin/dev/mimir/core/update/DailyUpdateChecker.kt",
         "libs/core/src/commonMain/kotlin/dev/mimir/core/update/DefaultUpdateManager.kt",
         "libs/core/src/commonMain/kotlin/dev/mimir/core/update/GitHubReleasesChannel.kt",
         "libs/core/src/commonMain/kotlin/dev/mimir/core/update/InPlaceBundleApplier.kt",
-        "libs/core/src/commonMain/kotlin/dev/mimir/core/update/SemVer.kt"
+        "libs/core/src/commonMain/kotlin/dev/mimir/core/update/SemVer.kt",
+        "libs/core/src/commonMain/kotlin/dev/mimir/core/update/UpdateApplier.kt",
+        "libs/core/src/commonMain/kotlin/dev/mimir/core/update/UpdateModels.kt"
       ],
       "files": [
+        {
+          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/api/LocalVault.kt",
+          "is_entrypoint": false
+        },
         {
           "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/api/RemoteStorage.kt",
           "is_entrypoint": false
@@ -897,27 +898,11 @@
           "is_entrypoint": false
         },
         {
+          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/fs/PollingVaultWatcher.kt",
+          "is_entrypoint": false
+        },
+        {
           "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/rules/GlobMatcher.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/ActionExecutor.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/ConflictResolver.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/DefaultSyncEngine.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/SyncPlan.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/SyncPlanBuilder.kt",
           "is_entrypoint": false
         },
         {
@@ -930,6 +915,10 @@
         },
         {
           "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/testing/InMemoryRemoteStorage.kt",
+          "is_entrypoint": false
+        },
+        {
+          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/update/DailyUpdateChecker.kt",
           "is_entrypoint": false
         },
         {
@@ -947,11 +936,27 @@
         {
           "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/update/SemVer.kt",
           "is_entrypoint": false
+        },
+        {
+          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/update/UpdateApplier.kt",
+          "is_entrypoint": false
+        },
+        {
+          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/update/UpdateModels.kt",
+          "is_entrypoint": false
         }
       ],
       "key_symbols": [
-        "class FileSystemLocalVault(...) : LocalVault",
-        "class DefaultConflictResolver( private val clock: Clock = Clock.System, ) : ConflictResolver"
+        "value class VaultFileId(val value: String)",
+        "data class LocalEntry( val id: VaultFileId, val relativePath: String, val size: Long, val modifiedAt: Instant, )",
+        "sealed interface VaultChange",
+        "data class Created(override val id: VaultFileId, val entry: LocalEntry) : VaultChange",
+        "data class Modified(override val id: VaultFileId, val entry: LocalEntry) : VaultChange",
+        "data class Deleted(override val id: VaultFileId) : VaultChange",
+        "interface LocalVault",
+        "suspend fun list(): List<LocalEntry>",
+        "suspend fun getEntry(relativePath: String): LocalEntry?",
+        "suspend fun read(id: VaultFileId): Source"
       ],
       "parent": "libs_core_commonmain_kotlin_dev_mimir",
       "summary_source": "heuristic"
@@ -1045,146 +1050,51 @@
         }
       ],
       "key_symbols": [
-        "class EncryptedRemoteStorage(...) : ChangeFeedStorage"
+        "internal class Aes256(key: ByteArray)",
+        "fun encryptBlock(b: ByteArray): ByteArray",
+        "fun decryptBlock(b: ByteArray): ByteArray",
+        "fun xtime(a: Int): Int = ((a shl 1) xor (if (a and 0x80 != 0) 0x11B else 0)) and 0xFF",
+        "fun mul(a: Int, b: Int): Int",
+        "fun rotl(v: Int, n: Int) = ((v shl n) or (v shr (8 - n))) and 0xFF",
+        "internal object Base32Hex",
+        "fun encode(data: ByteArray): String",
+        "fun decode(text: String): ByteArray",
+        "object CanaryVerifier"
       ],
       "parent": "libs_core_commonmain_kotlin_dev_mimir_core",
       "summary_source": "heuristic"
     },
     {
-      "id": "libs_core_src",
-      "name": "Libs Core Src",
-      "summary": "Модуль и компоненты директории `libs/core/src` (15 файлов)",
-      "l1_path": "subsystems/libs_core_src.md",
+      "id": "libs_core_commonmain_kotlin_dev_mimir_core_sync",
+      "name": "Core CommonMain Kotlin Dev Mimir Core Sync",
+      "summary": "Модуль и компоненты директории `libs/core/src/commonMain/kotlin/dev/mimir/core/sync` (13 файлов)",
+      "l1_path": "subsystems/libs_core_commonmain_kotlin_dev_mimir_core_sync.md",
       "tags": [
         "Kotlin (Gradle)",
-        "libs_core_src"
+        "libs_core_commonmain_kotlin_dev_mimir_core_sync"
       ],
       "key_files": [
-        "libs/core/src/androidMain/kotlin/dev/mimir/core/crypto/AndroidKeystoreSecretStore.kt",
-        "libs/core/src/androidMain/kotlin/dev/mimir/core/crypto/RandomNonce.android.kt",
-        "libs/core/src/androidMain/kotlin/dev/mimir/core/fs/AndroidFileObserverVaultWatcher.kt",
-        "libs/core/src/androidMain/kotlin/dev/mimir/core/fs/LastModified.android.kt",
-        "libs/core/src/androidMain/kotlin/dev/mimir/core/fs/SymbolicLink.android.kt",
-        "libs/core/src/jsMain/kotlin/dev/mimir/core/crypto/RandomNonce.js.kt",
-        "libs/core/src/jsMain/kotlin/dev/mimir/core/fs/LastModified.js.kt",
-        "libs/core/src/jsMain/kotlin/dev/mimir/core/fs/SymbolicLink.js.kt",
-        "libs/core/src/jsMain/kotlin/dev/mimir/core/update/FetchUpdateHttpClient.kt",
-        "libs/core/src/jvmMain/kotlin/dev/mimir/core/crypto/RandomNonce.jvm.kt",
-        "libs/core/src/jvmMain/kotlin/dev/mimir/core/fs/LastModified.jvm.kt",
-        "libs/core/src/jvmMain/kotlin/dev/mimir/core/fs/NioWatchServiceVaultWatcher.kt",
-        "libs/core/src/jvmMain/kotlin/dev/mimir/core/fs/SymbolicLink.jvm.kt",
-        "libs/core/src/wasmJsMain/kotlin/dev/mimir/core/crypto/RandomNonce.wasmJs.kt",
-        "libs/core/src/wasmJsMain/kotlin/dev/mimir/core/fs/LastModified.wasmJs.kt"
-      ],
-      "files": [
-        {
-          "path": "libs/core/src/androidMain/kotlin/dev/mimir/core/crypto/AndroidKeystoreSecretStore.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/core/src/androidMain/kotlin/dev/mimir/core/crypto/RandomNonce.android.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/core/src/androidMain/kotlin/dev/mimir/core/fs/AndroidFileObserverVaultWatcher.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/core/src/androidMain/kotlin/dev/mimir/core/fs/LastModified.android.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/core/src/androidMain/kotlin/dev/mimir/core/fs/SymbolicLink.android.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/core/src/jsMain/kotlin/dev/mimir/core/crypto/RandomNonce.js.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/core/src/jsMain/kotlin/dev/mimir/core/fs/LastModified.js.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/core/src/jsMain/kotlin/dev/mimir/core/fs/SymbolicLink.js.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/core/src/jsMain/kotlin/dev/mimir/core/update/FetchUpdateHttpClient.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/core/src/jvmMain/kotlin/dev/mimir/core/crypto/RandomNonce.jvm.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/core/src/jvmMain/kotlin/dev/mimir/core/fs/LastModified.jvm.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/core/src/jvmMain/kotlin/dev/mimir/core/fs/NioWatchServiceVaultWatcher.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/core/src/jvmMain/kotlin/dev/mimir/core/fs/SymbolicLink.jvm.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/core/src/wasmJsMain/kotlin/dev/mimir/core/crypto/RandomNonce.wasmJs.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/core/src/wasmJsMain/kotlin/dev/mimir/core/fs/LastModified.wasmJs.kt",
-          "is_entrypoint": false
-        }
-      ],
-      "key_symbols": [
-        "class AndroidFileObserverVaultWatcher( private val root: File, rules: SyncRules = SyncRules(), private val debounce: Duration = 1.seconds, echoTtl: Duration = 2.seconds, private val clock: Clock = Clock.System, ) : VaultWatcher"
-      ],
-      "parent": "libs_core",
-      "summary_source": "heuristic"
-    },
-    {
-      "id": "libs_core_src_commonmain_kotlin_dev_mimir_core",
-      "name": "Libs Core Src CommonMain Kotlin Dev Mimir Core",
-      "summary": "Модуль и компоненты директории `libs/core/src/commonMain/kotlin/dev/mimir/core` (15 файлов)",
-      "l1_path": "subsystems/libs_core_src_commonmain_kotlin_dev_mimir_core.md",
-      "tags": [
-        "Kotlin (Gradle)",
-        "libs_core_src_commonmain_kotlin_dev_mimir_core"
-      ],
-      "key_files": [
-        "libs/core/src/commonMain/kotlin/dev/mimir/core/api/RemoteStorage.kt",
-        "libs/core/src/commonMain/kotlin/dev/mimir/core/fs/FileSystemLocalVault.kt",
-        "libs/core/src/commonMain/kotlin/dev/mimir/core/rules/GlobMatcher.kt",
         "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/ActionExecutor.kt",
+        "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/ConflictFileEntry.kt",
         "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/ConflictResolver.kt",
         "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/DefaultSyncEngine.kt",
+        "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/IndexUpdater.kt",
+        "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/RemoteExceptions.kt",
+        "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/StubSyncEngine.kt",
+        "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/SyncEngine.kt",
+        "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/SyncIndex.kt",
         "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/SyncPlan.kt",
         "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/SyncPlanBuilder.kt",
-        "libs/core/src/commonMain/kotlin/dev/mimir/core/testing/CountingRemoteStorage.kt",
-        "libs/core/src/commonMain/kotlin/dev/mimir/core/testing/InMemoryLocalVault.kt",
-        "libs/core/src/commonMain/kotlin/dev/mimir/core/testing/InMemoryRemoteStorage.kt",
-        "libs/core/src/commonMain/kotlin/dev/mimir/core/update/DefaultUpdateManager.kt",
-        "libs/core/src/commonMain/kotlin/dev/mimir/core/update/GitHubReleasesChannel.kt",
-        "libs/core/src/commonMain/kotlin/dev/mimir/core/update/InPlaceBundleApplier.kt",
-        "libs/core/src/commonMain/kotlin/dev/mimir/core/update/SemVer.kt"
+        "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/SyncProgress.kt",
+        "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/SyncStateStore.kt"
       ],
       "files": [
         {
-          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/api/RemoteStorage.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/fs/FileSystemLocalVault.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/rules/GlobMatcher.kt",
-          "is_entrypoint": false
-        },
-        {
           "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/ActionExecutor.kt",
+          "is_entrypoint": false
+        },
+        {
+          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/ConflictFileEntry.kt",
           "is_entrypoint": false
         },
         {
@@ -1196,6 +1106,26 @@
           "is_entrypoint": false
         },
         {
+          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/IndexUpdater.kt",
+          "is_entrypoint": false
+        },
+        {
+          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/RemoteExceptions.kt",
+          "is_entrypoint": false
+        },
+        {
+          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/StubSyncEngine.kt",
+          "is_entrypoint": false
+        },
+        {
+          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/SyncEngine.kt",
+          "is_entrypoint": false
+        },
+        {
+          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/SyncIndex.kt",
+          "is_entrypoint": false
+        },
+        {
           "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/SyncPlan.kt",
           "is_entrypoint": false
         },
@@ -1204,143 +1134,40 @@
           "is_entrypoint": false
         },
         {
-          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/testing/CountingRemoteStorage.kt",
+          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/SyncProgress.kt",
           "is_entrypoint": false
         },
         {
-          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/testing/InMemoryLocalVault.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/testing/InMemoryRemoteStorage.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/update/DefaultUpdateManager.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/update/GitHubReleasesChannel.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/update/InPlaceBundleApplier.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/update/SemVer.kt",
+          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/SyncStateStore.kt",
           "is_entrypoint": false
         }
       ],
       "key_symbols": [
-        "class FileSystemLocalVault(...) : LocalVault",
-        "class DefaultConflictResolver( private val clock: Clock = Clock.System, ) : ConflictResolver"
+        "internal class ActionResult( val completedAs: SyncItemAction?, val put: List<FileSyncRecord> = emptyList(), val remove: String? = null, )",
+        "fun applyTo(index: SyncIndex): SyncIndex = put.fold(remove?.let(index::withoutRecord) ?: index)",
+        "internal class ActionExecutor( private val localVault: LocalVault, private val remoteStorage: RemoteStorage, private val conflictResolver: ConflictResolver, private val dispatcher: CoroutineDispatcher, )",
+        "suspend fun localHash(entry: LocalEntry): String = withContext(dispatcher)",
+        "suspend fun execute(action: SyncAction, index: SyncIndex): ActionResult = withContext(dispatcher)",
+        "internal class LocalIoFailure(val kind: SyncProblemKind, override val cause: Exception) : Exception(cause.message, cause)",
+        "internal class DeleteVerificationFailure(override val cause: Exception) : Exception(\"Не удалось проверить удалённый файл перед удалением: $",
+        "override fun readAtMostTo(sink: Buffer, byteCount: Long): Long = try",
+        "override fun close() = upstream.close()",
+        "internal fun problemOf(path: String, action: SyncItemAction, error: Throwable): SyncProblem"
       ],
-      "parent": "libs_core_src_commonmain_kotlin_dev_mimir",
-      "summary_source": "heuristic"
-    },
-    {
-      "id": "libs_core_src_commonmain_kotlin_dev_mimir_core_crypto",
-      "name": "Libs Core Src CommonMain Kotlin Dev Mimir Core Crypto",
-      "summary": "Модуль и компоненты директории `libs/core/src/commonMain/kotlin/dev/mimir/core/crypto` (15 файлов)",
-      "l1_path": "subsystems/libs_core_src_commonmain_kotlin_dev_mimir_core_crypto.md",
-      "tags": [
-        "Kotlin (Gradle)",
-        "libs_core_src_commonmain_kotlin_dev_mimir_core_crypto"
-      ],
-      "key_files": [
-        "libs/core/src/commonMain/kotlin/dev/mimir/core/crypto/Aes256.kt",
-        "libs/core/src/commonMain/kotlin/dev/mimir/core/crypto/Base32Hex.kt",
-        "libs/core/src/commonMain/kotlin/dev/mimir/core/crypto/CanaryVerifier.kt",
-        "libs/core/src/commonMain/kotlin/dev/mimir/core/crypto/Eme.kt",
-        "libs/core/src/commonMain/kotlin/dev/mimir/core/crypto/EncryptedRemoteStorage.kt",
-        "libs/core/src/commonMain/kotlin/dev/mimir/core/crypto/EncryptedSecretStore.kt",
-        "libs/core/src/commonMain/kotlin/dev/mimir/core/crypto/HashingSource.kt",
-        "libs/core/src/commonMain/kotlin/dev/mimir/core/crypto/Pbkdf2.kt",
-        "libs/core/src/commonMain/kotlin/dev/mimir/core/crypto/Poly1305.kt",
-        "libs/core/src/commonMain/kotlin/dev/mimir/core/crypto/RcloneCipher.kt",
-        "libs/core/src/commonMain/kotlin/dev/mimir/core/crypto/Salsa20.kt",
-        "libs/core/src/commonMain/kotlin/dev/mimir/core/crypto/Scrypt.kt",
-        "libs/core/src/commonMain/kotlin/dev/mimir/core/crypto/SecretBox.kt",
-        "libs/core/src/commonMain/kotlin/dev/mimir/core/crypto/Sha256.kt",
-        "libs/core/src/commonMain/kotlin/dev/mimir/core/crypto/XSalsa20.kt"
-      ],
-      "files": [
-        {
-          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/crypto/Aes256.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/crypto/Base32Hex.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/crypto/CanaryVerifier.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/crypto/Eme.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/crypto/EncryptedRemoteStorage.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/crypto/EncryptedSecretStore.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/crypto/HashingSource.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/crypto/Pbkdf2.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/crypto/Poly1305.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/crypto/RcloneCipher.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/crypto/Salsa20.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/crypto/Scrypt.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/crypto/SecretBox.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/crypto/Sha256.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/crypto/XSalsa20.kt",
-          "is_entrypoint": false
-        }
-      ],
-      "key_symbols": [
-        "class EncryptedRemoteStorage(...) : ChangeFeedStorage"
-      ],
-      "parent": "libs_core_src_commonmain_kotlin_dev_mimir_core",
+      "parent": "libs_core_commonmain_kotlin_dev_mimir_core",
       "summary_source": "heuristic"
     },
     {
       "id": "libs_drive",
       "name": "Drive",
-      "summary": "Модуль и компоненты директории `libs/drive` (15 файлов)",
+      "summary": "Подсистема `libs/drive` с ключевыми точками входа: libs/drive/build.gradle.kts",
       "l1_path": "subsystems/libs_drive.md",
       "tags": [
         "Kotlin (Gradle)",
         "libs_drive"
+      ],
+      "entrypoints": [
+        "libs/drive/build.gradle.kts"
       ],
       "key_files": [
         "libs/drive/build.gradle.kts",
@@ -1362,7 +1189,7 @@
       "files": [
         {
           "path": "libs/drive/build.gradle.kts",
-          "is_entrypoint": false
+          "is_entrypoint": true
         },
         {
           "path": "libs/drive/src/commonMain/kotlin/dev/mimir/drive/GoogleDriveStorage.kt",
@@ -1423,18 +1250,49 @@
       ],
       "key_symbols": [
         "class GoogleDriveStorage( private val client: DriveHttpClient? = null, private val pathResolver: DrivePathResolver? = null, ) : ChangeFeedStorage",
-        "class RefreshingTokenSource( private val storage: TokenStorage, private val clients: GoogleAuthClients, private val clock: Clock = Clock.System, ) : AccessTokenSource"
+        "override suspend fun getLatestChangeToken(): String",
+        "override suspend fun getChanges(sinceToken: String): RemoteChangesResult",
+        "override suspend fun list(dir: RemotePath): List<RemoteEntry>",
+        "override suspend fun listAll(root: RemotePath, onProgress: (folders: Int, files: Int) -> Unit): List<RemoteEntry>",
+        "suspend fun walk(folderId: String, dir: RemotePath)",
+        "override suspend fun stat(path: RemotePath): RemoteEntry?",
+        "override suspend fun read(path: RemotePath): Source",
+        "override suspend fun write(path: RemotePath, data: Source): RemoteEntry",
+        "override suspend fun delete(path: RemotePath)"
       ],
       "summary_source": "heuristic"
     },
     {
       "id": "libs_runtime",
-      "name": "Libs Runtime",
-      "summary": "Модуль и компоненты директории `libs/runtime` (15 файлов)",
+      "name": "Runtime",
+      "summary": "Подсистема `libs/runtime` с ключевыми точками входа: libs/runtime/build.gradle.kts",
       "l1_path": "subsystems/libs_runtime.md",
       "tags": [
         "Kotlin (Gradle)",
         "libs_runtime"
+      ],
+      "entrypoints": [
+        "libs/runtime/build.gradle.kts"
+      ],
+      "key_files": [
+        "libs/runtime/build.gradle.kts"
+      ],
+      "files": [
+        {
+          "path": "libs/runtime/build.gradle.kts",
+          "is_entrypoint": true
+        }
+      ],
+      "summary_source": "heuristic"
+    },
+    {
+      "id": "libs_runtime_commonmain",
+      "name": "Runtime CommonMain",
+      "summary": "Модуль и компоненты директории `libs/runtime/src/commonMain` (15 файлов)",
+      "l1_path": "subsystems/libs_runtime_commonmain.md",
+      "tags": [
+        "Kotlin (Gradle)",
+        "libs_runtime_commonmain"
       ],
       "key_files": [
         "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/Canary.kt",
@@ -1516,102 +1374,40 @@
         }
       ],
       "key_symbols": [
-        "class InvalidPasswordException(...) : IllegalArgumentException(message) /** * Проверяет пароль по файлу-канарейке в корне [remote] (имя открытое, содержимое шифруется [cipher]). * [remote] — хранилищ...",
+        "class InvalidPasswordException(message: String) : IllegalArgumentException(message)",
+        "suspend fun verifyOrInitCanary(remote: RemoteStorage, cipher: Cipher, configDir: Path)",
         "class SyncNotConfiguredException(message: String) : IllegalStateException(message)",
-        "class EngineAssembler( private val httpClient: HttpClient, private val cloudFactory: CloudStorageFactory, private val watcherFactory: VaultWatcherFactory, private val ioDispatcher: CoroutineDispatcher, private val scope: CoroutineScope, private val config: () -> RuntimeConfig, )",
-        "class JsonSyncStateStore( val indexFile: Path, /** Где исполняется блокирующая запись и чтение индекса; JVM/Android передают `Dispatchers.IO`. */ private val ioDispatcher: CoroutineDispatcher, ) : SyncStateStore",
-        "class MimirRuntime( private val settings: RuntimeSettingsStore, private val logins: LoginRegistry, watcherFactory: VaultWatcherFactory, private val passwordProvider: suspend () -> String?, ioDispatcher: CoroutineDispatcher, private val httpClient: HttpClient, cloudFactory: Clo..."
+        "internal class ConflictTracker( private val scope: CoroutineScope, private val watcherFactory: VaultWatcherFactory, private val localVaultFactory: (Path) -> LocalVault, private val scanInterval: Duration, private val vaultPath: () -> String?, )",
+        "fun watch()",
+        "fun stop()",
+        "suspend fun refresh(): List<ConflictFileEntry> = refreshMutex.withLock",
+        "suspend fun resolve(originalPath: String, conflictPath: String, keepConflict: Boolean)",
+        "data class AssembledEngine( val engine: DefaultSyncEngine, val scheduler: SyncScheduler, val watcher: VaultWatcher, val remote: EncryptedRemoteStorage, )",
+        "class EngineAssembler( private val httpClient: HttpClient, private val cloudFactory: CloudStorageFactory, private val watcherFactory: VaultWatcherFactory, private val ioDispatcher: CoroutineDispatcher, private val scope: CoroutineScope, private val config: () -> RuntimeConfig, )"
       ],
+      "parent": "libs_runtime",
       "summary_source": "heuristic"
     },
     {
       "id": "libs_ui",
-      "name": "Libs Ui",
-      "summary": "Модуль и компоненты директории `libs/ui` (14 файлов)",
+      "name": "Ui",
+      "summary": "Подсистема `libs/ui` с ключевыми точками входа: libs/ui/build.gradle.kts",
       "l1_path": "subsystems/libs_ui.md",
       "tags": [
         "Kotlin (Gradle)",
         "libs_ui"
       ],
+      "entrypoints": [
+        "libs/ui/build.gradle.kts"
+      ],
       "key_files": [
-        "libs/ui/build.gradle.kts",
-        "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/AccessStepTest.kt",
-        "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/ConflictsScreenTest.kt",
-        "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/GoogleStepSystemAccountTest.kt",
-        "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/MimirComponentsTest.kt",
-        "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/MimirThemeTest.kt",
-        "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/MobileAdaptationTest.kt",
-        "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/SetupWizardScreenTest.kt",
-        "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/StatusScreenTest.kt",
-        "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/StorageAccessBannerTest.kt",
-        "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/SyncTextsTest.kt",
-        "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/UpdateCardScreenshotTest.kt",
-        "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/UpdateCardTest.kt",
-        "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/screenshots/UiScreenshotTest.kt"
+        "libs/ui/build.gradle.kts"
       ],
       "files": [
         {
           "path": "libs/ui/build.gradle.kts",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/AccessStepTest.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/ConflictsScreenTest.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/GoogleStepSystemAccountTest.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/MimirComponentsTest.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/MimirThemeTest.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/MobileAdaptationTest.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/SetupWizardScreenTest.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/StatusScreenTest.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/StorageAccessBannerTest.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/SyncTextsTest.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/UpdateCardScreenshotTest.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/UpdateCardTest.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/screenshots/UiScreenshotTest.kt",
-          "is_entrypoint": false
+          "is_entrypoint": true
         }
-      ],
-      "key_symbols": [
-        "class AccessStepTest",
-        "class ConflictsScreenTest",
-        "class GoogleStepSystemAccountTest",
-        "class MimirComponentsTest"
       ],
       "summary_source": "heuristic"
     },
@@ -1703,6 +1499,18 @@
           "is_entrypoint": false
         }
       ],
+      "key_symbols": [
+        "enum class Destination",
+        "companion object",
+        "fun fromString(value: String?): Destination = when (value?.lowercase())",
+        "fun MimirApp( model: MimirUiModel, touchInput: Boolean = false, initialDestination: Destination = Destination.Status, )",
+        "fun MimirApp( engine: SyncEngine, touchInput: Boolean = false, initialDestination: Destination = Destination.Status, ) = MimirApp(remember(engine)",
+        "fun MimirAppPreview()",
+        "fun MimirTheme(content: @Composable () -> Unit)",
+        "object MimirTokens",
+        "object Dark",
+        "object Light"
+      ],
       "parent": "libs_ui_commonmain_kotlin_dev_mimir",
       "summary_source": "heuristic"
     },
@@ -1779,262 +1587,19 @@
           "is_entrypoint": false
         }
       ],
-      "parent": "libs_ui_commonmain_kotlin_dev_mimir_ui",
-      "summary_source": "heuristic"
-    },
-    {
-      "id": "libs_ui_src",
-      "name": "Libs Ui Src",
-      "summary": "Модуль и компоненты директории `libs/ui/src` (13 файлов)",
-      "l1_path": "subsystems/libs_ui_src.md",
-      "tags": [
-        "Kotlin (Gradle)",
-        "libs_ui_src"
-      ],
-      "key_files": [
-        "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/AccessStepTest.kt",
-        "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/ConflictsScreenTest.kt",
-        "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/GoogleStepSystemAccountTest.kt",
-        "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/MimirComponentsTest.kt",
-        "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/MimirThemeTest.kt",
-        "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/MobileAdaptationTest.kt",
-        "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/SetupWizardScreenTest.kt",
-        "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/StatusScreenTest.kt",
-        "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/StorageAccessBannerTest.kt",
-        "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/SyncTextsTest.kt",
-        "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/UpdateCardScreenshotTest.kt",
-        "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/UpdateCardTest.kt",
-        "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/screenshots/UiScreenshotTest.kt"
-      ],
-      "files": [
-        {
-          "path": "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/AccessStepTest.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/ConflictsScreenTest.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/GoogleStepSystemAccountTest.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/MimirComponentsTest.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/MimirThemeTest.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/MobileAdaptationTest.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/SetupWizardScreenTest.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/StatusScreenTest.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/StorageAccessBannerTest.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/SyncTextsTest.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/UpdateCardScreenshotTest.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/UpdateCardTest.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/desktopTest/kotlin/dev/mimir/ui/screenshots/UiScreenshotTest.kt",
-          "is_entrypoint": false
-        }
-      ],
       "key_symbols": [
-        "class AccessStepTest",
-        "class ConflictsScreenTest",
-        "class GoogleStepSystemAccountTest",
-        "class MimirComponentsTest",
-        "class MimirThemeTest"
+        "fun AboutUpdateCard( state: UpdateUiState, syncRunning: Boolean, onCheck: () -> Unit, onDownload: () -> Unit, onInstall: () -> Unit, onOpenReleasePage: (String) -> Unit, onDismiss: () -> Unit, modifier: Modifier = Modifier, currentVersion: String = BuildConfig.VERSION, )",
+        "fun StorageAccessBanner( storageAccess: StorageAccess, modifier: Modifier = Modifier, )",
+        "fun SignInRequiredBanner( onSignIn: () -> Unit, modifier: Modifier = Modifier, )",
+        "fun StatusBanners( model: MimirUiModel, onOpenSetup: () -> Unit, modifier: Modifier = Modifier, )",
+        "fun ConflictsScreen(model: MimirUiModel, onBack: () -> Unit)",
+        "fun resolve(entry: UiConflictEntry, keepConflict: Boolean)",
+        "fun ConflictsScreenPreview()",
+        "fun SetupWizardScreen(model: MimirUiModel, onComplete: () -> Unit, pollIntervalMillis: Long = 5_000)",
+        "fun SetupWizardScreenPreview()",
+        "fun StartupScreen(message: String)"
       ],
-      "parent": "libs_ui",
-      "summary_source": "heuristic"
-    },
-    {
-      "id": "libs_ui_src_commonmain_kotlin_dev_mimir_ui",
-      "name": "Libs Ui Src CommonMain Kotlin Dev Mimir Ui",
-      "summary": "Модуль и компоненты директории `libs/ui/src/commonMain/kotlin/dev/mimir/ui` (15 файлов)",
-      "l1_path": "subsystems/libs_ui_src_commonmain_kotlin_dev_mimir_ui.md",
-      "tags": [
-        "Kotlin (Gradle)",
-        "libs_ui_src_commonmain_kotlin_dev_mimir_ui"
-      ],
-      "key_files": [
-        "libs/ui/src/commonMain/kotlin/dev/mimir/ui/Destination.kt",
-        "libs/ui/src/commonMain/kotlin/dev/mimir/ui/MimirApp.kt",
-        "libs/ui/src/commonMain/kotlin/dev/mimir/ui/MimirTheme.kt",
-        "libs/ui/src/commonMain/kotlin/dev/mimir/ui/MimirTokens.kt",
-        "libs/ui/src/commonMain/kotlin/dev/mimir/ui/ObsidianStyle.kt",
-        "libs/ui/src/commonMain/kotlin/dev/mimir/ui/components/MimirComponents.kt",
-        "libs/ui/src/commonMain/kotlin/dev/mimir/ui/components/MimirIcons.kt",
-        "libs/ui/src/commonMain/kotlin/dev/mimir/ui/model/DaemonServiceUiModel.kt",
-        "libs/ui/src/commonMain/kotlin/dev/mimir/ui/model/EngineMimirUiModel.kt",
-        "libs/ui/src/commonMain/kotlin/dev/mimir/ui/model/FakeMimirUiModel.kt",
-        "libs/ui/src/commonMain/kotlin/dev/mimir/ui/model/MimirUiModel.kt",
-        "libs/ui/src/commonMain/kotlin/dev/mimir/ui/model/UpdateTexts.kt",
-        "libs/ui/src/commonMain/kotlin/dev/mimir/ui/model/UpdateUiMapping.kt",
-        "libs/ui/src/commonMain/kotlin/dev/mimir/ui/model/UpdateUiState.kt",
-        "libs/ui/src/commonMain/kotlin/dev/mimir/ui/platform/SystemAccountLogin.kt"
-      ],
-      "files": [
-        {
-          "path": "libs/ui/src/commonMain/kotlin/dev/mimir/ui/Destination.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/commonMain/kotlin/dev/mimir/ui/MimirApp.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/commonMain/kotlin/dev/mimir/ui/MimirTheme.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/commonMain/kotlin/dev/mimir/ui/MimirTokens.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/commonMain/kotlin/dev/mimir/ui/ObsidianStyle.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/commonMain/kotlin/dev/mimir/ui/components/MimirComponents.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/commonMain/kotlin/dev/mimir/ui/components/MimirIcons.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/commonMain/kotlin/dev/mimir/ui/model/DaemonServiceUiModel.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/commonMain/kotlin/dev/mimir/ui/model/EngineMimirUiModel.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/commonMain/kotlin/dev/mimir/ui/model/FakeMimirUiModel.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/commonMain/kotlin/dev/mimir/ui/model/MimirUiModel.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/commonMain/kotlin/dev/mimir/ui/model/UpdateTexts.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/commonMain/kotlin/dev/mimir/ui/model/UpdateUiMapping.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/commonMain/kotlin/dev/mimir/ui/model/UpdateUiState.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/commonMain/kotlin/dev/mimir/ui/platform/SystemAccountLogin.kt",
-          "is_entrypoint": false
-        }
-      ],
-      "parent": "libs_ui_src_commonmain_kotlin_dev_mimir",
-      "summary_source": "heuristic"
-    },
-    {
-      "id": "libs_ui_src_commonmain_kotlin_dev_mimir_ui_screens",
-      "name": "Libs Ui Src CommonMain Kotlin Dev Mimir Ui Screens",
-      "summary": "Модуль и компоненты директории `libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens` (12 файлов)",
-      "l1_path": "subsystems/libs_ui_src_commonmain_kotlin_dev_mimir_ui_screens.md",
-      "tags": [
-        "Kotlin (Gradle)",
-        "libs_ui_src_commonmain_kotlin_dev_mimir_ui_screens"
-      ],
-      "key_files": [
-        "libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/AboutUpdateCard.kt",
-        "libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/AndroidBanners.kt",
-        "libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/ConflictsScreen.kt",
-        "libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/SetupWizardScreen.kt",
-        "libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/StartupScreen.kt",
-        "libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/StatusScreen.kt",
-        "libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/SyncTexts.kt",
-        "libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/setup/AccessStep.kt",
-        "libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/setup/GoogleStep.kt",
-        "libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/setup/InitialResolutionStep.kt",
-        "libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/setup/PasswordStep.kt",
-        "libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/setup/VaultStep.kt"
-      ],
-      "files": [
-        {
-          "path": "libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/AboutUpdateCard.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/AndroidBanners.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/ConflictsScreen.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/SetupWizardScreen.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/StartupScreen.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/StatusScreen.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/SyncTexts.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/setup/AccessStep.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/setup/GoogleStep.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/setup/InitialResolutionStep.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/setup/PasswordStep.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/setup/VaultStep.kt",
-          "is_entrypoint": false
-        }
-      ],
-      "parent": "libs_ui_src_commonmain_kotlin_dev_mimir_ui",
+      "parent": "libs_ui_commonmain_kotlin_dev_mimir_ui",
       "summary_source": "heuristic"
     },
     {
@@ -2096,6 +1661,6 @@
   ],
   "generator": {
     "version": "0.3.0",
-    "build": "9660354-dirty"
+    "build": "c77d9cf"
   }
 }

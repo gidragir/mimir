@@ -3,10 +3,10 @@ directory: design/tokens.json
 source:
   kind: git
   blob_sha: 12611f5b6ed1fe83f96a6a2b1064f9776892a046
-  commit_sha: 0ca8c0bfc25f095f72fe8f8aff5beb38597b19dd
+  commit_sha: c4d15d5133f882d1b744714b839e702178c89e3c
 generated_by:
   component: context-init
-  role: update
+  role: init
   model: none
 freshness:
   total_entries: 1
@@ -30,5 +30,5 @@ freshness:
 
 ## 🧪 Запуск и тестирование
 ```bash
-rtk ./gradlew test
+rtk mise run test
 ```

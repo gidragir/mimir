@@ -3,10 +3,10 @@ directory: apps/desktop
 source:
   kind: git
   blob_sha: a18b0e5049670c3cf0148fe8163e5894af5469a7
-  commit_sha: 77be09c21d6849c3aa20683f5a464c68907f0746
+  commit_sha: c4d15d5133f882d1b744714b839e702178c89e3c
 generated_by:
   component: context-init
-  role: update
+  role: init
   model: none
 freshness:
   total_entries: 15
@@ -17,7 +17,7 @@ freshness:
 
 # Подсистема: Desktop (L1)
 
-Модуль и компоненты директории `apps/desktop` (15 файлов)
+Подсистема `apps/desktop` с ключевыми точками входа: apps/desktop/build.gradle.kts
 
 > **Идентификатор:** `apps_desktop`
 > **Теги:** Kotlin (Gradle), apps_desktop
@@ -26,7 +26,7 @@ freshness:
 
 | Файл | Статус |
 | :--- | :--- |
-| `apps/desktop/build.gradle.kts` | Исходный код |
+| `apps/desktop/build.gradle.kts` | ⭐ Точка входа |
 | `apps/desktop/src/main/kotlin/dev/mimir/desktop/DaemonServiceFactory.kt` | Исходный код |
 | `apps/desktop/src/main/kotlin/dev/mimir/desktop/Main.kt` | Исходный код |
 | `apps/desktop/src/main/kotlin/dev/mimir/desktop/PlatformFocus.kt` | Исходный код |
@@ -44,10 +44,19 @@ freshness:
 
 ## 🔑 Ключевой контракт и экспорты
 ```text
+fun patchWindowsCfg()
 class DesktopBackend(...) : AutoCloseable
+enum class Mode
+override fun close() = onClose()
+object DaemonServiceFactory
+suspend fun create( config: DaemonConfig, platform: TargetPlatform = detectTargetPlatform(System.getProperty("os.name").orEmpty(), System.getProperty("os.arch").orEmpty()), updateTempDir: Path = Path.of(System.getProperty("java.io.tmpdir"), "mimir-updates"), ): DesktopBackend
+override suspend fun quiesce() = runtimeRef.get()?.quiesceForUpdate() ?: false
+override suspend fun resume()
+override suspend fun shutdown()
+fun main(args: Array<String>)
 ```
 
 ## 🧪 Запуск и тестирование
 ```bash
-rtk ./gradlew test
+rtk mise run test
 ```

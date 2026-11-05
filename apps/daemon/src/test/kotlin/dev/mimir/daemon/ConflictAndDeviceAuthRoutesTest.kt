@@ -2,7 +2,9 @@ package dev.mimir.daemon
 
 import dev.mimir.runtime.FileTokenStorage
 
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlin.time.Duration.Companion.milliseconds
 import dev.mimir.client.DaemonLoginPoll
@@ -118,13 +120,17 @@ class ConflictAndDeviceAuthRoutesTest {
         put("Notes/Doc.md", "mine")
         put(conflictName, "theirs")
 
-        val count = withTimeout(5_000) {
-            var current = client.get("/api/v1/status").json().getValue("activeConflicts").jsonPrimitive.int
-            while (current != 1) {
-                delay(50)
-                current = client.get("/api/v1/status").json().getValue("activeConflicts").jsonPrimitive.int
+        // testApplication использует виртуальные часы runTest, тогда как NioWatchServiceVaultWatcher работает
+        // на реальном времени (Dispatchers.IO): ожидание выполняем на реальном диспетчере.
+        val count = withContext(Dispatchers.Default) {
+            withTimeout(5_000) {
+                var current = client.get("/api/v1/status").json().getValue("activeConflicts").jsonPrimitive.int
+                while (current != 1) {
+                    delay(50)
+                    current = client.get("/api/v1/status").json().getValue("activeConflicts").jsonPrimitive.int
+                }
+                current
             }
-            current
         }
         assertEquals(1, count)
     }

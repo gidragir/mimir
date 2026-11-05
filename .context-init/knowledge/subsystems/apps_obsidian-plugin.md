@@ -3,10 +3,10 @@ directory: apps/obsidian-plugin
 source:
   kind: git
   blob_sha: 8c6681bdf4b199fe9a2f139ab94b2a1492796e25
-  commit_sha: 77be09c21d6849c3aa20683f5a464c68907f0746
+  commit_sha: c4d15d5133f882d1b744714b839e702178c89e3c
 generated_by:
   component: context-init
-  role: update
+  role: init
   model: none
 freshness:
   total_entries: 8
@@ -17,7 +17,7 @@ freshness:
 
 # Подсистема: Obsidian Plugin (L1)
 
-Модуль и компоненты директории `apps/obsidian-plugin` (8 файлов)
+Подсистема `apps/obsidian-plugin` с ключевыми точками входа: apps/obsidian-plugin/build.gradle.kts
 
 > **Идентификатор:** `apps_obsidian-plugin`
 > **Теги:** Kotlin (Gradle), apps_obsidian-plugin
@@ -26,7 +26,7 @@ freshness:
 
 | Файл | Статус |
 | :--- | :--- |
-| `apps/obsidian-plugin/build.gradle.kts` | Исходный код |
+| `apps/obsidian-plugin/build.gradle.kts` | ⭐ Точка входа |
 | `apps/obsidian-plugin/manifest.template.json` | Исходный код |
 | `apps/obsidian-plugin/scripts/check-plugin.mjs` | Исходный код |
 | `apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/MimirPlugin.kt` | Исходный код |
@@ -40,9 +40,16 @@ freshness:
 class Plugin
 class Notice
 class MimirPlugin : Plugin()
+override fun onload()
+override fun onunload()
+external class DataAdapter
+fun exists(path: String): Promise<Boolean>
+fun readBinary(path: String): Promise<ArrayBuffer>
+fun writeBinary(path: String, data: ArrayBuffer): Promise<Unit>
+external class Vault
 ```
 
 ## 🧪 Запуск и тестирование
 ```bash
-rtk ./gradlew test
+rtk mise run test
 ```

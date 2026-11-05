@@ -6,12 +6,25 @@ on:
     paths-ignore:
       - 'docs/**'
       - 'README.md'
+      - 'CHANGELOG.md'
       - '.context-init/**'
+      - '.github/.release-please-manifest.json'
+      - '.github/release-please-config.json'
   pull_request:
     paths-ignore:
       - 'docs/**'
       - 'README.md'
+      - 'CHANGELOG.md'
       - '.context-init/**'
+      - '.github/.release-please-manifest.json'
+      - '.github/release-please-config.json'
+  workflow_dispatch:
+    inputs:
+      run_macos:
+        description: "Запустить сборку также на macOS"
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -30,11 +43,14 @@ jobs:
       desktop: ${{ steps.filter.outputs.desktop }}
       android: ${{ steps.filter.outputs.android }}
       js_or_web: ${{ steps.filter.outputs.js_or_web }}
+      is_release_pr: ${{ steps.matrix.outputs.is_release_pr }}
       os_matrix: ${{ steps.matrix.outputs.os_matrix }}
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - name: Verify design tokens are in sync
+        run: node scripts/generate-tokens.mjs --check
       - uses: dorny/paths-filter@v3
         id: filter
         with:
@@ -63,10 +79,24 @@ jobs:
               - 'design/**'
               - 'scripts/**'
       - id: matrix
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          EVENT_NAME: ${{ github.event_name }}
+          RUN_MACOS: ${{ inputs.run_macos }}
+          CORE_OR_LIBS: ${{ steps.filter.outputs.core_or_libs }}
+          DESKTOP: ${{ steps.filter.outputs.desktop }}
         run: |
-          if [ "${{ steps.filter.outputs.core_or_libs }}" = "true" ] || [ "${{ steps.filter.outputs.desktop }}" = "true" ]; then
+          if [[ "$HEAD_REF" == release-please--* ]]; then
+            echo "is_release_pr=true" >> "$GITHUB_OUTPUT"
+            echo 'os_matrix=["ubuntu-latest"]' >> "$GITHUB_OUTPUT"
+          elif [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$RUN_MACOS" = "true" ]; then
+            echo "is_release_pr=false" >> "$GITHUB_OUTPUT"
             echo 'os_matrix=["ubuntu-latest","windows-latest","macos-latest"]' >> "$GITHUB_OUTPUT"
+          elif [ "$CORE_OR_LIBS" = "true" ] || [ "$DESKTOP" = "true" ]; then
+            echo "is_release_pr=false" >> "$GITHUB_OUTPUT"
+            echo 'os_matrix=["ubuntu-latest","windows-latest"]' >> "$GITHUB_OUTPUT"
           else
+            echo "is_release_pr=false" >> "$GITHUB_OUTPUT"
             echo 'os_matrix=["ubuntu-latest"]' >> "$GITHUB_OUTPUT"
           fi
 
@@ -100,15 +130,44 @@ jobs:
           java_home=$(mise where java | tr '\\' '/')
           echo "JAVA_HOME=$java_home" >> "$GITHUB_ENV"
           echo "$java_home/bin" >> "$GITHUB_PATH"
-      # Android SDK ставим только на Linux; на остальных ОС Android-таргеты пропускаются с предупреждением.
+      # Android SDK ставим только на Linux, когда затронуты общие библиотеки или сам Android-модуль.
       - uses: android-actions/setup-android@v3
-        if: runner.os == 'Linux'
+        if: >-
+          runner.os == 'Linux' &&
+          needs.detect-changes.outputs.is_release_pr != 'true' &&
+          (needs.detect-changes.outputs.core_or_libs == 'true' || needs.detect-changes.outputs.android == 'true')
         # По умолчанию ставится устаревший `tools`, которого нет в новых cmdline-tools; платформу и build-tools скачает AGP.
         with:
           packages: platform-tools
       - uses: gradle/actions/setup-gradle@v4
-      # Без секретов: сборка и тесты обязаны проходить без них.
-      - run: mise run build
+      # Разделение обязанностей по ОС и затронутым подсистемам без секретов:
+      # - Release Please PR: быстрая валидация версии в gradle.properties и build-logic
+      # - Windows: только десктопные тесты и упаковка MSI (без дублирования KMP/JS Karma-тестов)
+      # - macOS (workflow_dispatch): десктопные тесты и сборка дистрибутива
+      # - Linux (только Android): юнит-тесты и сборка Android APK
+      # - Linux (только JS/Web/Design): плагин Obsidian, расширение браузера, Wasm Web-UI и UI-тесты
+      # - Linux (ядро/десктоп/всё остальное): полный прогон mise run build
+      - name: Build and verify
+        env:
+          IS_RELEASE_PR: ${{ needs.detect-changes.outputs.is_release_pr }}
+          CORE_OR_LIBS: ${{ needs.detect-changes.outputs.core_or_libs }}
+          DESKTOP: ${{ needs.detect-changes.outputs.desktop }}
+          ANDROID: ${{ needs.detect-changes.outputs.android }}
+          JS_OR_WEB: ${{ needs.detect-changes.outputs.js_or_web }}
+        run: |
+          if [ "$IS_RELEASE_PR" = "true" ]; then
+            ./gradlew -p build-logic test && ./gradlew :apps:desktop:help
+          elif [ "${{ runner.os }}" = "Windows" ]; then
+            ./gradlew :apps:desktop:test :apps:desktop:packageMsi
+          elif [ "${{ runner.os }}" = "macOS" ]; then
+            ./gradlew :apps:desktop:test :apps:desktop:packageUberJarForCurrentOS
+          elif [ "$CORE_OR_LIBS" != "true" ] && [ "$DESKTOP" != "true" ] && [ "$JS_OR_WEB" != "true" ] && [ "$ANDROID" = "true" ]; then
+            ./gradlew :apps:android:testDebugUnitTest :apps:android:assembleDebug
+          elif [ "$CORE_OR_LIBS" != "true" ] && [ "$DESKTOP" != "true" ] && [ "$ANDROID" != "true" ] && [ "$JS_OR_WEB" = "true" ]; then
+            ./gradlew :apps:obsidian-plugin:checkPlugin :apps:browser-extension:checkExtension :apps:web-ui:wasmJsBrowserDistribution :libs:ui:desktopTest
+          else
+            mise run build
+          fi
       - name: Upload test reports on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -119,17 +178,3 @@ jobs:
             **/build/reports/problems/
           retention-days: 7
           if-no-files-found: ignore
-
-  tokens:
-    name: design tokens sync
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: lts/*
-      - name: Verify design tokens are in sync
-        run: node scripts/generate-tokens.mjs --check

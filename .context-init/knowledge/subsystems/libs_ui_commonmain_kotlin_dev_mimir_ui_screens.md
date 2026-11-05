@@ -3,10 +3,10 @@ directory: libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens
 source:
   kind: git
   blob_sha: 2df12300fee496521fb93842d09bf3dae283da4a
-  commit_sha: 77be09c21d6849c3aa20683f5a464c68907f0746
+  commit_sha: c4d15d5133f882d1b744714b839e702178c89e3c
 generated_by:
   component: context-init
-  role: update
+  role: init
   model: none
 freshness:
   total_entries: 12
@@ -39,7 +39,21 @@ freshness:
 | `libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/setup/PasswordStep.kt` | Исходный код |
 | `libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/setup/VaultStep.kt` | Исходный код |
 
+## 🔑 Ключевой контракт и экспорты
+```text
+fun AboutUpdateCard( state: UpdateUiState, syncRunning: Boolean, onCheck: () -> Unit, onDownload: () -> Unit, onInstall: () -> Unit, onOpenReleasePage: (String) -> Unit, onDismiss: () -> Unit, modifier: Modifier = Modifier, currentVersion: String = BuildConfig.VERSION, )
+fun StorageAccessBanner( storageAccess: StorageAccess, modifier: Modifier = Modifier, )
+fun SignInRequiredBanner( onSignIn: () -> Unit, modifier: Modifier = Modifier, )
+fun StatusBanners( model: MimirUiModel, onOpenSetup: () -> Unit, modifier: Modifier = Modifier, )
+fun ConflictsScreen(model: MimirUiModel, onBack: () -> Unit)
+fun resolve(entry: UiConflictEntry, keepConflict: Boolean)
+fun ConflictsScreenPreview()
+fun SetupWizardScreen(model: MimirUiModel, onComplete: () -> Unit, pollIntervalMillis: Long = 5_000)
+fun SetupWizardScreenPreview()
+fun StartupScreen(message: String)
+```
+
 ## 🧪 Запуск и тестирование
 ```bash
-rtk ./gradlew test
+rtk mise run test
 ```

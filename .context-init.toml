@@ -1,12 +1,18 @@
-split_threshold_tokens = 30000
+split_threshold_tokens = 20000
+touch_agents_md = true
 
 [scope]
 exclude = [
     "**/commonTest/**",
     "**/jvmTest/**",
     "**/jsTest/**",
+    "**/desktopTest/**",
+    "**/wasmJsTest/**",
+    "**/androidUnitTest/**",
     "**/test/**",
     "node_modules",
     "build",
     ".gradle",
+    "kotlin-js-store",
+    "docs/**",
 ]
