@@ -2,11 +2,11 @@
 directory: apps/desktop
 source:
   kind: git
-  blob_sha: a18b0e5049670c3cf0148fe8163e5894af5469a7
-  commit_sha: c4d15d5133f882d1b744714b839e702178c89e3c
+  blob_sha: d7019a8f73ecd0e4b6b894c53553217b75ebc84a
+  commit_sha: 17e43efc900e5e31cfa836789c4db3512844a82a
 generated_by:
   component: context-init
-  role: init
+  role: update
   model: none
 freshness:
   total_entries: 15
@@ -44,7 +44,6 @@ freshness:
 
 ## 🔑 Ключевой контракт и экспорты
 ```text
-fun patchWindowsCfg()
 class DesktopBackend(...) : AutoCloseable
 enum class Mode
 override fun close() = onClose()
@@ -54,6 +53,7 @@ override suspend fun quiesce() = runtimeRef.get()?.quiesceForUpdate() ?: false
 override suspend fun resume()
 override suspend fun shutdown()
 fun main(args: Array<String>)
+object PlatformFocus
 ```
 
 ## 🧪 Запуск и тестирование

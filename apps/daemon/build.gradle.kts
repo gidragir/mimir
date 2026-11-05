@@ -53,6 +53,9 @@ dependencies {
 
 // Kotlin 2.4 таргетит JVM 26 при JDK 27, выравниваем javac по Kotlin
 tasks.withType<JavaCompile>().configureEach { options.release = 26 }
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+    compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_26)
+}
 
 // Web UI раздаётся демоном: бандл :web-ui попадает в ресурсы static/
 evaluationDependsOn(":apps:web-ui")

@@ -14,18 +14,18 @@
 
 | Скрипт | Выполняемая команда |
 | :--- | :--- |
-| `package:msi` | `rtk mise run package:msi` |
-| `extension` | `rtk mise run extension` |
-| `android` | `rtk mise run android` |
-| `package:extension` | `rtk mise run package:extension` |
-| `package:docker` | `rtk mise run package:docker` |
-| `build:extension` | `rtk mise run build:extension` |
 | `package:arch` | `rtk mise run package:arch` |
-| `screenshots` | `rtk mise run screenshots` |
-| `daemon` | `rtk mise run daemon` |
+| `package:extension` | `rtk mise run package:extension` |
+| `package:msi` | `rtk mise run package:msi` |
+| `build:extension` | `rtk mise run build:extension` |
 | `desktop` | `rtk mise run desktop` |
-| `web` | `rtk mise run web` |
+| `android` | `rtk mise run android` |
+| `daemon` | `rtk mise run daemon` |
 | `plugin` | `rtk mise run plugin` |
+| `extension` | `rtk mise run extension` |
+| `web` | `rtk mise run web` |
+| `screenshots` | `rtk mise run screenshots` |
+| `package:docker` | `rtk mise run package:docker` |
 
 ## Быстрый запуск
 ```bash

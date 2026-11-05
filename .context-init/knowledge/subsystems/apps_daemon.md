@@ -2,8 +2,8 @@
 directory: apps/daemon
 source:
   kind: git
-  blob_sha: a1682b793767034db55ba014ff45b18ab6afeab8
-  commit_sha: c4d15d5133f882d1b744714b839e702178c89e3c
+  blob_sha: fdb27ebb70ea0e1ec5564a36f4452fc50c65a9b2
+  commit_sha: 17e43efc900e5e31cfa836789c4db3512844a82a
 generated_by:
   component: context-init
   role: update

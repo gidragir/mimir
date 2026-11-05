@@ -16,18 +16,18 @@
     "test": "rtk mise run test",
     "run": "rtk mise run desktop",
     "custom": {
-      "package:msi": "rtk mise run package:msi",
-      "extension": "rtk mise run extension",
-      "android": "rtk mise run android",
-      "package:extension": "rtk mise run package:extension",
-      "package:docker": "rtk mise run package:docker",
-      "build:extension": "rtk mise run build:extension",
       "package:arch": "rtk mise run package:arch",
-      "screenshots": "rtk mise run screenshots",
-      "daemon": "rtk mise run daemon",
+      "package:extension": "rtk mise run package:extension",
+      "package:msi": "rtk mise run package:msi",
+      "build:extension": "rtk mise run build:extension",
       "desktop": "rtk mise run desktop",
+      "android": "rtk mise run android",
+      "daemon": "rtk mise run daemon",
+      "plugin": "rtk mise run plugin",
+      "extension": "rtk mise run extension",
       "web": "rtk mise run web",
-      "plugin": "rtk mise run plugin"
+      "screenshots": "rtk mise run screenshots",
+      "package:docker": "rtk mise run package:docker"
     }
   },
   "subsystems": [
@@ -521,7 +521,6 @@
         }
       ],
       "key_symbols": [
-        "fun patchWindowsCfg()",
         "class DesktopBackend(...) : AutoCloseable",
         "enum class Mode",
         "override fun close() = onClose()",
@@ -530,7 +529,8 @@
         "override suspend fun quiesce() = runtimeRef.get()?.quiesceForUpdate() ?: false",
         "override suspend fun resume()",
         "override suspend fun shutdown()",
-        "fun main(args: Array<String>)"
+        "fun main(args: Array<String>)",
+        "object PlatformFocus"
       ],
       "summary_source": "heuristic"
     },

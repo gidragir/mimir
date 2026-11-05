@@ -2,8 +2,8 @@
 directory: libs/runtime/src/commonMain/kotlin/dev/mimir/runtime
 source:
   kind: git
-  blob_sha: 132ea75d447636ffe18c43f6c9387febea825eaf
-  commit_sha: c4d15d5133f882d1b744714b839e702178c89e3c
+  blob_sha: 57fe78685780357c6d03cc012468b560e5ee949a
+  commit_sha: 17e43efc900e5e31cfa836789c4db3512844a82a
 generated_by:
   component: context-init
   role: update

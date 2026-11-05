@@ -8,7 +8,11 @@ plugins {
 }
 
 kotlin {
-    jvm("desktop")
+    jvm("desktop") {
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_26)
+        }
+    }
     @OptIn(ExperimentalWasmDsl::class)
     wasmJs {
         browser()

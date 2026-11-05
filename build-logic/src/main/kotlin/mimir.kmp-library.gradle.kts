@@ -16,7 +16,11 @@ kotlin {
             "kotlinx.coroutines.ExperimentalCoroutinesApi",
         )
     }
-    jvm()
+    jvm {
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_26)
+        }
+    }
     js {
         browser {
             testTask {

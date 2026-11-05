@@ -87,6 +87,9 @@ tasks.withType<Test>().configureEach { jvmArgs("--enable-native-access=ALL-UNNAM
 
 // Kotlin 2.4 таргетит JVM 26 при JDK 27, выравниваем javac по Kotlin
 tasks.withType<JavaCompile>().configureEach { options.release = 26 }
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+    compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_26)
+}
 
 // Отключаем перезапуск Windows-лаунчера jpackage (win.norestart=true), чтобы в Диспетчере задач
 // не создавался родительский процесс-обёртка и отображался ровно один процесс Mimir.exe.
