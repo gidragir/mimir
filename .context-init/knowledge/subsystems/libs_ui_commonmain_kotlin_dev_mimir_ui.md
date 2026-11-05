@@ -2,11 +2,11 @@
 directory: libs/ui/src/commonMain/kotlin/dev/mimir/ui
 source:
   kind: git
-  blob_sha: 1d4ff715aa82390f9496af5d2f33f3dc201f3cea
-  commit_sha: c4d15d5133f882d1b744714b839e702178c89e3c
+  blob_sha: e1c4373f2217a628321c955d84185ff7dd30236f
+  commit_sha: d76124709e74a48c435fa5562976a03d7ddce70f
 generated_by:
   component: context-init
-  role: init
+  role: update
   model: none
 freshness:
   total_entries: 15

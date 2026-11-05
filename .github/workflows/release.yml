@@ -45,6 +45,7 @@ jobs:
     timeout-minutes: 45
     permissions:
       contents: read
+      checks: read
     strategy:
       fail-fast: false
       matrix:
@@ -84,6 +85,24 @@ jobs:
         run: |
           version=$(sed -n 's/^mimir.version=//p' gradle.properties)
           test "v$version" = "$TAG" || { echo "Tag $TAG != mimir.version $version"; exit 1; }
+      - name: Verify CI status for release commit
+        if: ${{ inputs.dry_run != true }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          sha=$(git rev-parse HEAD)
+          runs=$(gh api "repos/${{ github.repository }}/commits/$sha/check-runs?per_page=100")
+          total=$(jq '[.check_runs[] | select(.name | startswith("build ("))] | length' <<<"$runs")
+          failed=$(jq '[.check_runs[] | select((.name | startswith("build (")) or .name == "Detect Changed Modules") | select(.conclusion != "success" and .conclusion != "skipped")] | length' <<<"$runs")
+          detect=$(jq -r '[.check_runs[] | select(.name == "Detect Changed Modules")][0].conclusion // "missing"' <<<"$runs")
+          if [ "$total" -eq 0 ] || [ "$detect" != "success" ]; then
+            echo "CI check-runs missing or detect-changes not successful for commit $sha"
+            exit 1
+          fi
+          if [ "$failed" -gt 0 ]; then
+            echo "CI check-runs failed or incomplete for commit $sha"
+            exit 1
+          fi
       - uses: jdx/mise-action@v5
       - name: Configure Java environment from mise
         run: |
@@ -115,7 +134,7 @@ jobs:
           MIMIR_BUILD_GOOGLE_DESKTOP_CLIENT_SECRET: ${{ secrets.MIMIR_BUILD_GOOGLE_DESKTOP_CLIENT_SECRET }}
           MIMIR_BUILD_GOOGLE_DEVICE_CLIENT_ID: ${{ secrets.MIMIR_BUILD_GOOGLE_DEVICE_CLIENT_ID }}
           MIMIR_BUILD_GOOGLE_DEVICE_CLIENT_SECRET: ${{ secrets.MIMIR_BUILD_GOOGLE_DEVICE_CLIENT_SECRET }}
-        run: ./gradlew ${{ matrix.task }}
+        run: ./gradlew ${{ matrix.task }} -Pmimir.bundleWebUi=true
       - name: Mark unsigned APK
         if: matrix.android
         run: |

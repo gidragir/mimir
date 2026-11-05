@@ -18,6 +18,8 @@ on:
       - '.context-init/**'
       - '.github/.release-please-manifest.json'
       - '.github/release-please-config.json'
+  schedule:
+    - cron: '0 3 * * *'
   workflow_dispatch:
     inputs:
       run_macos:
@@ -28,7 +30,7 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -50,6 +52,7 @@ jobs:
       android: ${{ steps.filter.outputs.android }}
       js_or_web: ${{ steps.filter.outputs.js_or_web }}
       is_release_pr: ${{ steps.matrix.outputs.is_release_pr }}
+      package_msi: ${{ steps.matrix.outputs.package_msi }}
       os_matrix: ${{ steps.matrix.outputs.os_matrix }}
     steps:
       - uses: actions/checkout@v7
@@ -57,6 +60,10 @@ jobs:
           persist-credentials: false
       - name: Verify design tokens are in sync
         run: node scripts/generate-tokens.mjs --check
+      - name: Lint GitHub Actions workflows
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.7/scripts/download-actionlint.bash | bash -s -- 1.7.7 /tmp
+          /tmp/actionlint -color
       - uses: dorny/paths-filter@v4
         id: filter
         with:
@@ -69,6 +76,22 @@ jobs:
               - 'settings.gradle.kts'
               - 'gradle.properties'
               - 'mise.toml'
+              - 'gradlew'
+              - 'gradlew.bat'
+              - '.github/scripts/**'
+              - '.github/workflows/**'
+            msi_packaging:
+              - 'apps/desktop/**'
+              - 'apps/daemon/**'
+              - 'packaging/windows/**'
+              - 'build-logic/**'
+              - 'gradle/**'
+              - 'build.gradle.kts'
+              - 'settings.gradle.kts'
+              - 'gradle.properties'
+              - 'mise.toml'
+              - 'gradlew'
+              - 'gradlew.bat'
               - '.github/workflows/ci.yml'
             desktop:
               - 'apps/desktop/**'
@@ -91,19 +114,28 @@ jobs:
           RUN_MACOS: ${{ inputs.run_macos }}
           CORE_OR_LIBS: ${{ steps.filter.outputs.core_or_libs }}
           DESKTOP: ${{ steps.filter.outputs.desktop }}
+          MSI_PACKAGING: ${{ steps.filter.outputs.msi_packaging }}
         run: |
           if [[ "$HEAD_REF" == release-please--* ]]; then
             echo "is_release_pr=true" >> "$GITHUB_OUTPUT"
+            echo "package_msi=false" >> "$GITHUB_OUTPUT"
             echo 'os_matrix=["ubuntu-latest"]' >> "$GITHUB_OUTPUT"
-          elif [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$RUN_MACOS" = "true" ]; then
+          elif [ "$EVENT_NAME" = "schedule" ] || { [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$RUN_MACOS" = "true" ]; }; then
             echo "is_release_pr=false" >> "$GITHUB_OUTPUT"
+            echo "package_msi=true" >> "$GITHUB_OUTPUT"
             echo 'os_matrix=["ubuntu-latest","windows-latest","macos-latest"]' >> "$GITHUB_OUTPUT"
-          elif [ "$CORE_OR_LIBS" = "true" ] || [ "$DESKTOP" = "true" ]; then
-            echo "is_release_pr=false" >> "$GITHUB_OUTPUT"
-            echo 'os_matrix=["ubuntu-latest","windows-latest"]' >> "$GITHUB_OUTPUT"
           else
             echo "is_release_pr=false" >> "$GITHUB_OUTPUT"
-            echo 'os_matrix=["ubuntu-latest"]' >> "$GITHUB_OUTPUT"
+            if [ "$EVENT_NAME" = "push" ] || [ "$EVENT_NAME" = "workflow_dispatch" ] || [ "$MSI_PACKAGING" = "true" ]; then
+              echo "package_msi=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "package_msi=false" >> "$GITHUB_OUTPUT"
+            fi
+            if [ "$CORE_OR_LIBS" = "true" ] || [ "$DESKTOP" = "true" ]; then
+              echo 'os_matrix=["ubuntu-latest","windows-latest"]' >> "$GITHUB_OUTPUT"
+            else
+              echo 'os_matrix=["ubuntu-latest"]' >> "$GITHUB_OUTPUT"
+            fi
           fi
 
   build:
@@ -145,26 +177,34 @@ jobs:
       # - Linux (только Android): юнит-тесты и сборка Android APK
       # - Linux (только JS/Web/Design): плагин Obsidian, расширение браузера, Wasm Web-UI и UI-тесты
       # - Linux (ядро/десктоп/всё остальное): полный прогон mise run build
-      - name: Build and verify
+      - name: Fast JVM tests (ciJvmTests)
+        if: ${{ needs.detect-changes.outputs.is_release_pr != 'true' && (github.event_name == 'schedule' || needs.detect-changes.outputs.core_or_libs == 'true' || needs.detect-changes.outputs.desktop == 'true' || (needs.detect-changes.outputs.android != 'true' && needs.detect-changes.outputs.js_or_web != 'true') || runner.os != 'Linux') }}
+        run: ./gradlew ciJvmTests
+      - name: Full build and packaging
         env:
           IS_RELEASE_PR: ${{ needs.detect-changes.outputs.is_release_pr }}
-          CORE_OR_LIBS: ${{ needs.detect-changes.outputs.core_or_libs }}
-          DESKTOP: ${{ needs.detect-changes.outputs.desktop }}
+          PACKAGE_MSI: ${{ needs.detect-changes.outputs.package_msi }}
+          CORE_OR_LIBS: ${{ (needs.detect-changes.outputs.core_or_libs == 'true' || github.event_name == 'schedule') && 'true' || 'false' }}
+          DESKTOP: ${{ (needs.detect-changes.outputs.desktop == 'true' || github.event_name == 'schedule') && 'true' || 'false' }}
           ANDROID: ${{ needs.detect-changes.outputs.android }}
           JS_OR_WEB: ${{ needs.detect-changes.outputs.js_or_web }}
         run: |
           if [ "$IS_RELEASE_PR" = "true" ]; then
             ./gradlew -p build-logic test && ./gradlew :apps:desktop:help
           elif [ "${{ runner.os }}" = "Windows" ]; then
-            ./gradlew :apps:desktop:test :apps:desktop:packageMsi
+            if [ "$PACKAGE_MSI" = "true" ]; then
+              ./gradlew :apps:desktop:packageMsi -Pmimir.bundleWebUi=true
+            else
+              echo "Skipping MSI packaging: no packaging-related changes in this PR"
+            fi
           elif [ "${{ runner.os }}" = "macOS" ]; then
-            ./gradlew :apps:desktop:test :apps:desktop:packageUberJarForCurrentOS
+            ./gradlew :apps:desktop:packageUberJarForCurrentOS -Pmimir.bundleWebUi=true
           elif [ "$CORE_OR_LIBS" != "true" ] && [ "$DESKTOP" != "true" ] && [ "$JS_OR_WEB" != "true" ] && [ "$ANDROID" = "true" ]; then
-            ./gradlew :apps:android:testDebugUnitTest :apps:android:assembleDebug
+            ./gradlew -p build-logic test && ./gradlew :apps:android:testDebugUnitTest :apps:android:assembleDebug
           elif [ "$CORE_OR_LIBS" != "true" ] && [ "$DESKTOP" != "true" ] && [ "$ANDROID" != "true" ] && [ "$JS_OR_WEB" = "true" ]; then
-            ./gradlew :apps:obsidian-plugin:checkPlugin :apps:browser-extension:checkExtension :apps:web-ui:wasmJsBrowserDistribution :libs:ui:desktopTest
+            ./gradlew -p build-logic test && ./gradlew :apps:obsidian-plugin:checkPlugin :apps:browser-extension:checkExtension :apps:web-ui:wasmJsBrowserDistribution :libs:ui:desktopTest
           else
-            mise run build
+            ./gradlew build --continue -Pmimir.bundleWebUi=true
           fi
       - name: Upload test reports on failure
         if: failure()
@@ -176,3 +216,33 @@ jobs:
             **/build/reports/problems/
           retention-days: 7
           if-no-files-found: ignore
+
+  arch-dry-run:
+    name: arch (dry-run)
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    container: archlinux:latest
+    steps:
+      - run: pacman -Syu --noconfirm jdk-openjdk base-devel git
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Build Arch package
+        run: .github/scripts/build-arch.sh
+
+  docker-dry-run:
+    name: docker (dry-run)
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: packaging/docker/Dockerfile
+          push: false

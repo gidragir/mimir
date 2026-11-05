@@ -2,11 +2,11 @@
 directory: libs/core
 source:
   kind: git
-  blob_sha: 9974a32848a3f78d589730200c029947b95bafea
-  commit_sha: c4d15d5133f882d1b744714b839e702178c89e3c
+  blob_sha: 5b23cf31f986f3206fb0ea2404a02bacc1a40259
+  commit_sha: d76124709e74a48c435fa5562976a03d7ddce70f
 generated_by:
   component: context-init
-  role: init
+  role: update
   model: none
 freshness:
   total_entries: 15

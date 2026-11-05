@@ -2,15 +2,15 @@
 directory: apps/obsidian-plugin
 source:
   kind: git
-  blob_sha: 8c6681bdf4b199fe9a2f139ab94b2a1492796e25
-  commit_sha: c4d15d5133f882d1b744714b839e702178c89e3c
+  blob_sha: 06ffd659e212ac5cdc6772d7169d7d129bc980de
+  commit_sha: d76124709e74a48c435fa5562976a03d7ddce70f
 generated_by:
   component: context-init
-  role: init
+  role: update
   model: none
 freshness:
-  total_entries: 8
-  sampled_entries: 8
+  total_entries: 9
+  sampled_entries: 9
   unsampled_entries: 0
   pending_child_changes: 0
 ---
@@ -34,6 +34,7 @@ freshness:
 | `apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/update/ObsidianInPlaceApplier.kt` | Исходный код |
 | `apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/update/PluginUpdater.kt` | Исходный код |
 | `apps/obsidian-plugin/webpack.config.d/obsidian.js` | Исходный код |
+| `apps/obsidian-plugin/webpack.config.d/performance.js` | Исходный код |
 
 ## 🔑 Ключевой контракт и экспорты
 ```text

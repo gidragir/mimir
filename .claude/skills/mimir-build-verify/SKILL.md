@@ -15,6 +15,8 @@ description: Use when you need to build, test or verify a change in the Mimir re
 |---|---|
 | Вся сборка + тесты | `mise run build` |
 | Все тесты | `mise run test` |
+| Быстро: все JVM-тесты и build-logic без Wasm/JS/Android | `mise run test:fast` |
+| Предпроверка перед push (токены + actionlint + JVM-тесты) | `mise run ci:fast` |
 | build-logic | `./gradlew -p build-logic test` |
 | core / drive | `./gradlew :libs:core:allTests`, `./gradlew :libs:drive:allTests` (jvm, js, wasmJs; js/wasm — Karma + headless Chrome) |
 | ui | `./gradlew :libs:ui:desktopTest`, `./gradlew :libs:ui:compileKotlinWasmJs` |
@@ -46,7 +48,7 @@ description: Use when you need to build, test or verify a change in the Mimir re
 
 ## CI и кроссплатформенная матрица
 
-- **Выборочный запуск (`detect-changes`)**: `.github/workflows/ci.yml` использует `dorny/paths-filter@v3` для формирования динамической матрицы `os_matrix`. Изменения только в `apps/android/**` или `apps/obsidian-plugin/**` пропускают десктопную матрицу (`windows-latest`); изменения в `libs/**`, `build-logic/**`, `apps/desktop/**` или `apps/daemon/**` запускают `ubuntu-latest` и `windows-latest` (`macos-latest` исключён из автоматических PR-проверок и запускается через `workflow_dispatch` с `run_macos=true`). На Linux прогоняется полный `mise run build`, на Windows — только `./gradlew :apps:desktop:test :apps:desktop:packageMsi` (без повторного прогона общих KMP/JS-тестов), а на релизных PR `release-please--*` — быстрая валидация версии на `ubuntu-latest`.
+- **Выборочный запуск (`detect-changes`)**: `.github/workflows/ci.yml` использует `dorny/paths-filter@v4` для формирования динамической матрицы `os_matrix`. Изменения только в `apps/android/**` или `apps/obsidian-plugin/**` пропускают десктопную матрицу (`windows-latest`); изменения в `libs/**`, `build-logic/**`, `apps/desktop/**` или `apps/daemon/**` запускают `ubuntu-latest` и `windows-latest` (`macos-latest` исключён из автоматических PR-проверок и запускается через `workflow_dispatch` с `run_macos=true`). Везде первым идёт `./gradlew ciJvmTests`; затем на Linux `./gradlew build --continue`, на Windows — `packageMsi -Pmimir.bundleWebUi=true` только при `package_msi=true` (без повторного прогона общих KMP/JS-тестов); ночной `schedule` добавляет macOS, Arch и Docker dry-run, а на релизных PR `release-please--*` — быстрая валидация версии на `ubuntu-latest`.
 - **Windows Runners**: На `windows-latest` обязателен экспорт `JAVA_HOME=$(mise where java | tr '\\' '/')` в `$GITHUB_ENV` и `$GITHUB_PATH`.
 - **Karma в CI**: Chrome в headless-режиме на Ubuntu CI требует лаунчера `ChromeHeadlessCI` с флагами `--no-sandbox --disable-dev-shm-usage --disable-gpu --headless=new` (`apps/browser-extension/karma.config.d/headless.js`), а также таймаута mocha 120 с (`apps/browser-extension/karma.config.d/mocha-timeout.js`) из-за scrypt в JS.
 - **Сплющивание dist в Release**: Перед расчетом контрольных сумм `dist/` очищается от вложенных папок во избежание ошибки `sha256sum: directory`.

@@ -2,15 +2,15 @@
 directory: apps/browser-extension
 source:
   kind: git
-  blob_sha: 8a5b79cf9be903f3e34d58314641cabd0b5b26d8
-  commit_sha: c4d15d5133f882d1b744714b839e702178c89e3c
+  blob_sha: 2e689521be1ef6c16f1ccc631c797de8b6df520a
+  commit_sha: d76124709e74a48c435fa5562976a03d7ddce70f
 generated_by:
   component: context-init
-  role: init
+  role: update
   model: none
 freshness:
-  total_entries: 6
-  sampled_entries: 6
+  total_entries: 7
+  sampled_entries: 7
   unsampled_entries: 0
   pending_child_changes: 0
 ---
@@ -32,6 +32,7 @@ freshness:
 | `apps/browser-extension/manifest.template.json` | Исходный код |
 | `apps/browser-extension/scripts/capture-screenshots.mjs` | Исходный код |
 | `apps/browser-extension/scripts/check-extension.mjs` | Исходный код |
+| `apps/browser-extension/webpack.config.d/performance.js` | Исходный код |
 
 ## 🔑 Ключевой контракт и экспорты
 ```text

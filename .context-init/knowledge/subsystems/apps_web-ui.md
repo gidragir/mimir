@@ -2,15 +2,15 @@
 directory: apps/web-ui
 source:
   kind: git
-  blob_sha: c1d25b54fa0cabceff408854f9a1b2d316540431
-  commit_sha: c4d15d5133f882d1b744714b839e702178c89e3c
+  blob_sha: 40f7a5730a6cab18721ef2078cc0e07d7139b638
+  commit_sha: d76124709e74a48c435fa5562976a03d7ddce70f
 generated_by:
   component: context-init
-  role: init
+  role: update
   model: none
 freshness:
-  total_entries: 2
-  sampled_entries: 2
+  total_entries: 3
+  sampled_entries: 3
   unsampled_entries: 0
   pending_child_changes: 0
 ---
@@ -28,6 +28,7 @@ freshness:
 | :--- | :--- |
 | `apps/web-ui/build.gradle.kts` | ⭐ Точка входа |
 | `apps/web-ui/src/wasmJsMain/kotlin/dev/mimir/web/Main.kt` | Исходный код |
+| `apps/web-ui/webpack.config.d/performance.js` | Исходный код |
 
 ## 🔑 Ключевой контракт и экспорты
 ```text

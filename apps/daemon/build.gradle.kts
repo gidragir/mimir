@@ -57,8 +57,21 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
     compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_26)
 }
 
-// Web UI раздаётся демоном: бандл :web-ui попадает в ресурсы static/
-evaluationDependsOn(":apps:web-ui")
-tasks.processResources {
-    from(project(":apps:web-ui").tasks.named("wasmJsBrowserDistribution")) { into("static") }
+// Web UI раздаётся демоном: бандл :web-ui попадает в ресурсы static/ только при упаковке дистрибутивов
+// или явном -Pmimir.bundleWebUi=true, чтобы JVM-тесты (:apps:daemon:test, :apps:desktop:test) не тянули Wasm/Webpack.
+val bundleWebUi = providers.gradleProperty("mimir.bundleWebUi").map { it.toBoolean() }.orElse(false).get() ||
+    gradle.startParameter.taskNames.any { taskName ->
+        val simple = taskName.substringAfterLast(':')
+        simple.contains("package", ignoreCase = true) ||
+            simple.contains("Distributable", ignoreCase = true) ||
+            simple in setOf("installDist", "distTar", "distZip", "assembleDist")
+    }
+if (bundleWebUi) {
+    evaluationDependsOn(":apps:web-ui")
+    tasks.processResources {
+        from(project(":apps:web-ui").tasks.named("wasmJsBrowserDistribution")) { into("static") }
+    }
+} else {
+    // Без бандла static/ пуст: тест раздачи Web UI проверяется только с -Pmimir.bundleWebUi=true.
+    tasks.test { filter { excludeTestsMatching("*WebUiServedTest") } }
 }

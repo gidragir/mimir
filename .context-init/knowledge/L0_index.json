@@ -16,18 +16,20 @@
     "test": "rtk mise run test",
     "run": "rtk mise run desktop",
     "custom": {
-      "package:arch": "rtk mise run package:arch",
-      "package:extension": "rtk mise run package:extension",
-      "package:msi": "rtk mise run package:msi",
-      "build:extension": "rtk mise run build:extension",
-      "desktop": "rtk mise run desktop",
-      "android": "rtk mise run android",
-      "daemon": "rtk mise run daemon",
       "plugin": "rtk mise run plugin",
-      "extension": "rtk mise run extension",
-      "web": "rtk mise run web",
+      "package:extension": "rtk mise run package:extension",
+      "package:arch": "rtk mise run package:arch",
+      "test:fast": "rtk mise run test:fast",
+      "package:msi": "rtk mise run package:msi",
+      "android": "rtk mise run android",
+      "build:extension": "rtk mise run build:extension",
       "screenshots": "rtk mise run screenshots",
-      "package:docker": "rtk mise run package:docker"
+      "desktop": "rtk mise run desktop",
+      "package:docker": "rtk mise run package:docker",
+      "extension": "rtk mise run extension",
+      "daemon": "rtk mise run daemon",
+      "ci:fast": "rtk mise run ci:fast",
+      "web": "rtk mise run web"
     }
   },
   "subsystems": [
@@ -154,7 +156,8 @@
         "apps/browser-extension/karma.config.d/mocha-timeout.js",
         "apps/browser-extension/manifest.template.json",
         "apps/browser-extension/scripts/capture-screenshots.mjs",
-        "apps/browser-extension/scripts/check-extension.mjs"
+        "apps/browser-extension/scripts/check-extension.mjs",
+        "apps/browser-extension/webpack.config.d/performance.js"
       ],
       "files": [
         {
@@ -179,6 +182,10 @@
         },
         {
           "path": "apps/browser-extension/scripts/check-extension.mjs",
+          "is_entrypoint": false
+        },
+        {
+          "path": "apps/browser-extension/webpack.config.d/performance.js",
           "is_entrypoint": false
         }
       ],
@@ -554,7 +561,8 @@
         "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/ObsidianApi.kt",
         "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/update/ObsidianInPlaceApplier.kt",
         "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/update/PluginUpdater.kt",
-        "apps/obsidian-plugin/webpack.config.d/obsidian.js"
+        "apps/obsidian-plugin/webpack.config.d/obsidian.js",
+        "apps/obsidian-plugin/webpack.config.d/performance.js"
       ],
       "files": [
         {
@@ -588,6 +596,10 @@
         {
           "path": "apps/obsidian-plugin/webpack.config.d/obsidian.js",
           "is_entrypoint": false
+        },
+        {
+          "path": "apps/obsidian-plugin/webpack.config.d/performance.js",
+          "is_entrypoint": false
         }
       ],
       "key_symbols": [
@@ -618,7 +630,8 @@
       ],
       "key_files": [
         "apps/web-ui/build.gradle.kts",
-        "apps/web-ui/src/wasmJsMain/kotlin/dev/mimir/web/Main.kt"
+        "apps/web-ui/src/wasmJsMain/kotlin/dev/mimir/web/Main.kt",
+        "apps/web-ui/webpack.config.d/performance.js"
       ],
       "files": [
         {
@@ -627,6 +640,10 @@
         },
         {
           "path": "apps/web-ui/src/wasmJsMain/kotlin/dev/mimir/web/Main.kt",
+          "is_entrypoint": false
+        },
+        {
+          "path": "apps/web-ui/webpack.config.d/performance.js",
           "is_entrypoint": false
         }
       ],
@@ -1401,12 +1418,17 @@
         "libs/ui/build.gradle.kts"
       ],
       "key_files": [
-        "libs/ui/build.gradle.kts"
+        "libs/ui/build.gradle.kts",
+        "libs/ui/webpack.config.d/performance.js"
       ],
       "files": [
         {
           "path": "libs/ui/build.gradle.kts",
           "is_entrypoint": true
+        },
+        {
+          "path": "libs/ui/webpack.config.d/performance.js",
+          "is_entrypoint": false
         }
       ],
       "summary_source": "heuristic"

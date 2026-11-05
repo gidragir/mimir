@@ -1,6 +1,7 @@
 [tools]
 java = "temurin-27" # если в реестре mise нет — заменить на "openjdk-27"
 node = "lts"
+actionlint = "1.7.12"
 
 [tasks.build]
 description = "Собрать всё и прогнать тесты"
@@ -11,6 +12,16 @@ run_windows = "gradlew.bat build"
 description = "Прогнать все тесты"
 run = "./gradlew allTests"
 run_windows = "gradlew.bat allTests"
+
+[tasks."test:fast"]
+description = "Быстрый прогон всех JVM-тестов и build-logic (без Wasm/JS/Android)"
+run = "./gradlew ciJvmTests"
+run_windows = "gradlew.bat ciJvmTests"
+
+[tasks."ci:fast"]
+description = "Быстрая локальная предпроверка перед push (токены + actionlint + ciJvmTests)"
+run = "node scripts/generate-tokens.mjs --check && actionlint && ./gradlew ciJvmTests"
+run_windows = "node scripts/generate-tokens.mjs --check && gradlew.bat ciJvmTests"
 
 [tasks.desktop]
 description = "Запустить десктопное приложение"

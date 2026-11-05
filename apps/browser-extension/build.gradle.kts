@@ -94,7 +94,7 @@ val zipExtension = tasks.register<Zip>("zipExtension") {
 val checkExtension = tasks.register<Exec>("checkExtension") {
     group = "verification"
     description = "Проверить манифест MV3 и popup"
-    dependsOn(assembleExtension)
+    dependsOn(assembleExtension, "jsBrowserTest")
     commandLine("node", "scripts/check-extension.mjs", extensionDir.get().asFile.path)
 }
 
