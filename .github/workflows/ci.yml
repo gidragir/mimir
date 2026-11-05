@@ -33,6 +33,12 @@ concurrency:
 permissions:
   contents: read
 
+# actions/checkout вызывает git init: без этого в лог каждого задания попадает hint про имя ветки.
+env:
+  GIT_CONFIG_COUNT: 1
+  GIT_CONFIG_KEY_0: init.defaultBranch
+  GIT_CONFIG_VALUE_0: main
+
 jobs:
   detect-changes:
     name: Detect Changed Modules
@@ -130,15 +136,7 @@ jobs:
           java_home=$(mise where java | tr '\\' '/')
           echo "JAVA_HOME=$java_home" >> "$GITHUB_ENV"
           echo "$java_home/bin" >> "$GITHUB_PATH"
-      # Android SDK ставим только на Linux, когда затронуты общие библиотеки или сам Android-модуль.
-      - uses: android-actions/setup-android@v4
-        if: >-
-          runner.os == 'Linux' &&
-          needs.detect-changes.outputs.is_release_pr != 'true' &&
-          (needs.detect-changes.outputs.core_or_libs == 'true' || needs.detect-changes.outputs.android == 'true')
-        # По умолчанию ставится устаревший `tools`, которого нет в новых cmdline-tools; платформу и build-tools скачает AGP.
-        with:
-          packages: platform-tools
+      # Android SDK и лицензии уже есть в образе ubuntu-latest (ANDROID_HOME), платформу и build-tools скачает AGP.
       - uses: gradle/actions/setup-gradle@v6
       # Разделение обязанностей по ОС и затронутым подсистемам без секретов:
       # - Release Please PR: быстрая валидация версии в gradle.properties и build-logic
