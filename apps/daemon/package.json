@@ -1,6 +1,0 @@
-{
-  "name": "@mimir/daemon",
-  "version": "0.2.0",
-  "private": true,
-  "description": "Носитель версии модуля daemon для changesets; код собирается Gradle"
-}

@@ -1,6 +1,6 @@
 name: Release
 
-# Запускается вручную-тегом v*, через workflow_dispatch или из changesets.yml (workflow_call).
+# Запускается вручную-тегом v*, через workflow_dispatch или из release-please.yml (workflow_call).
 on:
   push:
     tags: ["v*"]
@@ -41,24 +41,24 @@ jobs:
         include:
           - name: msi
             os: windows-latest
-            task: :app-desktop:packageMsi
-            paths: app-desktop/build/compose/binaries/main/msi/*.msi
+            task: :apps:desktop:packageMsi
+            paths: apps/desktop/build/compose/binaries/main/msi/*.msi
           - name: apk
             os: ubuntu-latest
-            task: :app-android:assembleRelease
-            paths: app-android/build/outputs/apk/release/*.apk
+            task: :apps:android:assembleRelease
+            paths: apps/android/build/outputs/apk/release/*.apk
             android: true
           - name: obsidian-plugin
             os: ubuntu-latest
-            task: :obsidian-plugin:zipPlugin
+            task: :apps:obsidian-plugin:zipPlugin
             paths: |
-              obsidian-plugin/build/distributions/*.zip
-              obsidian-plugin/build/plugin/main.js
-              obsidian-plugin/build/plugin/manifest.json
+              apps/obsidian-plugin/build/distributions/*.zip
+              apps/obsidian-plugin/build/plugin/main.js
+              apps/obsidian-plugin/build/plugin/manifest.json
           - name: browser-extension
             os: ubuntu-latest
-            task: :browser-extension:zipExtension
-            paths: browser-extension/build/distributions/*.zip
+            task: :apps:browser-extension:zipExtension
+            paths: apps/browser-extension/build/distributions/*.zip
     defaults:
       run:
         shell: bash
@@ -111,7 +111,7 @@ jobs:
         if: matrix.android
         run: |
           [ -z "$MIMIR_KEYSTORE_PATH" ] || exit 0
-          for f in app-android/build/outputs/apk/release/*.apk; do
+          for f in apps/android/build/outputs/apk/release/*.apk; do
             case "$f" in *-unsigned.apk) ;; *) mv "$f" "${f%.apk}-unsigned.apk" ;; esac
           done
       - uses: actions/upload-artifact@v4
@@ -232,7 +232,7 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.TAG }}
-          generate_release_notes: true
+          generate_release_notes: false
           make_latest: true
           fail_on_unmatched_files: true
           files: dist/*

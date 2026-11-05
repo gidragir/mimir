@@ -2,14 +2,7 @@
   "name": "mimir-monorepo",
   "private": true,
   "scripts": {
-    "changeset": "changeset",
-    "version": "changeset version && node scripts/sync-version.mjs",
-    "version:check": "node scripts/sync-version.mjs --check",
-    "release:tag": "node scripts/tag-release.mjs",
     "tokens:generate": "node scripts/generate-tokens.mjs",
     "tokens:check": "node scripts/generate-tokens.mjs --check"
-  },
-  "devDependencies": {
-    "@changesets/cli": "^2.29.0"
   }
 }
