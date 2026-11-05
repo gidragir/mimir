@@ -24,7 +24,7 @@ kotlin {
             implementation(libs.compose.foundation)
             implementation(libs.compose.material3)
             implementation(libs.compose.ui)
-            implementation(compose.components.uiToolingPreview)
+            implementation(libs.compose.ui.tooling.preview)
         }
         getByName("desktopTest") {
             dependencies {
@@ -39,6 +39,9 @@ kotlin {
 
 dependencies {
     if (dev.mimir.build.AndroidSdk.isAvailable(rootDir)) {
-        add("androidRuntimeClasspath", compose.uiTooling)
+        add("androidRuntimeClasspath", libs.compose.ui.tooling)
     }
 }
+
+// Skiko загружает нативную библиотеку через System.load.
+tasks.withType<Test>().configureEach { jvmArgs("--enable-native-access=ALL-UNNAMED") }

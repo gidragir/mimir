@@ -67,6 +67,8 @@ class PlayServicesGisAuthorizer(
         }
     }
 
+    // GoogleSignIn устарел; отзыв доступа переводится на Identity API отдельной задачей.
+    @Suppress("DEPRECATION")
     override suspend fun revoke() {
         withContext(Dispatchers.IO) {
             try {

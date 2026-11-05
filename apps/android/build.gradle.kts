@@ -103,6 +103,8 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
 
 tasks.withType<Test>().configureEach {
     systemProperty("org.objectweb.asm.experimental", "true")
+    // Conscrypt грузит нативную библиотеку, Robolectric использует sun.misc.Unsafe: на JDK 27 иначе предупреждения.
+    jvmArgs("--enable-native-access=ALL-UNNAMED", "--sun-misc-unsafe-memory-access=allow")
 }
 
 val asmVersion = libs.versions.asm.get()

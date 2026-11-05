@@ -30,7 +30,7 @@ import dev.mimir.ui.model.MimirUiModel
 import dev.mimir.ui.model.UiConflictEntry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
-import org.jetbrains.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.tooling.preview.Preview
 import kotlin.time.Instant
 
 /** Конфликтные копии: на каждую — «Оставить оригинал» (копия удаляется) или «Оставить копию» (копия заменяет оригинал). */

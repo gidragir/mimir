@@ -33,7 +33,7 @@ import dev.mimir.ui.screens.ConflictsScreen
 
 import dev.mimir.ui.screens.SetupWizardScreen
 import dev.mimir.ui.screens.StatusScreen
-import org.jetbrains.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.tooling.preview.Preview
 
 private enum class Screen { Status, Setup, Conflicts }
 

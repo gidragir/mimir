@@ -113,6 +113,8 @@ class ActivitySystemAccountLogin(
                 } catch (_: Exception) {
                     null
                 }
+                // GoogleSignIn устарел: это запасной разбор ответа для старых сервисов Google Play.
+                @Suppress("DEPRECATION")
                 val email = authResult?.toGoogleSignInAccount()?.email
                     ?: runCatching { GoogleSignIn.getSignedInAccountFromIntent(intent).result?.email }.getOrNull()
 

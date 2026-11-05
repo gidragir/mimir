@@ -1,5 +1,6 @@
 package dev.mimir.core
 
+@OptIn(kotlin.js.ExperimentalWasmJsInterop::class)
 @JsFun("() => globalThis.crypto.getRandomValues(new Uint32Array(1))[0] | 0")
 private external fun randomInt(): Int
 

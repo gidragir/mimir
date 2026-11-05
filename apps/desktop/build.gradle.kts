@@ -82,6 +82,9 @@ tasks.withType<JavaExec>().configureEach {
     }
 }
 
+// Тесты, как и приложение: Skiko и PlatformFocus (FFM) обращаются к нативному коду.
+tasks.withType<Test>().configureEach { jvmArgs("--enable-native-access=ALL-UNNAMED") }
+
 // Kotlin 2.4 таргетит JVM 26 при JDK 27, выравниваем javac по Kotlin
 tasks.withType<JavaCompile>().configureEach { options.release = 26 }
 

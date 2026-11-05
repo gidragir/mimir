@@ -36,7 +36,7 @@ import dev.mimir.ui.screens.setup.GoogleStep
 import dev.mimir.ui.screens.setup.InitialResolutionStep
 import dev.mimir.ui.screens.setup.PasswordStep
 import dev.mimir.ui.screens.setup.VaultStep
-import org.jetbrains.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.tooling.preview.Preview
 
 private enum class Step { Access, Vault, Google, Password, InitialResolution }
 

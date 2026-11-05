@@ -8,6 +8,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 
+@OptIn(kotlin.js.ExperimentalJsExport::class)
 @JsExport
 @JsName("default")
 class MimirPlugin : Plugin() {

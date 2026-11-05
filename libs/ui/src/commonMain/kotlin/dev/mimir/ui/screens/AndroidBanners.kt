@@ -112,7 +112,7 @@ fun StatusBanners(
 
     if (showStorageBanner || showSignInBanner) {
         Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (showStorageBanner && storageAccess != null) {
+            if (showStorageBanner) {
                 StorageAccessBanner(storageAccess)
             }
             if (showSignInBanner) {
