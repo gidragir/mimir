@@ -65,7 +65,7 @@ jobs:
           reg add "HKLM\SYSTEM\CurrentControlSet\Control\FileSystem" /v "LongPathsEnabled" /t REG_DWORD /d 1 /f
           git config --global core.symlinks true
           git config --global core.longpaths true
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ env.TAG }}
           persist-credentials: false
@@ -73,18 +73,18 @@ jobs:
         run: |
           version=$(sed -n 's/^mimir.version=//p' gradle.properties)
           test "v$version" = "$TAG" || { echo "Tag $TAG != mimir.version $version"; exit 1; }
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@v5
       - name: Configure Java environment from mise
         run: |
           java_home=$(mise where java | tr '\\' '/')
           echo "JAVA_HOME=$java_home" >> "$GITHUB_ENV"
           echo "$java_home/bin" >> "$GITHUB_PATH"
-      - uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v4
         if: matrix.android
         # По умолчанию ставится устаревший `tools`, которого нет в новых cmdline-tools; платформу и build-tools скачает AGP.
         with:
           packages: platform-tools
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
       - name: Decode Android keystore
         if: matrix.android
         env:
@@ -116,7 +116,7 @@ jobs:
           for f in apps/android/build/outputs/apk/release/*.apk; do
             case "$f" in *-unsigned.apk) ;; *) mv "$f" "${f%.apk}-unsigned.apk" ;; esac
           done
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.name }}
           path: ${{ matrix.paths }}
@@ -131,7 +131,7 @@ jobs:
     container: archlinux:latest
     steps:
       - run: pacman -Syu --noconfirm jdk-openjdk base-devel git
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ env.TAG }}
           persist-credentials: false
@@ -143,7 +143,7 @@ jobs:
           MIMIR_BUILD_GOOGLE_DEVICE_CLIENT_ID: ${{ secrets.MIMIR_BUILD_GOOGLE_DEVICE_CLIENT_ID }}
           MIMIR_BUILD_GOOGLE_DEVICE_CLIENT_SECRET: ${{ secrets.MIMIR_BUILD_GOOGLE_DEVICE_CLIENT_SECRET }}
         run: .github/scripts/build-arch.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: arch
           path: packaging/arch/*.pkg.tar.zst
@@ -157,7 +157,7 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ env.TAG }}
           persist-credentials: false
@@ -166,13 +166,13 @@ jobs:
           name=$(sed -n 's/^mimir.dockerImage=//p' gradle.properties)
           owner=${GITHUB_REPOSITORY_OWNER,,}
           echo "ref=ghcr.io/$owner/$name" >> "$GITHUB_OUTPUT"
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v7
         with:
           context: .
           file: packaging/docker/Dockerfile
@@ -190,15 +190,15 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: msi
           path: dist
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: linux-bundles
           path: dist
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: arch
           path: dist
@@ -223,7 +223,7 @@ jobs:
           while read -r hash file; do
             echo "| \`$file\` | \`$hash\` |" >> "$GITHUB_STEP_SUMMARY"
           done < dist/sha256sums.txt
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ env.TAG }}
           generate_release_notes: false

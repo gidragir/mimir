@@ -46,12 +46,12 @@ jobs:
       is_release_pr: ${{ steps.matrix.outputs.is_release_pr }}
       os_matrix: ${{ steps.matrix.outputs.os_matrix }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Verify design tokens are in sync
         run: node scripts/generate-tokens.mjs --check
-      - uses: dorny/paths-filter@v3
+      - uses: dorny/paths-filter@v4
         id: filter
         with:
           filters: |
@@ -121,17 +121,17 @@ jobs:
           reg add "HKLM\SYSTEM\CurrentControlSet\Control\FileSystem" /v "LongPathsEnabled" /t REG_DWORD /d 1 /f
           git config --global core.symlinks true
           git config --global core.longpaths true
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@v5
       - name: Configure Java environment from mise
         run: |
           java_home=$(mise where java | tr '\\' '/')
           echo "JAVA_HOME=$java_home" >> "$GITHUB_ENV"
           echo "$java_home/bin" >> "$GITHUB_PATH"
       # Android SDK ставим только на Linux, когда затронуты общие библиотеки или сам Android-модуль.
-      - uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v4
         if: >-
           runner.os == 'Linux' &&
           needs.detect-changes.outputs.is_release_pr != 'true' &&
@@ -139,7 +139,7 @@ jobs:
         # По умолчанию ставится устаревший `tools`, которого нет в новых cmdline-tools; платформу и build-tools скачает AGP.
         with:
           packages: platform-tools
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
       # Разделение обязанностей по ОС и затронутым подсистемам без секретов:
       # - Release Please PR: быстрая валидация версии в gradle.properties и build-logic
       # - Windows: только десктопные тесты и упаковка MSI (без дублирования KMP/JS Karma-тестов)
@@ -170,7 +170,7 @@ jobs:
           fi
       - name: Upload test reports on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-reports-${{ matrix.os }}
           path: |
