@@ -2,6 +2,7 @@
 java = "temurin-27" # если в реестре mise нет — заменить на "openjdk-27"
 node = "lts"
 actionlint = "1.7.12"
+shellcheck = "0.11.0" # actionlint вызывает его для run:-скриптов; без него локальная проверка слабее CI
 
 [tasks.build]
 description = "Собрать всё и прогнать тесты"

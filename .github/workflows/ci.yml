@@ -58,10 +58,10 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      # Только node и actionlint из mise.toml: JDK этой джобе не нужен.
+      # Только node, actionlint и shellcheck из mise.toml: JDK этой джобе не нужен.
       - uses: jdx/mise-action@v5
         with:
-          install_args: node actionlint
+          install_args: node actionlint shellcheck
       - name: Verify design tokens are in sync
         env:
           MISE_TASK_RUN_AUTO_INSTALL: "false"
@@ -125,34 +125,36 @@ jobs:
           MSI_PACKAGING: ${{ steps.filter.outputs.msi_packaging }}
           COMMIT_SUBJECT: ${{ github.event.head_commit.message }}
         run: |
-          if [[ "$HEAD_REF" == release-please--* ]]; then
-            echo "is_release_pr=true" >> "$GITHUB_OUTPUT"
-            echo "package_msi=false" >> "$GITHUB_OUTPUT"
-            echo 'os_matrix=["ubuntu-latest"]' >> "$GITHUB_OUTPUT"
-          elif [ "$EVENT_NAME" = "schedule" ] || { [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$RUN_MACOS" = "true" ]; }; then
-            echo "is_release_pr=false" >> "$GITHUB_OUTPUT"
-            echo "package_msi=true" >> "$GITHUB_OUTPUT"
-            echo 'os_matrix=["ubuntu-latest","windows-latest","macos-latest"]' >> "$GITHUB_OUTPUT"
-          elif [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            echo "is_release_pr=false" >> "$GITHUB_OUTPUT"
-            echo "package_msi=true" >> "$GITHUB_OUTPUT"
-            echo 'os_matrix=["ubuntu-latest","windows-latest"]' >> "$GITHUB_OUTPUT"
-          else
-            echo "is_release_pr=false" >> "$GITHUB_OUTPUT"
-            # Коммит слияния релизного PR: MSI собирает release.yml, дублировать сборку в CI не нужно.
-            if [[ "$COMMIT_SUBJECT" == "chore(main): release "* ]]; then
-              echo "package_msi=false" >> "$GITHUB_OUTPUT"
-            elif [ "$EVENT_NAME" = "push" ] || [ "$MSI_PACKAGING" = "true" ]; then
-              echo "package_msi=true" >> "$GITHUB_OUTPUT"
+          {
+            if [[ "$HEAD_REF" == release-please--* ]]; then
+              echo "is_release_pr=true"
+              echo "package_msi=false"
+              echo 'os_matrix=["ubuntu-latest"]'
+            elif [ "$EVENT_NAME" = "schedule" ] || { [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$RUN_MACOS" = "true" ]; }; then
+              echo "is_release_pr=false"
+              echo "package_msi=true"
+              echo 'os_matrix=["ubuntu-latest","windows-latest","macos-latest"]'
+            elif [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+              echo "is_release_pr=false"
+              echo "package_msi=true"
+              echo 'os_matrix=["ubuntu-latest","windows-latest"]'
             else
-              echo "package_msi=false" >> "$GITHUB_OUTPUT"
+              echo "is_release_pr=false"
+              # Коммит слияния релизного PR: MSI собирает release.yml, дублировать сборку в CI не нужно.
+              if [[ "$COMMIT_SUBJECT" == "chore(main): release "* ]]; then
+                echo "package_msi=false"
+              elif [ "$EVENT_NAME" = "push" ] || [ "$MSI_PACKAGING" = "true" ]; then
+                echo "package_msi=true"
+              else
+                echo "package_msi=false"
+              fi
+              if [ "$CORE_OR_LIBS" = "true" ] || [ "$DESKTOP" = "true" ]; then
+                echo 'os_matrix=["ubuntu-latest","windows-latest"]'
+              else
+                echo 'os_matrix=["ubuntu-latest"]'
+              fi
             fi
-            if [ "$CORE_OR_LIBS" = "true" ] || [ "$DESKTOP" = "true" ]; then
-              echo 'os_matrix=["ubuntu-latest","windows-latest"]' >> "$GITHUB_OUTPUT"
-            else
-              echo 'os_matrix=["ubuntu-latest"]' >> "$GITHUB_OUTPUT"
-            fi
-          fi
+          } >> "$GITHUB_OUTPUT"
 
   build:
     name: build (${{ matrix.os }})
@@ -181,7 +183,7 @@ jobs:
       - uses: jdx/mise-action@v5
       - name: Configure Java environment from mise
         run: |
-          java_home=$(mise where java | tr '\\' '/')
+          java_home=$(mise where java | tr '\134' '/')
           echo "JAVA_HOME=$java_home" >> "$GITHUB_ENV"
           echo "$java_home/bin" >> "$GITHUB_PATH"
       # Android SDK и лицензии уже есть в образе ubuntu-latest (ANDROID_HOME), платформу и build-tools скачает AGP.

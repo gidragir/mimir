@@ -134,7 +134,7 @@ jobs:
       - uses: jdx/mise-action@v5
       - name: Configure Java environment from mise
         run: |
-          java_home=$(mise where java | tr '\\' '/')
+          java_home=$(mise where java | tr '\134' '/')
           echo "JAVA_HOME=$java_home" >> "$GITHUB_ENV"
           echo "$java_home/bin" >> "$GITHUB_PATH"
       # Android SDK и лицензии уже есть в образе ubuntu-latest (ANDROID_HOME), платформу и build-tools скачает AGP.
@@ -274,15 +274,17 @@ jobs:
           for d in */; do
             [ -d "$d" ] && rm -rf "$d"
           done
-          sha256sum * > sha256sums.txt
+          sha256sum -- * > sha256sums.txt
       - name: Generate release summary
         run: |
-          echo "### 📦 Release Assets (${{ env.TAG }})" >> "$GITHUB_STEP_SUMMARY"
-          echo "| File | SHA256 |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| --- | --- |" >> "$GITHUB_STEP_SUMMARY"
-          while read -r hash file; do
-            echo "| \`$file\` | \`$hash\` |" >> "$GITHUB_STEP_SUMMARY"
-          done < dist/sha256sums.txt
+          {
+            echo "### 📦 Release Assets (${{ env.TAG }})"
+            echo "| File | SHA256 |"
+            echo "| --- | --- |"
+            while read -r hash file; do
+              echo "| \`$file\` | \`$hash\` |"
+            done < dist/sha256sums.txt
+          } >> "$GITHUB_STEP_SUMMARY"
       - uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ env.TAG }}

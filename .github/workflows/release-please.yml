@@ -30,9 +30,11 @@ jobs:
   release:
     needs: release-please
     if: needs.release-please.outputs.release_created == 'true'
+    # Права вызываемого release.yml не могут превышать выданные здесь: verify/build читают check-runs.
     permissions:
       contents: write
       packages: write
+      checks: read
     uses: ./.github/workflows/release.yml
     with:
       tag: ${{ needs.release-please.outputs.tag_name }}
