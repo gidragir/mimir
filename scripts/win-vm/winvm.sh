@@ -27,7 +27,15 @@ winvm_cmd_sync() {
   winvm_sync
   echo "Sync complete" >&2
 }
-winvm_cmd_run() { winvm_ensure_running; winvm_die 70 "run is not implemented yet"; }
+winvm_cmd_run() {
+  local id out="$WINVM_HOST_DIR/out"
+  winvm_ensure_running
+  winvm_sync
+  id=$(winvm_request run)
+  winvm_wait_status "$id" launched,ok 1800
+  echo "Mimir запущен в VM — смотрите в virt-manager"
+  [[ -n ${WINVM_NO_TAIL:-} ]] || exec tail -F "$out/run.log" "$out/run.err.log"
+}
 winvm_cmd_msi() { winvm_ensure_running; winvm_die 70 "msi is not implemented yet"; }
 winvm_cmd_uninstall() { winvm_ensure_running; winvm_die 70 "uninstall is not implemented yet"; }
 winvm_cmd_logs() { winvm_die 70 "logs is not implemented yet"; }

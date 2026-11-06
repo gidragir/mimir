@@ -20,3 +20,28 @@ assert_contains() { [[ "$1" == *"$2"* ]] || fail "'$2' not found in: $1"; }
 assert_not_contains() { [[ "$1" != *"$2"* ]] || fail "'$2' unexpectedly found in: $1"; }
 assert_file() { [[ -e "$1" ]] || fail "file missing: $1"; }
 assert_no_file() { [[ ! -e "$1" ]] || fail "file unexpectedly exists: $1"; }
+
+# make_repo — временный git-репозиторий как рабочее дерево; печатает путь.
+make_repo() {
+  local repo="$TEST_TMP/repo"
+  mkdir -p "$repo/build" "$repo/docs"
+  git -C "$repo" init -q
+  echo tracked >"$repo/a.txt"
+  echo secret >"$repo/mise.local.toml"
+  echo out >"$repo/build/x"
+  echo "build/" >"$repo/.gitignore"
+  git -C "$repo" add a.txt .gitignore
+  echo untracked >"$repo/new.txt"
+  printf '%s' "$repo"
+}
+
+sync_from() {
+  (cd "$1" && winvm_sync)
+}
+
+# cli <args...> — winvm.sh из временного репозитория (нужен git-корень для sync).
+cli() {
+  local repo
+  repo=$(make_repo)
+  (cd "$repo" && bash "$WINVM_TEST_ROOT/scripts/win-vm/winvm.sh" "$@")
+}

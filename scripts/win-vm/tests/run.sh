@@ -15,6 +15,9 @@ run_one() {
     TEST_TMP=$(mktemp -d)
     trap 'rm -rf "$TEST_TMP"' EXIT
     export TEST_TMP
+    export WINVM_TEST_ROOT="$repo_root"
+    export WINVM_STATUS_POLL=0.1
+    export FAKE_ON_EXEC="$here/fakes/guest-agent.sh"
     export PATH="$here/fakes:$PATH"
     export WINVM_SHARE="$TEST_TMP/share"
     export WINVM_AGENT_TIMEOUT=2 WINVM_POLL=0.1 WINVM_EXEC_POLL=0.05

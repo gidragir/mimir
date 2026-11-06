@@ -1,24 +1,6 @@
 #!/usr/bin/env bash
 # Тесты winvm_sync: rsync дерева в virsh-шару и вызов robocopy в госте.
 
-# make_repo — временный git-репозиторий как рабочее дерево; печатает путь.
-make_repo() {
-  local repo="$TEST_TMP/repo"
-  mkdir -p "$repo/build" "$repo/docs"
-  git -C "$repo" init -q
-  echo tracked >"$repo/a.txt"
-  echo secret >"$repo/mise.local.toml"
-  echo out >"$repo/build/x"
-  echo "build/" >"$repo/.gitignore"
-  git -C "$repo" add a.txt .gitignore
-  echo untracked >"$repo/new.txt"
-  printf '%s' "$repo"
-}
-
-sync_from() {
-  (cd "$1" && winvm_sync)
-}
-
 test_sync_copies_tracked_and_untracked_skips_secrets_and_build() {
   local repo src
   repo=$(make_repo)
