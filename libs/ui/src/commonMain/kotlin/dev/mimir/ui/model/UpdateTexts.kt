@@ -20,6 +20,10 @@ object UpdateTexts {
     const val DISABLED_NOTE = "Автоматическая проверка обновлений выключена."
     const val NOT_CHECKED = "Обновления ещё не проверялись."
     const val NOTES_TRUNCATED = "…"
+    const val DETAILS_HINT = "Технические сведения об ошибке — пригодятся, если будете писать в поддержку."
+
+    /** Переключатель сворачиваемых подробностей ошибки. */
+    fun details(expanded: Boolean) = "Подробности " + if (expanded) "▾" else "▸"
 
     /** Сколько символов списка изменений показывать; длинные заметки обрезаются, полный текст — на странице релиза. */
     const val NOTES_LIMIT = 1200

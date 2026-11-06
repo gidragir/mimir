@@ -38,7 +38,7 @@ internal fun UpdateStatusDto.toUi(dismissedKey: String? = null): UpdateUiState {
                 else -> UpdateRetry.Check
             }
             val code = UpdateErrorCode.parse(errorCode) ?: UpdateErrorCode.FAILED
-            UpdateUiState.Error(UpdateTexts.errorText(step, code), retryFor(step, code))
+            UpdateUiState.Error(UpdateTexts.errorText(step, code), retryFor(step, code), errorMessage?.takeIf { it.isNotBlank() })
         }
     }
     val dismissible = status == UpdateStatus.AVAILABLE || status == UpdateStatus.ERROR

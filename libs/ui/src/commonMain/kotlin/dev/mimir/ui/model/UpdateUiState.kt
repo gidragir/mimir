@@ -43,8 +43,11 @@ sealed interface UpdateUiState {
 
     data class Installing(val version: String) : UpdateUiState
 
-    /** [message] уже написан для человека; [retry] — шаг, который повторяет «Повторить». */
-    data class Error(val message: String, val retry: UpdateRetry = UpdateRetry.Check) : UpdateUiState
+    /**
+     * [message] уже написан для человека; [retry] — шаг, который повторяет «Повторить».
+     * [details] — исходный текст ошибки для поддержки: показывается только по нажатию «Подробности».
+     */
+    data class Error(val message: String, val retry: UpdateRetry = UpdateRetry.Check, val details: String? = null) : UpdateUiState
 
     /** Есть что предложить пользователю: пункт трея и бейдж. */
     val isActionable: Boolean get() = this is Available || this is ReadyToInstall

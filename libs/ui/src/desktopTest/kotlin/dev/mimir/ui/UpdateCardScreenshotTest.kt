@@ -9,10 +9,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toAwtImage
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
 import dev.mimir.ui.model.UpdateInstallKind
+import dev.mimir.ui.model.UpdateTexts
 import dev.mimir.ui.model.UpdateUiState
 import dev.mimir.ui.screens.AboutUpdateCard
 import java.io.File
@@ -26,6 +29,12 @@ class UpdateCardScreenshotTest {
     private val notes = "• Быстрее синхронизация больших хранилищ\n• Исправлена потеря фокуса окна в Wayland\n" +
         "• Новый экран входа в Google\n• Тихая проверка обновлений раз в сутки\n• Мелкие исправления\n• Ещё одна строка"
 
+    private val downloadError = UpdateUiState.Error(
+        "Не удалось скачать обновление. Попробуйте ещё раз позже.",
+        dev.mimir.ui.model.UpdateRetry.Download,
+        details = "Request timeout has expired [url=https://github.com/mimir-org/mimir/releases/download/v0.3.1/Mimir-0.3.1.msi, request_timeout=15000 ms]",
+    )
+
     private val states = mapOf(
         "available" to UpdateUiState.Available("0.2.0", notes, UpdateInstallKind.DownloadAndLaunch, "https://example.org/r"),
         "available_notify" to UpdateUiState.Available("0.2.0", notes, UpdateInstallKind.NotifyOnly, "https://example.org/r"),
@@ -34,7 +43,12 @@ class UpdateCardScreenshotTest {
         "uptodate" to UpdateUiState.UpToDate("0.1.0"),
         "unknown" to UpdateUiState.Unknown("0.1.0"),
         "error_sync" to UpdateUiState.Error("Идёт синхронизация — установите обновление, когда она закончится.", dev.mimir.ui.model.UpdateRetry.Install),
+        "error_details" to downloadError,
+        "error_details_open" to downloadError,
     )
+
+    /** Снимки, где «Подробности» раскрыты нажатием. */
+    private val expanded = setOf("error_details_open")
 
     private fun shoot(dark: Boolean) {
         val dir = File(System.getProperty("user.dir")).resolve("../../build/reports/screenshots/desktop").canonicalFile.apply { mkdirs() }
@@ -46,6 +60,10 @@ class UpdateCardScreenshotTest {
                             AboutUpdateCard(state, syncRunning = false, {}, {}, {}, {}, {}, currentVersion = "0.1.0")
                         }
                     }
+                }
+                if (name in expanded) {
+                    onNodeWithText(UpdateTexts.details(expanded = false)).performClick()
+                    waitForIdle()
                 }
                 val file = dir.resolve("update_card_${name}_${if (dark) "dark" else "light"}.png")
                 ImageIO.write(onRoot().captureToImage().toAwtImage(), "png", file)

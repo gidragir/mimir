@@ -163,6 +163,34 @@ class UpdateCardTest {
     }
 
     @Test
+    fun `error details are collapsed by default and toggle on click`() = runComposeUiTest {
+        val raw = "Request timeout has expired [url=https://github.com/x/Mimir-0.3.1.msi, request_timeout=15000 ms]"
+        card(UpdateUiState.Error("Не удалось скачать обновление. Попробуйте ещё раз позже.", UpdateRetry.Download, details = raw))
+        onNodeWithText(raw).assertDoesNotExist()
+        onNodeWithText(UpdateTexts.details(expanded = false)).performClick()
+        onNodeWithText(raw).assertExists()
+        onNodeWithText(UpdateTexts.DETAILS_HINT).assertExists()
+        onNodeWithText(UpdateTexts.details(expanded = true)).performClick()
+        onNodeWithText(raw).assertDoesNotExist()
+    }
+
+    @Test
+    fun `error without details has no details toggle`() = runComposeUiTest {
+        card(UpdateUiState.Error("Обновление уже скачивается."))
+        onNodeWithText(UpdateTexts.details(expanded = false)).assertDoesNotExist()
+    }
+
+    @Test
+    fun `raw daemon message becomes error details`() {
+        val dto = UpdateStatusDto(
+            "0.1.0", UpdateStatus.ERROR, latestVersion = "0.2.0",
+            errorMessage = "HTTP 404 for https://x/m.msi", errorCode = "HTTP_ERROR", failedStep = "DOWNLOAD",
+        )
+        assertEquals("HTTP 404 for https://x/m.msi", (dto.toUi() as UpdateUiState.Error).details)
+        assertEquals(null, (dto.copy(errorMessage = " ").toUi() as UpdateUiState.Error).details)
+    }
+
+    @Test
     fun `running sync disables download and shows the hint`() = runComposeUiTest {
         card(available, syncRunning = true)
         onNodeWithText("Скачать").assertIsNotEnabled()
