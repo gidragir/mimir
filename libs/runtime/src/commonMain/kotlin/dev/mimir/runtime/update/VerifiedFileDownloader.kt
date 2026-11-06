@@ -31,15 +31,17 @@ class VerifiedFileDownloader(
         var file: Path? = null
         try {
             val target = withContext(ioDispatcher) {
-                Files.createDirectories(dir)
-                Files.createTempFile(dir, prefix, suffix)
+                disk {
+                    Files.createDirectories(dir)
+                    Files.createTempFile(dir, prefix, suffix)
+                }
             }
             file = target
             val hasher = Sha256.Hasher()
             val result = withContext(ioDispatcher) {
-                Files.newOutputStream(target).use { out ->
+                disk { Files.newOutputStream(target) }.use { out ->
                     httpClient.downloadStream(asset.downloadUrl) { chunk, read, total ->
-                        out.write(chunk)
+                        disk { out.write(chunk) }
                         hasher.update(chunk)
                         val fraction = if (total > 0) (read.toDouble() / total).toFloat().coerceIn(0f, 1f) else 0f
                         onProgress(fraction, read, total)
@@ -58,6 +60,17 @@ class VerifiedFileDownloader(
             return Result.failure(e)
         }
     }
+
+    /** Сбой диска (нет места, нет прав, путь занят файлом) помечается для `classifyUpdateError` → `DISK`. */
+    private inline fun <T> disk(block: () -> T): T =
+        try {
+            block()
+        } catch (e: IOException) {
+            throw DiskWriteException(e)
+        }
+
+    /** Ошибка записи временного файла обновления; повторять скачивание при ней бессмысленно. */
+    class DiskWriteException(cause: IOException) : IOException("Cannot write update file: ${cause.message ?: cause::class.java.simpleName}", cause)
 
     companion object {
         /** SHA-256 файла (hex), чтение блоками. */

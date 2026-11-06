@@ -84,6 +84,16 @@ class VerifiedFileDownloaderTest {
     }
 
     @Test
+    fun `unwritable update directory is reported as a disk failure without a request`() = runBlocking<Unit> {
+        Files.createDirectories(root)
+        Files.writeString(dir, "not a directory")
+        val client = ScriptedUpdateHttpClient(chunked())
+        val error = downloader(client).download(asset()) { _, _, _ -> }.exceptionOrNull()!!
+        assertTrue(error.message!!.startsWith("Cannot write update file:"), error.message)
+        assertEquals(0, client.downloads)
+    }
+
+    @Test
     fun `sweepStale removes only old files matching the glob`() {
         Files.createDirectories(dir)
         val old = Files.createFile(dir.resolve("mimir-update-old.apk"))

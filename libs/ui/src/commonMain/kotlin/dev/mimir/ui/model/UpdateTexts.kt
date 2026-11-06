@@ -70,6 +70,10 @@ object UpdateTexts {
         UpdateErrorCode.NETWORK -> "${summary(step)} Проверьте подключение к интернету и повторите."
         UpdateErrorCode.RATE_LIMITED -> "${summary(step)} Слишком много запросов, попробуйте через несколько минут."
         UpdateErrorCode.CHECKSUM_MISMATCH -> "${summary(step)} Файл повредился при загрузке — скачайте его заново."
+        UpdateErrorCode.HTTP_ERROR -> "${summary(step)} Файл обновления сейчас недоступен на сервере — попробуйте позже."
+        UpdateErrorCode.NO_CHECKSUM ->
+            "${summary(step)} Не получилось проверить подлинность файла — проверьте обновления ещё раз чуть позже."
+        UpdateErrorCode.DISK -> "${summary(step)} Файл не удалось сохранить на диск — проверьте свободное место и повторите."
         UpdateErrorCode.FAILED -> "${summary(step)} Попробуйте ещё раз позже."
         UpdateErrorCode.UPDATES_DISABLED -> "Проверка обновлений выключена."
         UpdateErrorCode.NO_INSTALLABLE_FILE ->

@@ -48,4 +48,22 @@ class UpdateDtoTest {
         assertEquals("https://x/r", UpdateApplyResult.NotificationDispatched("https://x/r").toDto()?.url)
         assertNull(UpdateApplyResult.Failed("boom").toDto())
     }
+
+    @Test
+    fun `download failures get specific codes and unknown text stays FAILED`() {
+        assertEquals(UpdateErrorCode.HTTP_ERROR, classifyUpdateError("HTTP 404 for https://github.com/o/r/releases/download/v0.3.1/Mimir-0.3.1.msi"))
+        assertEquals(UpdateErrorCode.HTTP_ERROR, classifyUpdateError("HTTP 503 for https://x/m.msi"))
+        assertEquals(UpdateErrorCode.NO_CHECKSUM, classifyUpdateError("Cannot install Mimir-0.3.1.msi: no checksum published"))
+        assertEquals(UpdateErrorCode.CHECKSUM_MISMATCH, classifyUpdateError("SHA-256 mismatch for Mimir-0.3.1.msi"))
+        assertEquals(UpdateErrorCode.DISK, classifyUpdateError("Cannot write update file: No space left on device"))
+        assertEquals(UpdateErrorCode.RATE_LIMITED, classifyUpdateError("HTTP 429 for https://x/m.msi", retryAfterSeconds = 30))
+        assertEquals(UpdateErrorCode.FAILED, classifyUpdateError("GitHub API returned HTTP 500"))
+        assertEquals(UpdateErrorCode.FAILED, classifyUpdateError("Request timeout has expired"))
+        assertEquals(UpdateErrorCode.FAILED, classifyUpdateError(null))
+        assertEquals(
+            "HTTP_ERROR",
+            UpdateState.Error("HTTP 404 for https://x/m.msi", available, UpdateStep.DOWNLOAD).toDto("0.1.0").errorCode,
+        )
+        assertNull(UpdateErrorCode.parse("SOMETHING_FROM_A_NEWER_DAEMON"))
+    }
 }

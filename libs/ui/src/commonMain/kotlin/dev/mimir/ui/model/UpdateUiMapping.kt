@@ -7,8 +7,12 @@ import dev.mimir.client.UpdateStatusDto
 /** Ключ состояния, которое пользователь может скрыть кнопкой «Скрыть»: статус + версия; новая версия показывается снова. */
 internal fun UpdateStatusDto.dismissKey(): String = "$status:${latestVersion.orEmpty()}"
 
-/** Причины, при которых повтор того же шага бессмыслен: сначала нужна свежая проверка. */
+/**
+ * Причины, при которых повтор того же шага бессмыслен: сначала нужна свежая проверка.
+ * `NO_CHECKSUM`: сбой загрузки чек-сумм не кэшируется, новая проверка запросит их снова.
+ */
 private val RECHECK_CODES = setOf(
+    UpdateErrorCode.NO_CHECKSUM,
     UpdateErrorCode.NO_INSTALLABLE_FILE,
     UpdateErrorCode.NOTHING_TO_DOWNLOAD,
     UpdateErrorCode.NOT_DOWNLOADED,
