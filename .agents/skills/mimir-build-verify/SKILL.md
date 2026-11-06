@@ -16,7 +16,7 @@ description: Use when you need to build, test or verify a change in the Mimir re
 | Вся сборка + тесты | `mise run build` |
 | Все тесты | `mise run test` |
 | Быстро: все JVM-тесты и build-logic без Wasm/JS/Android | `mise run test:fast` |
-| Предпроверка перед push (токены + actionlint + JVM-тесты) | `mise run ci:fast` |
+| Предпроверка перед push (токены + jactionlint + JVM-тесты) | `mise run ci:fast` |
 | build-logic | `./gradlew -p build-logic test` |
 | core / drive | `./gradlew :libs:core:allTests`, `./gradlew :libs:drive:allTests` (jvm, js, wasmJs; js/wasm — Karma + headless Chrome) |
 | ui | `./gradlew :libs:ui:desktopTest`, `./gradlew :libs:ui:compileKotlinWasmJs` |

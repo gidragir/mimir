@@ -57,4 +57,4 @@ CI Mimir живёт в ~15 файлах ниже. Код приложения (`
 
 ## Проверка
 
-`mise run ci:fast` (токены + `actionlint` + `ciJvmTests`). Изменения workflow проверяются `actionlint`. Релиз проверяется без публикации: `gh workflow run release.yml --ref <ветка> -f tag=v<версия> -f dry_run=true`.
+`mise run ci:fast` (токены + `jactionlint` + `ciJvmTests`). Изменения workflow проверяются `jactionlint --profile correctness` (форк actionlint). Релиз проверяется без публикации: `gh workflow run release.yml --ref <ветка> -f tag=v<версия> -f dry_run=true`.

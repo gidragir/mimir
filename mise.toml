@@ -1,8 +1,8 @@
 [tools]
 java = "temurin-27" # если в реестре mise нет — заменить на "openjdk-27"
 node = "lts"
-actionlint = "1.7.12"
-shellcheck = "0.11.0" # actionlint вызывает его для run:-скриптов; без него локальная проверка слабее CI
+jactionlint = "2.5.0" # поддерживаемый форк rhysd/actionlint (бывший actionlint объявлен в mise устаревшим)
+shellcheck = "0.11.0" # jactionlint вызывает его для run:-скриптов; без него локальная проверка слабее CI
 
 [tasks.build]
 description = "Собрать всё и прогнать тесты"
@@ -36,9 +36,10 @@ description = "Проверить, что .claude/skills — только сим
 run = "node scripts/sync-skills.mjs"
 
 [tasks."ci:fast"]
-description = "Быстрая локальная предпроверка перед push (токены + скиллы + actionlint + ciJvmTests)"
+description = "Быстрая локальная предпроверка перед push (токены + скиллы + jactionlint + ciJvmTests)"
 depends = ["tokens:check", "skills:check"]
-run = "actionlint && ./gradlew ciJvmTests"
+# --profile correctness — паритет с проверками actionlint; профиль default добавляет правила безопасности и политик.
+run = "jactionlint --profile correctness && ./gradlew ciJvmTests"
 run_windows = "gradlew.bat ciJvmTests"
 
 [tasks.desktop]
