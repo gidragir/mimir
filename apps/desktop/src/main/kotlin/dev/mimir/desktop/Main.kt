@@ -21,11 +21,13 @@ import dev.mimir.daemon.DaemonConfig
 import dev.mimir.desktop.tray.bindUpdateItem
 import dev.mimir.desktop.tray.createTray
 import dev.mimir.desktop.tray.trayLabel
+import dev.mimir.desktop.picker.DesktopObsidianVaultDiscovery
 import dev.mimir.desktop.picker.defaultFolderPicker
 import dev.mimir.desktop.platform.WindowsProtocolRegistrar
 import dev.mimir.desktop.ipc.SingleInstanceManager
 import dev.mimir.ui.MimirApp
 import dev.mimir.ui.picker.LocalFolderPicker
+import dev.mimir.ui.platform.LocalVaultDiscovery
 import dev.mimir.ui.model.MimirUiModel
 import dev.mimir.ui.screens.StartupScreen
 import kotlinx.coroutines.CancellationException
@@ -110,8 +112,8 @@ private fun runDesktop(config: DaemonConfig, ipc: SingleInstanceManager) = appli
         }
     }
 
-    val folderPicker = remember { defaultFolderPicker() }
     val browserOpener = remember { SystemBrowserOpener() }
+    val vaultDiscovery = remember { DesktopObsidianVaultDiscovery() }
     // Иконка окна для заголовка и панели задач; без неё Windows и Linux показывают значок Java.
     val windowIcon = remember {
         SingleInstanceManager::class.java.getResourceAsStream("/icon.png")
@@ -135,10 +137,12 @@ private fun runDesktop(config: DaemonConfig, ipc: SingleInstanceManager) = appli
                 }
             }
         }
+        val folderPicker = remember(window) { defaultFolderPicker(parentFrame = { window }) }
         val current = model
         if (current != null) {
             CompositionLocalProvider(
                 LocalFolderPicker provides folderPicker,
+                LocalVaultDiscovery provides vaultDiscovery,
                 LocalUriHandler provides browserOpener,
             ) { MimirApp(current) }
         } else {
