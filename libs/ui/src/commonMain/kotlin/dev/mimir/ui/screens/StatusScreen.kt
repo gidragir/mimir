@@ -173,7 +173,7 @@ fun StatusScreen(
                 MimirButton(
                     text = SyncTexts.SYNC_NOW,
                     onClick = { scope.launch { model.triggerSync() } },
-                    enabled = status == SyncStatus.Idle,
+                    enabled = status == SyncStatus.Idle || status == SyncStatus.Offline || status is SyncStatus.Error,
                     variant = MimirButtonVariant.Primary,
                 )
             }

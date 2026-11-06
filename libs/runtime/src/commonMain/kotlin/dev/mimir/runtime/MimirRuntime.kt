@@ -12,6 +12,7 @@ import dev.mimir.runtime.update.UpdateFacade
 import dev.mimir.core.Cipher
 import dev.mimir.core.LocalVault
 import dev.mimir.core.RcloneCipher
+import dev.mimir.core.RemoteUnavailableException
 import dev.mimir.core.SyncItemAction
 import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncStatus
@@ -68,6 +69,8 @@ class MimirRuntime(
     updateManager: UpdateManager? = null,
     /** Подмена расписания проверок (тесты); по умолчанию — [UpdateScheduler] с задержками из спеки §6.2. */
     updateSchedulerFactory: ((UpdateManager, () -> Boolean) -> UpdateScheduler)? = null,
+    /** Начальный режим: на Android процесс может стартовать в фоне для WorkManager без вызова `onStart`/`onStop`. */
+    initialInteractive: Boolean = true,
 ) : DaemonService {
     @Volatile
     private var config: RuntimeConfig = settings.load()
@@ -81,6 +84,7 @@ class MimirRuntime(
     private val _status = MutableStateFlow<SyncStatus>(SyncStatus.NotConfigured)
     private val _progress = MutableStateFlow<SyncProgress?>(null)
     private val _pendingLocalChanges = MutableStateFlow(false)
+    private val _vaultPath = MutableStateFlow(config.vaultPath)
 
     @Volatile
     private var cipher: Cipher? = null
@@ -94,7 +98,7 @@ class MimirRuntime(
 
     /** `false` — приложение в фоне: планировщик и наблюдатели остановлены, прогоны только через [syncOnce]. */
     @Volatile
-    private var interactive = true
+    private var interactive = initialInteractive
     private var engineJobs: List<Job> = emptyList()
 
     private val loginMutex = Mutex()
@@ -114,6 +118,7 @@ class MimirRuntime(
     override val conflictsFlow: StateFlow<List<ConflictFileEntry>> get() = conflictTracker.conflicts
     override val connectionStatus: StateFlow<DaemonConnectionStatus> = MutableStateFlow(DaemonConnectionStatus.Connected)
     override val vaultPath: String? get() = config.vaultPath
+    val vaultPathFlow: StateFlow<String?> = _vaultPath.asStateFlow()
     override val isLocked: Boolean get() = cipher == null
     val isReady: Boolean get() = assembled != null
     override val lastSyncTime: Instant? get() = assembled?.scheduler?.lastSyncTime
@@ -132,20 +137,26 @@ class MimirRuntime(
         if (interactive) updateScheduler?.start()
     }
 
-    /** `false` — планировщик и наблюдатели остановлены (Android в фоне). */
-    suspend fun setInteractive(active: Boolean) = buildMutex.withLock {
-        if (interactive == active) return@withLock
+    /**
+     * `false` — планировщик и наблюдатели остановлены (Android в фоне).
+     * Возвращает `true`, если при переходе в фон был прерван активный прогон или остались локальные изменения.
+     */
+    suspend fun setInteractive(active: Boolean): Boolean = buildMutex.withLock {
+        if (interactive == active) return@withLock false
         interactive = active
         val scheduler = assembled?.scheduler
         if (active) {
             conflictTracker.watch()
             if (!holdInitialSync) scheduler?.start()
             updateScheduler?.start()
+            false
         } else {
+            val wasSyncing = scheduler?.isRunning == true || _status.value == SyncStatus.Syncing
             updateScheduler?.stop()
-            scheduler?.stop(cancelRunner = false)
+            scheduler?.stop(cancelRunner = true)
             assembled?.watcher?.stop()
             conflictTracker.stop()
+            wasSyncing || _pendingLocalChanges.value
         }
     }
 
@@ -201,6 +212,7 @@ class MimirRuntime(
         require(normalized.isNotEmpty() && Files.isDirectory(Paths.get(normalized))) { "Not a directory: $vaultPath" }
         settings.saveVaultPath(normalized)
         config = config.copy(vaultPath = normalized)
+        _vaultPath.value = normalized
         // Первая настройка: пользователь подтвердит стратегию слияния, и только потом пойдёт синхронизация.
         holdInitialSync = !Files.exists(dataDir.resolve(EngineAssembler.INDEX_FILE))
         conflictTracker.refresh()
@@ -308,7 +320,7 @@ class MimirRuntime(
 
     private fun notConfigured() = SyncNotConfiguredException("Vault path, encryption password or cloud storage not configured")
 
-    // Неверный пароль не должен ронять вход в облако или старт: runtime просто остаётся заблокированным.
+    // Неверный пароль или временное отсутствие сети не должны ронять вход в облако или старт.
     private suspend fun rebuildLenient() {
         try {
             rebuild()
@@ -316,6 +328,9 @@ class MimirRuntime(
             logger.warning("Encryption password rejected: ${e.message}")
         } catch (e: SyncNotConfiguredException) {
             logger.warning("Sync is not started: ${e.message}")
+        } catch (e: RemoteUnavailableException) {
+            logger.warning("Remote unavailable during rebuild: ${e.message}")
+            _status.value = SyncStatus.Offline
         }
     }
 

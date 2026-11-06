@@ -23,15 +23,26 @@ import kotlinx.coroutines.withContext
 class PlayServicesGisAuthorizer(
     private val context: Context,
     private val accountPrefs: SharedPreferences,
+    private val fallbackAccountEmail: () -> String? = { null },
 ) : GisAuthorizer {
     companion object {
         const val PREF_GIS_ACCOUNT = "gis_account"
     }
 
+    private fun resolveAccountEmail(): String? {
+        val saved = accountPrefs.getString(PREF_GIS_ACCOUNT, null)?.takeIf { it.isNotEmpty() }
+        if (saved != null) return saved
+        val fallback = fallbackAccountEmail()?.takeIf { it.isNotEmpty() } ?: return null
+        accountPrefs.edit().putString(PREF_GIS_ACCOUNT, fallback).apply()
+        return fallback
+    }
+
+    override fun hasSavedAccount(): Boolean = !resolveAccountEmail().isNullOrEmpty()
+
     override suspend fun authorizeSilently(): String? = withContext(Dispatchers.IO) {
         val builder = AuthorizationRequest.builder()
             .setRequestedScopes(GoogleAuthConfig.scopes.map { Scope(it) })
-        val accountName = accountPrefs.getString(PREF_GIS_ACCOUNT, null)
+        val accountName = resolveAccountEmail()
         if (!accountName.isNullOrEmpty()) {
             builder.setAccount(Account(accountName, "com.google"))
         }
@@ -50,6 +61,13 @@ class PlayServicesGisAuthorizer(
         } catch (e: ApiException) {
             if (e.status.hasResolution() || e.statusCode == CommonStatusCodes.SIGN_IN_REQUIRED) {
                 null
+            } else if (
+                e.statusCode == CommonStatusCodes.NETWORK_ERROR ||
+                e.statusCode == CommonStatusCodes.TIMEOUT ||
+                e.statusCode == CommonStatusCodes.INTERNAL_ERROR ||
+                e.statusCode == CommonStatusCodes.API_NOT_CONNECTED
+            ) {
+                throw java.io.IOException("Play Services network error (${e.statusCode}): ${e.message}", e)
             } else {
                 throw e
             }

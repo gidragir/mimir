@@ -67,4 +67,18 @@ class CanaryCheckTest {
         assertFailsWith<SyncNotConfiguredException> { verifyOrInitCanary(offline, RcloneCipher.create("p"), dir) }
         assertTrue(Files.notExists(dir.resolve(".canary_hash")))
     }
+
+    @Test
+    fun `offline unlock is accepted when remote throws RemoteUnavailableException`() = runTest {
+        val remote = InMemoryRemoteStorage()
+        verifyOrInitCanary(remote, RcloneCipher.create("password-A"), dir)
+        val offline = object : dev.mimir.core.RemoteStorage by remote {
+            override suspend fun stat(path: RemotePath) =
+                throw dev.mimir.core.RemoteUnavailableException("Google Drive is unreachable")
+        }
+        verifyOrInitCanary(offline, RcloneCipher.create("password-A"), dir)
+        assertFailsWith<InvalidPasswordException> {
+            verifyOrInitCanary(offline, RcloneCipher.create("password-B"), dir)
+        }
+    }
 }

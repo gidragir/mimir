@@ -39,11 +39,15 @@ class SyncScheduler(
     private val syncMutex = Mutex()
     private val rerunRequested = AtomicBoolean(false)
     private val retryOnNextTick = AtomicBoolean(false)
+    private val syncStartCount = AtomicLong(0)
     private var jobs: List<Job> = emptyList()
 
     @Volatile
     private var runner: Job? = null
     private var changeToken: String? = null
+
+    /** `true`, если сейчас выполняется фоновый прогон планировщика ([runner]). */
+    val isRunning: Boolean get() = runner?.isActive == true
 
     /** Номер последнего локального события; прогон, начатый после него, снимает [pendingLocalChanges]. */
     private val localEventSeq = AtomicLong(0)
@@ -94,7 +98,11 @@ class SyncScheduler(
         jobs.forEach { it.cancel() }
         jobs = emptyList()
         if (cancelRunner) {
-            runner?.cancel() // прогон не должен пережить планировщик: новый мог бы запуститься параллельно
+            val activeRunner = runner
+            if (activeRunner?.isActive == true) {
+                retryOnNextTick.set(true)
+            }
+            activeRunner?.cancel() // прогон не должен пережить планировщик: новый мог бы запуститься параллельно
         }
     }
 
@@ -162,6 +170,7 @@ class SyncScheduler(
     }
 
     private suspend fun runOnce(rethrow: Boolean = false) {
+        syncStartCount.incrementAndGet()
         val startedAfter = localEventSeq.get()
         try {
             syncEngine.syncNow()
@@ -183,15 +192,18 @@ class SyncScheduler(
     private suspend fun tick() {
         val feed = remoteFeed
         // без рабочего watcher'а локальные правки видны только полной сверкой
-        if (feed == null || retryOnNextTick.get() || watcherError != null) {
+        if (feed == null || retryOnNextTick.get() || watcherError != null || _pendingLocalChanges.value) {
             requestSync()
             return
         }
         try {
             val token = changeToken
             if (token == null) {
+                val countBefore = syncStartCount.get()
                 changeToken = feed.getLatestChangeToken()
-                requestSync()
+                if (syncStartCount.get() == countBefore) {
+                    triggerSync()
+                }
             } else {
                 val result = feed.getChanges(token)
                 changeToken = result.nextToken

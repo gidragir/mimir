@@ -66,9 +66,23 @@ class StatusScreenTest {
     }
 
     @Test
-    fun `sync now button is disabled while not idle`() = runComposeUiTest {
+    fun `sync now button is disabled while syncing or not configured`() = runComposeUiTest {
         setContent { MimirApp(FakeMimirUiModel(status = SyncStatus.Syncing)) }
         onNodeWithText("Синхронизировать сейчас").assertIsNotEnabled()
+    }
+
+    @Test
+    fun `sync now button is enabled when offline or error so user can retry manually`() = runComposeUiTest {
+        var syncTriggered = false
+        val model = FakeMimirUiModel(
+            status = SyncStatus.Offline,
+            accountEmail = "a@b.c",
+            onTriggerSync = { syncTriggered = true; true },
+        )
+        setContent { MimirApp(model) }
+        onNodeWithText("Синхронизировать сейчас").assertIsEnabled().performClick()
+        waitForIdle()
+        assertTrue(syncTriggered)
     }
 
     @Test

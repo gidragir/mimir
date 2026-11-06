@@ -71,7 +71,12 @@ object AndroidRuntimeFactory {
         )
 
         val accountPrefs = appContext.getSharedPreferences("mimir_gis", Context.MODE_PRIVATE)
-        val authorizer = PlayServicesGisAuthorizer(appContext, accountPrefs)
+        var runtimeRef: MimirRuntime? = null
+        val authorizer = PlayServicesGisAuthorizer(
+            context = appContext,
+            accountPrefs = accountPrefs,
+            fallbackAccountEmail = { runtimeRef?.accountEmail },
+        )
 
         val providers = mutableListOf<LoginProvider>()
         if (authorizer.isAvailable()) {
@@ -79,7 +84,9 @@ object AndroidRuntimeFactory {
             providers.add(
                 SystemAccountLoginProvider(gisTokenSource) { token ->
                     try {
-                        emailFetcherClient.fetchAccount(token).email.takeIf { it.isNotEmpty() }
+                        emailFetcherClient.fetchAccount(token).email.takeIf { it.isNotEmpty() }?.also { email ->
+                            accountPrefs.edit().putString(PlayServicesGisAuthorizer.PREF_GIS_ACCOUNT, email).apply()
+                        }
                     } catch (e: CancellationException) {
                         throw e
                     } catch (_: Exception) {
@@ -107,7 +114,6 @@ object AndroidRuntimeFactory {
         }
 
         // Установщик создаётся раньше рантайма, а останавливать синхронизацию должен именно рантайм.
-        var runtimeRef: MimirRuntime? = null
         val quiesce = object : UpdateQuiesce {
             override suspend fun quiesce(): Boolean = runtimeRef?.quiesceForUpdate() ?: false
             override suspend fun resume() { runtimeRef?.resumeAfterQuiesce() }
@@ -133,6 +139,7 @@ object AndroidRuntimeFactory {
             scope = scope,
             localVaultFactory = { path: KxPath -> FileSystemLocalVault(path, ioDispatcher = Dispatchers.IO) },
             updateManager = createGitHubUpdateManager(httpClient, TargetPlatform.ANDROID_ANY, updateApplier),
+            initialInteractive = false,
         ).also { runtimeRef = it }
     }
 }

@@ -5,6 +5,7 @@ import dev.mimir.core.CryptException
 import dev.mimir.core.Cipher
 import dev.mimir.core.RemotePath
 import dev.mimir.core.RemoteStorage
+import dev.mimir.core.RemoteUnavailableException
 import kotlinx.io.Buffer
 import kotlinx.io.readByteArray
 import java.io.IOException
@@ -46,11 +47,17 @@ suspend fun verifyOrInitCanary(remote: RemoteStorage, cipher: Cipher, configDir:
         }
         writeFileAtomically(hashFile, hash, ownerOnly = true)
     } catch (_: IOException) {
-        val known = (if (Files.isRegularFile(hashFile)) Files.readString(hashFile).trim() else null)
-            ?: throw SyncNotConfiguredException("Network is required to verify the encryption password for the first time")
-        if (!MessageDigest.isEqual(known.encodeToByteArray(), hash.encodeToByteArray())) {
-            throw InvalidPasswordException("Invalid encryption password")
-        }
+        verifyOfflineCanaryHash(hashFile, hash)
+    } catch (_: RemoteUnavailableException) {
+        verifyOfflineCanaryHash(hashFile, hash)
+    }
+}
+
+private fun verifyOfflineCanaryHash(hashFile: Path, hash: String) {
+    val known = (if (Files.isRegularFile(hashFile)) Files.readString(hashFile).trim() else null)
+        ?: throw SyncNotConfiguredException("Network is required to verify the encryption password for the first time")
+    if (!MessageDigest.isEqual(known.encodeToByteArray(), hash.encodeToByteArray())) {
+        throw InvalidPasswordException("Invalid encryption password")
     }
 }
 

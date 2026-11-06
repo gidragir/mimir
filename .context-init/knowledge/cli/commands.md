@@ -14,24 +14,24 @@
 
 | Скрипт | Выполняемая команда |
 | :--- | :--- |
+| `web` | `rtk mise run web` |
 | `package:extension` | `rtk mise run package:extension` |
-| `tokens:generate` | `rtk mise run tokens:generate` |
-| `desktop` | `rtk mise run desktop` |
+| `package:docker` | `rtk mise run package:docker` |
+| `screenshots` | `rtk mise run screenshots` |
+| `build:extension` | `rtk mise run build:extension` |
 | `daemon` | `rtk mise run daemon` |
 | `plugin` | `rtk mise run plugin` |
-| `ci:fast` | `rtk mise run ci:fast` |
-| `skills:sync` | `rtk mise run skills:sync` |
+| `android` | `rtk mise run android` |
+| `tokens:generate` | `rtk mise run tokens:generate` |
+| `desktop` | `rtk mise run desktop` |
+| `package:msi` | `rtk mise run package:msi` |
+| `skills:check` | `rtk mise run skills:check` |
+| `tokens:check` | `rtk mise run tokens:check` |
 | `extension` | `rtk mise run extension` |
 | `package:arch` | `rtk mise run package:arch` |
 | `test:fast` | `rtk mise run test:fast` |
-| `package:docker` | `rtk mise run package:docker` |
-| `build:extension` | `rtk mise run build:extension` |
-| `skills:check` | `rtk mise run skills:check` |
-| `web` | `rtk mise run web` |
-| `package:msi` | `rtk mise run package:msi` |
-| `android` | `rtk mise run android` |
-| `screenshots` | `rtk mise run screenshots` |
-| `tokens:check` | `rtk mise run tokens:check` |
+| `ci:fast` | `rtk mise run ci:fast` |
+| `skills:sync` | `rtk mise run skills:sync` |
 
 ## Быстрый запуск
 ```bash

@@ -96,4 +96,18 @@ class GisTokenSourceTest {
 
         assertTrue(source.hasCredentials())
     }
+
+    @Test
+    fun `hasCredentials returns true on offline IOException when account was previously saved`() = runTest {
+        val authorizer = FakeGisAuthorizer(
+            savedAccount = true,
+            throwOnAuthorize = java.io.IOException("Play Services network error"),
+        )
+        val source = GisTokenSource(authorizer)
+
+        assertTrue(source.hasCredentials())
+
+        authorizer.savedAccount = false
+        assertFalse(source.hasCredentials())
+    }
 }

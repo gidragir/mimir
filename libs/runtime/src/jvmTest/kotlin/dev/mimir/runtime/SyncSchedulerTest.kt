@@ -373,4 +373,69 @@ class SyncSchedulerTest {
         assertEquals(1, engine.calls)
         kotlin.test.assertNotNull(scheduler.lastSyncTime)
     }
+
+    @Test
+    fun `start does not queue duplicate run when sync starts while getLatestChangeToken is in flight`() = runTest {
+        val tokenGate = CompletableDeferred<String>()
+        val feed = object : dev.mimir.core.ChangeFeedStorage by InMemoryRemoteStorage() {
+            override suspend fun getLatestChangeToken(): String = tokenGate.await()
+        }
+        val syncGate = CompletableDeferred<Unit>()
+        val engine = FakeEngine().apply { gate = syncGate }
+        val scheduler = SyncScheduler(
+            syncEngine = engine,
+            syncInterval = interval,
+            scope = backgroundScope,
+            localChanges = MutableSharedFlow(),
+            remoteFeed = feed,
+        )
+
+        scheduler.start()
+        runCurrent()
+        assertEquals(0, engine.calls, "tick is still waiting for getLatestChangeToken")
+
+        // Параллельный вызов runNow (как в MimirAppLifecycleObserver.onStart или мастере настройки)
+        val runNowDeferred = async { scheduler.runNow() }
+        runCurrent()
+        assertEquals(1, engine.calls)
+
+        // getLatestChangeToken завершается во время уже идущего полного прогона
+        tokenGate.complete("token-1")
+        runCurrent()
+
+        // Завершаем первый прогон — второй холостой прогон запускаться не должен
+        syncGate.complete(Unit)
+        assertTrue(runNowDeferred.await())
+        runCurrent()
+
+        assertEquals(1, engine.calls, "initial token bootstrap must not queue a second back-to-back sync")
+        scheduler.stop()
+    }
+
+    @Test
+    fun `stop with cancelRunner true marks interrupted sync for retry on next start`() = runTest {
+        val engine = FakeEngine().apply { gate = CompletableDeferred() }
+        val remote = InMemoryRemoteStorage()
+        val scheduler = scheduler(engine, feed = remote).also { it.start() }
+
+        runCurrent()
+        assertEquals(1, engine.calls)
+        assertNull(scheduler.lastSyncTime)
+
+        // Приложение уходит в фон: отменяем активный раннер
+        scheduler.stop(cancelRunner = true)
+        runCurrent()
+        assertTrue(engine.cancelled)
+        assertNull(scheduler.lastSyncTime)
+
+        // Возврат в интерактивный режим без новых событий в ленте изменений Drive
+        engine.gate = null
+        engine.cancelled = false
+        scheduler.start()
+        runCurrent()
+
+        assertEquals(2, engine.calls, "interrupted sync must be retried on next start even if remote feed has no new changes")
+        assertNotNull(scheduler.lastSyncTime)
+        scheduler.stop()
+    }
 }

@@ -46,7 +46,11 @@ class GisTokenSource(
         if (currentToken != null && currentExpiry != null && now < currentExpiry) {
             return@withLock true
         }
-        val token = authorizer.authorizeSilently()
+        val token = try {
+            authorizer.authorizeSilently()
+        } catch (_: java.io.IOException) {
+            return@withLock authorizer.hasSavedAccount()
+        }
         if (token != null) {
             cachedToken = token
             expiresAt = now + ttl

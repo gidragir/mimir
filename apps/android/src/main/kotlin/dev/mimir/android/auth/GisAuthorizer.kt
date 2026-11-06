@@ -6,4 +6,5 @@ interface GisAuthorizer {
     suspend fun clearToken(token: String)
     suspend fun revoke()
     fun isAvailable(): Boolean // GoogleApiAvailability == SUCCESS
+    fun hasSavedAccount(): Boolean = false
 }

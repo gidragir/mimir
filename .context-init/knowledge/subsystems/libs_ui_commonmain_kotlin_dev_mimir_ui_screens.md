@@ -2,8 +2,8 @@
 directory: libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens
 source:
   kind: git
-  blob_sha: 456c8d026655c819bdebb684f20d07d695709ed8
-  commit_sha: 4afcd4b2c289461cc47f4dc71fea776a420f6dfa
+  blob_sha: 66db67147579aceccb9ef84080e9aaa026a695a2
+  commit_sha: eb1dfb29262521892d6c4ce3c3bda7207dfd6e87
 generated_by:
   component: context-init
   role: update

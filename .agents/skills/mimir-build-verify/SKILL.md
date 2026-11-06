@@ -40,10 +40,15 @@ description: Use when you need to build, test or verify a change in the Mimir re
 5. **Изменён UI** — визуальная проверка по `mimir-ui-ux` (скриншоты обеих тем и минимального размера окна).
 6. Падение любого из пунктов — дефект, а не «особенность окружения».
 
-### Проверка на Android эмуляторе
+### Проверка на Android эмуляторе и физическом устройстве
 
 - **Сборка и установка**: `./gradlew :apps:android:assembleDebug && adb install -r apps/android/build/outputs/apk/debug/mimir-*-debug.apk`
+- **Выдача разрешений для отладки без ручного UI**:
+  `adb shell appops set dev.mimir.app MANAGE_EXTERNAL_STORAGE allow && adb shell pm grant dev.mimir.app android.permission.POST_NOTIFICATIONS`
 - **Запуск Activity**: `adb shell am start -n dev.mimir.app/dev.mimir.android.MainActivity` (appId = `dev.mimir.app`)
+- **Инспекция песочницы debug-сборки**: `adb shell run-as dev.mimir.app ls -la files shared_prefs`
+- **Диагностика фоновой сети, WorkManager и крашей**:
+  `adb logcat -b crash -d`, `adb logcat -b events -d`, `adb shell dumpsys netpolicy | rg 100`, `adb shell dumpsys jobscheduler`, `adb shell dumpsys notification --noredact`
 - **Запуск эмулятора под Wayland (Niri / Sway)**: встроенный Qt SDK не имеет плагина wayland, запуск требует Xwayland:
   `QT_QPA_PLATFORM=xcb emulator -avd <avd_name> -netdelay none -netspeed full`
 

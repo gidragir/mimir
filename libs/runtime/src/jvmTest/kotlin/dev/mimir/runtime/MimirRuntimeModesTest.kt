@@ -77,12 +77,69 @@ class MimirRuntimeModesTest {
         rt.initialize()
         assertTrue(rt.isReady)
 
-        // Запускаем ручной syncOnce в фоне
+        // Запускаем ручной syncOnce в фоне (контекст фонового воркера)
         val syncJob = async { rt.syncOnce() }
         // Переключаем в неинтерактивный режим во время синхронизации
         rt.setInteractive(false)
 
-        assertTrue(syncJob.await(), "in-flight sync must succeed")
+        assertTrue(syncJob.await(), "in-flight syncOnce must succeed")
+        assertNotNull(rt.lastSyncTime)
+    }
+
+    @Test
+    fun `setInteractive false cancels interactive runner and reports background sync needed`(): Unit = runBlocking {
+        signIn(dataDir)
+        vaultDir.resolve("a.md").writeText("hello")
+        val listGate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val gatedRemote = object : dev.mimir.core.ChangeFeedStorage by remote {
+            override suspend fun listAll(
+                root: RemotePath,
+                onProgress: (folders: Int, files: Int) -> Unit,
+            ): List<dev.mimir.core.RemoteEntry> {
+                listGate.await()
+                return remote.listAll(root, onProgress)
+            }
+        }
+        val rt = testRuntime(
+            dataDir,
+            vaultPath = vaultDir.toString(),
+            password = "secret",
+            cloud = { _, _, _ -> gatedRemote },
+        ).also { runtime = it }
+        rt.initialize()
+        assertTrue(rt.isReady)
+        eventually { rt.status.value == dev.mimir.core.SyncStatus.Syncing }
+
+        val needsBackgroundSync = rt.setInteractive(false)
+
+        assertTrue(needsBackgroundSync, "interrupted interactive sync must request background continuation")
+        eventually { rt.status.value == dev.mimir.core.SyncStatus.Idle }
+    }
+
+    @Test
+    fun `runtime created with initialInteractive false does not start background timers on initialize`(): Unit = runBlocking {
+        signIn(dataDir)
+        vaultDir.resolve("a.md").writeText("hello")
+        val watchers = FakeWatcherFactory()
+        val settings = JsonRuntimeSettingsStore(dataDir).apply { saveVaultPath(vaultDir.toString()) }
+        val rt = MimirRuntime(
+            settings = settings,
+            logins = dev.mimir.runtime.login.LoginRegistry(listOf(FakeLoginProvider(DaemonLoginMethod.DeviceCode))),
+            watcherFactory = watchers,
+            passwordProvider = { "secret" },
+            ioDispatcher = kotlinx.coroutines.Dispatchers.IO,
+            httpClient = io.ktor.client.HttpClient(io.ktor.client.engine.cio.CIO),
+            cloudFactory = { _, _, _ -> remote },
+            initialInteractive = false,
+        ).also { runtime = it }
+
+        rt.initialize()
+        delay(200)
+
+        assertTrue(rt.isReady)
+        assertEquals(0, watchers.activeCount(), "background worker initialization must not start watchers")
+        assertNull(rt.lastSyncTime, "background worker initialization must not start scheduler timer")
+        assertTrue(rt.syncOnce())
         assertNotNull(rt.lastSyncTime)
     }
 
