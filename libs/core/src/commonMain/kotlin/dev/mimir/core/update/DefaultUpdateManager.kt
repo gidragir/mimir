@@ -21,6 +21,7 @@ class DefaultUpdateManager(
     private val channel: UpdateChannel,
     private val applier: UpdateApplier,
     private val clock: Clock = Clock.System,
+    private val logger: UpdateLogger = UpdateLogger.None,
 ) : UpdateManager {
     private val mutex = Mutex()
     private val _state = MutableStateFlow<UpdateState>(UpdateState.Idle())
@@ -41,7 +42,7 @@ class DefaultUpdateManager(
                 _state.value = previous
                 throw e
             } catch (e: Throwable) {
-                UpdateCheckResult.Error(e.message ?: "Update check failed", e)
+                UpdateCheckResult.Error(e.describe("Update check failed"), e)
             }
             when (result) {
                 is UpdateCheckResult.NoUpdate -> {
@@ -54,7 +55,10 @@ class DefaultUpdateManager(
                     latestKnownVersion = result.release.version
                     _state.value = UpdateState.Available(result.release, result.matchedAsset, applier.capability)
                 }
-                is UpdateCheckResult.Error -> _state.value = UpdateState.Error(result.message, previous)
+                is UpdateCheckResult.Error -> {
+                    logger.error("Update check failed: ${result.message}", result.cause)
+                    _state.value = UpdateState.Error(result.message, previous)
+                }
             }
             result
         }
@@ -98,7 +102,9 @@ class DefaultUpdateManager(
                 _state.value = available
                 throw error
             }
-            _state.value = UpdateState.Error(error.message ?: "Download failed", available, UpdateStep.DOWNLOAD)
+            val message = error.describe("Download failed")
+            logger.error("Update download failed (${asset.name} from ${asset.downloadUrl}): $message", error)
+            _state.value = UpdateState.Error(message, available, UpdateStep.DOWNLOAD)
             return result
         }
         _state.value = UpdateState.ReadyToInstall(available.release, result.getOrThrow(), available.capability)
@@ -122,9 +128,12 @@ class DefaultUpdateManager(
             _state.value = ready
             throw e
         } catch (e: Throwable) {
-            UpdateApplyResult.Failed(e.message ?: "Update failed", e)
+            UpdateApplyResult.Failed(e.describe("Update failed"), e)
         }
         applyInFlight = false
+        if (result is UpdateApplyResult.Failed) {
+            logger.error("Update install failed (${ready.downloadedAsset.asset.name}): ${result.error}", result.cause)
+        }
         _state.value = when (result) {
             is UpdateApplyResult.Failed -> UpdateState.Error(result.error, ready, UpdateStep.INSTALL)
             is UpdateApplyResult.LaunchedInstaller -> UpdateState.Installing(ready.release)

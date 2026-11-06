@@ -22,6 +22,7 @@ class GitHubReleasesChannel(
     val owner: String,
     val repo: String,
     val httpClient: UpdateHttpClient,
+    private val logger: UpdateLogger = UpdateLogger.None,
 ) : UpdateChannel {
     override val name: String = "github:$owner/$repo"
 
@@ -141,14 +142,24 @@ class GitHubReleasesChannel(
         return (reset - Clock.System.now().epochSeconds).coerceAtLeast(0)
     }
 
-    /** Сбой загрузки контрольных сумм не валит проверку: хэши остаются неизвестными. */
+    /**
+     * Сбой загрузки контрольных сумм не валит проверку: хэши остаются неизвестными, а скачивание потом
+     * откажет с «no checksum published». Причина пишется в журнал — иначе её не восстановить.
+     * `Throwable`: в Kotlin/JS нативные ошибки не наследуют `Exception`.
+     */
     private suspend fun fetchChecksums(url: String): Map<String, String>? =
         try {
             val r = httpClient.get(url)
-            if (r.statusCode == 200) parseChecksums(r.bodyText) else null
+            if (r.statusCode == 200) {
+                parseChecksums(r.bodyText)
+            } else {
+                logger.error("Checksums unavailable: HTTP ${r.statusCode} for $url", null)
+                null
+            }
         } catch (e: CancellationException) {
             throw e
-        } catch (_: Exception) {
+        } catch (e: Throwable) {
+            logger.error("Checksums unavailable: ${e.describe("request failed")} for $url", e)
             null
         }
 

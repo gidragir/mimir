@@ -29,10 +29,12 @@ class UpdateManagerTest {
 
     private fun available(matched: UpdateAsset? = asset) = UpdateCheckResult.UpdateAvailable(release, matched)
 
+    private val log = RecordingUpdateLogger()
+
     private fun manager(
         channel: FakeUpdateChannel,
         applier: FakeUpdateApplier = FakeUpdateApplier(),
-    ) = DefaultUpdateManager(current, TargetPlatform.WINDOWS_X64, channel, applier)
+    ) = DefaultUpdateManager(current, TargetPlatform.WINDOWS_X64, channel, applier, logger = log)
 
     @Test
     fun fullUpdateCycleTransitions() = runTest {
@@ -315,5 +317,50 @@ class UpdateManagerTest {
         job.cancel()
         job.join()
         assertIs<UpdateState.Available>(manager.state.value)
+    }
+
+    private class SocketTimeout : Exception()
+
+    @Test
+    fun downloadFailureIsLoggedWithMessageAndCause() = runTest {
+        val failure = IllegalStateException("HTTP 404 for https://example.test/app.msi", RuntimeException("root"))
+        val manager = manager(FakeUpdateChannel(available()), FakeUpdateApplier(downloadFailure = failure))
+        manager.checkForUpdates()
+        manager.downloadUpdate()
+        val entry = log.entries.single()
+        assertTrue("HTTP 404 for https://example.test/app.msi" in entry.message, entry.message)
+        assertSame(failure, entry.cause)
+    }
+
+    @Test
+    fun downloadFailureWithoutMessageKeepsExceptionType() = runTest {
+        val manager = manager(FakeUpdateChannel(available()), FakeUpdateApplier(downloadFailure = SocketTimeout()))
+        manager.checkForUpdates()
+        manager.downloadUpdate()
+        val error = assertIs<UpdateState.Error>(manager.state.value)
+        assertTrue("SocketTimeout" in error.message, error.message)
+        assertTrue("SocketTimeout" in log.entries.single().message)
+    }
+
+    @Test
+    fun applyFailureIsLoggedWithCause() = runTest {
+        val cause = RuntimeException("msiexec exit 1603")
+        val applier = FakeUpdateApplier(applyResult = UpdateApplyResult.Failed("Installer failed", cause))
+        val manager = manager(FakeUpdateChannel(available()), applier)
+        manager.checkForUpdates()
+        manager.downloadUpdate()
+        manager.applyUpdate()
+        val entry = log.entries.single()
+        assertTrue("Installer failed" in entry.message, entry.message)
+        assertSame(cause, entry.cause)
+    }
+
+    @Test
+    fun successfulCycleLogsNothing() = runTest {
+        val manager = manager(FakeUpdateChannel(available()))
+        manager.checkForUpdates()
+        manager.downloadUpdate()
+        manager.applyUpdate()
+        assertTrue(log.entries.isEmpty())
     }
 }

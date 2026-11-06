@@ -24,7 +24,9 @@ class GitHubReleasesChannelTest {
 
     private fun ok(body: String, headers: Map<String, String> = emptyMap()) = UpdateHttpResponse(200, headers, body)
 
-    private fun channel(client: FakeUpdateHttpClient) = GitHubReleasesChannel("mimir-org", "mimir", client)
+    private val log = RecordingUpdateLogger()
+
+    private fun channel(client: FakeUpdateHttpClient) = GitHubReleasesChannel("mimir-org", "mimir", client, log)
 
     private suspend fun check(client: FakeUpdateHttpClient, platform: TargetPlatform = TargetPlatform.WINDOWS_X64) =
         channel(client).checkForUpdates(SemVer.parse("0.1.0"), platform)
@@ -216,6 +218,9 @@ class GitHubReleasesChannelTest {
         assertIs<UpdateCheckResult.UpdateAvailable>(r)
         assertNull(r.matchedAsset?.expectedSha256)
         assertTrue(r.release.checksums.isEmpty())
+        val entry = log.entries.single()
+        assertTrue(sums in entry.message && "boom" in entry.message, entry.message)
+        assertEquals("boom", entry.cause?.message)
         // сбой чек-сумм: ETag не сохранён, следующий опрос полный и повторно тянет sha256sums.txt
         c.failures.clear()
         c.responses[sums] = ok("$h1  Mimir.msi\n")
@@ -236,6 +241,7 @@ class GitHubReleasesChannelTest {
         val r = check(c)
         assertIs<UpdateCheckResult.UpdateAvailable>(r)
         assertNull(r.matchedAsset?.expectedSha256)
+        assertTrue("HTTP 500" in log.entries.single().message, log.entries.single().message)
     }
 
     @Test

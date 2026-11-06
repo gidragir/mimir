@@ -11,6 +11,7 @@ import dev.mimir.core.update.UpdateApplier
 import dev.mimir.core.update.UpdateApplyResult
 import dev.mimir.core.update.UpdateAsset
 import dev.mimir.core.update.UpdateCheckResult
+import dev.mimir.core.update.UpdateLogger
 import dev.mimir.core.update.UpdateManager
 import dev.mimir.core.update.UpdateRelease
 import dev.mimir.core.update.UpdateState
@@ -50,6 +51,11 @@ object DisabledUpdateManager : UpdateManager {
     override fun dismiss() = Unit
 }
 
+private val updateLog = java.util.logging.Logger.getLogger("dev.mimir.runtime.update")
+
+/** Журнал обновлений JVM/Android: сбои скачивания, установки и загрузки чек-сумм с причиной. */
+val JulUpdateLogger: UpdateLogger = UpdateLogger { message, cause -> updateLog.log(java.util.logging.Level.WARNING, message, cause) }
+
 /**
  * Собирает [UpdateManager] поверх GitHub Releases проекта (владелец/репозиторий/версия берутся из `BuildConfig`,
  * то есть из `gradle.properties`). Платформа передаёт свой [applier] и [targetPlatform].
@@ -59,9 +65,11 @@ fun createGitHubUpdateManager(
     targetPlatform: TargetPlatform,
     applier: UpdateApplier = NoopUpdateApplier,
     currentVersion: SemVer = SemVer.parse(BuildConfig.VERSION),
+    logger: UpdateLogger = JulUpdateLogger,
 ): UpdateManager = DefaultUpdateManager(
     currentVersion = currentVersion,
     targetPlatform = targetPlatform,
-    channel = GitHubReleasesChannel(BuildConfig.GITHUB_OWNER, BuildConfig.GITHUB_REPO, KtorUpdateHttpClient(httpClient)),
+    channel = GitHubReleasesChannel(BuildConfig.GITHUB_OWNER, BuildConfig.GITHUB_REPO, KtorUpdateHttpClient(httpClient), logger),
     applier = applier,
+    logger = logger,
 )
