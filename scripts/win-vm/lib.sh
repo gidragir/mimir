@@ -49,12 +49,13 @@ winvm_ensure_running() {
 
 # winvm_exec <exe> [args...] — guest-exec от SYSTEM; stdout/stderr гостя → наши, код возврата — гостя.
 winvm_exec() {
-  local exe=$1 req pid status started
+  local exe=$1 req pid status started argv='[]'
   shift
-  req=$(jq -cn --arg path "$exe" \
-    '{execute: "guest-exec", arguments: {path: $path, arg: $ARGS.positional, "capture-output": true}}' \
-    --args "$@")
-  pid=$(_agent "$req" | jq -r '.return.pid')
+  # jq --args путает аргументы вида -NoProfile с собственными опциями, поэтому массив собираем через stdin
+  if (($# > 0)); then argv=$(printf '%s\0' "$@" | jq -Rsc 'split("\u0000")[:-1]'); fi
+  req=$(jq -cn --arg path "$exe" --argjson argv "$argv" \
+    '{execute: "guest-exec", arguments: {path: $path, arg: $argv, "capture-output": true}}')
+  pid=$(_agent "$req" | jq -er '.return.pid') || winvm_die 1 "guest-exec failed to start: $exe"
   started=$SECONDS
   while :; do
     status=$(_agent "$(jq -cn --argjson pid "$pid" '{execute: "guest-exec-status", arguments: {pid: $pid}}')")
@@ -75,4 +76,20 @@ winvm_ps() {
   shift
   winvm_exec powershell.exe -NoProfile -ExecutionPolicy Bypass \
     -File "C:\\mimir\\scripts\\win-vm\\guest\\$script" "$@"
+}
+
+# winvm_sync — рабочее дерево → $WINVM_HOST_DIR/src (rsync, строго внутри src), затем robocopy в госте.
+winvm_sync() {
+  local root rc=0
+  root=$(git rev-parse --show-toplevel) || winvm_die 1 "not inside a git working tree"
+  mkdir -p "$WINVM_HOST_DIR/src" "$WINVM_HOST_DIR/out" "$WINVM_HOST_DIR/tmp"
+  echo "Sync: working tree -> $WINVM_HOST_DIR/src" >&2
+  (cd "$root" && rsync -a --delete --delete-excluded --filter=':- .gitignore' \
+    --exclude=/.git --exclude=/mise.local.toml --exclude=build/ ./ "$WINVM_HOST_DIR/src/") \
+    || winvm_die 1 "rsync failed"
+  echo "Sync: robocopy in guest -> C:\\mimir" >&2
+  # bootstrap: в C:\mimir скрипта может ещё не быть, поэтому запуск из шары
+  winvm_exec powershell.exe -NoProfile -ExecutionPolicy Bypass \
+    -File "$WINVM_SHARE_DRIVE\\mimir\\src\\scripts\\win-vm\\guest\\sync.ps1" || rc=$?
+  ((rc == 0)) || winvm_die "$rc" "robocopy failed in guest (exit $rc)"
 }

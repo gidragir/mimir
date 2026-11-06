@@ -4,7 +4,7 @@ set -uo pipefail
 shopt -s nullglob
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-root=$(cd "$here/../../.." && pwd)
+repo_root=$(cd "$here/../../.." && pwd)
 passed=0
 failed=0
 
@@ -25,7 +25,7 @@ run_one() {
     # shellcheck source=helpers.sh
     source "$here/helpers.sh"
     # shellcheck source=../lib.sh
-    source "$root/scripts/win-vm/lib.sh"
+    source "$repo_root/scripts/win-vm/lib.sh"
     winvm_config
     # shellcheck disable=SC1090
     source "$file"
@@ -36,7 +36,10 @@ run_one() {
 for file in "$here"/test_*.sh; do
   [[ -e "$file" ]] || continue
   while read -r name; do
-    if run_one "$file" "$name"; then
+    # Не в условии `if`: иначе set -e внутри подоболочки отключается и падают только последние ассерты.
+    run_one "$file" "$name"
+    rc=$?
+    if [[ $rc -eq 0 ]]; then
       passed=$((passed + 1))
       printf 'ok   %s\n' "$name"
     else
@@ -49,7 +52,7 @@ done
 printf '%d passed, %d failed\n' "$passed" "$failed"
 
 if command -v shellcheck >/dev/null 2>&1; then
-  shellcheck -x --source-path=SCRIPTDIR "$root"/scripts/win-vm/*.sh "$here"/*.sh "$here"/fakes/virsh "$here"/fakes/*.sh \
+  shellcheck -x --source-path=SCRIPTDIR "$repo_root"/scripts/win-vm/*.sh "$here"/*.sh "$here"/fakes/virsh "$here"/fakes/*.sh \
     || failed=$((failed + 1))
 else
   echo "shellcheck not found: skipped" >&2

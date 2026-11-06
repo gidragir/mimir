@@ -22,7 +22,11 @@ USAGE
 
 # Заглушки; последующие задачи заменяют их реализациями.
 winvm_cmd_provision() { winvm_ensure_running; winvm_die 70 "provision is not implemented yet"; }
-winvm_cmd_sync() { winvm_ensure_running; winvm_die 70 "sync is not implemented yet"; }
+winvm_cmd_sync() {
+  winvm_ensure_running
+  winvm_sync
+  echo "Sync complete" >&2
+}
 winvm_cmd_run() { winvm_ensure_running; winvm_die 70 "run is not implemented yet"; }
 winvm_cmd_msi() { winvm_ensure_running; winvm_die 70 "msi is not implemented yet"; }
 winvm_cmd_uninstall() { winvm_ensure_running; winvm_die 70 "uninstall is not implemented yet"; }
