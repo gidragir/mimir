@@ -215,5 +215,108 @@ object MimirIcons {
             }
         }.build()
     }
-}
 
+    val Refresh: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "Refresh",
+            defaultWidth = 20.dp,
+            defaultHeight = 20.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f,
+        ).apply {
+            path(
+                stroke = SolidColor(Color.White),
+                strokeLineWidth = 2f,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round,
+            ) {
+                moveTo(21f, 12f)
+                arcTo(9f, 9f, 0f, isMoreThanHalf = true, isPositiveArc = true, 18f, 5.3f)
+                lineTo(21f, 8f)
+                moveTo(21f, 3f)
+                lineTo(21f, 8f)
+                lineTo(16f, 8f)
+            }
+        }.build()
+    }
+
+    val ExternalLink: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "ExternalLink",
+            defaultWidth = 20.dp,
+            defaultHeight = 20.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f,
+        ).apply {
+            path(
+                stroke = SolidColor(Color.White),
+                strokeLineWidth = 2f,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round,
+            ) {
+                moveTo(18f, 13f)
+                lineTo(18f, 19f)
+                arcTo(2f, 2f, 0f, isMoreThanHalf = false, isPositiveArc = true, 16f, 21f)
+                lineTo(5f, 21f)
+                arcTo(2f, 2f, 0f, isMoreThanHalf = false, isPositiveArc = true, 3f, 19f)
+                lineTo(3f, 8f)
+                arcTo(2f, 2f, 0f, isMoreThanHalf = false, isPositiveArc = true, 5f, 6f)
+                lineTo(11f, 6f)
+                moveTo(15f, 3f)
+                lineTo(21f, 3f)
+                lineTo(21f, 9f)
+                moveTo(10f, 14f)
+                lineTo(21f, 3f)
+            }
+        }.build()
+    }
+
+    val Power: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "Power",
+            defaultWidth = 20.dp,
+            defaultHeight = 20.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f,
+        ).apply {
+            path(
+                stroke = SolidColor(Color.White),
+                strokeLineWidth = 2f,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round,
+            ) {
+                moveTo(18.36f, 6.64f)
+                arcTo(9f, 9f, 0f, isMoreThanHalf = true, isPositiveArc = true, 5.64f, 6.64f)
+                moveTo(12f, 2f)
+                lineTo(12f, 12f)
+            }
+        }.build()
+    }
+
+    val Sparkles: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "Sparkles",
+            defaultWidth = 20.dp,
+            defaultHeight = 20.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f,
+        ).apply {
+            path(
+                stroke = SolidColor(Color.White),
+                strokeLineWidth = 2f,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round,
+            ) {
+                moveTo(12f, 3f)
+                lineTo(14.2f, 9.8f)
+                lineTo(21f, 12f)
+                lineTo(14.2f, 14.2f)
+                lineTo(12f, 21f)
+                lineTo(9.8f, 14.2f)
+                lineTo(3f, 12f)
+                lineTo(9.8f, 9.8f)
+                close()
+            }
+        }.build()
+    }
+}

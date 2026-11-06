@@ -211,4 +211,16 @@ class MimirComponentsTest {
         onNodeWithTag("progress_determinate").assertIsDisplayed()
         onNodeWithTag("progress_indeterminate").assertIsDisplayed()
     }
+
+    @Test
+    fun `popover icons have non-empty paths`() {
+        listOf(
+            dev.mimir.ui.components.MimirIcons.Refresh,
+            dev.mimir.ui.components.MimirIcons.ExternalLink,
+            dev.mimir.ui.components.MimirIcons.Power,
+            dev.mimir.ui.components.MimirIcons.Sparkles,
+        ).forEach { icon ->
+            assertTrue(icon.root.size > 0, "Icon ${icon.name} should have vector nodes")
+        }
+    }
 }

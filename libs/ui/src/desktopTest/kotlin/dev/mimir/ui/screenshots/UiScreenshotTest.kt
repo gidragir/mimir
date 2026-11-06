@@ -32,6 +32,7 @@ import dev.mimir.ui.picker.LocalFolderPicker
 import dev.mimir.ui.picker.FakeFolderPicker
 import dev.mimir.ui.screens.SetupWizardScreen
 import dev.mimir.ui.screens.StatusScreen
+import dev.mimir.ui.screens.TrayPopoverScreen
 import dev.mimir.ui.screens.setup.PasswordStep
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.io.File
@@ -124,6 +125,45 @@ class UiScreenshotTest {
                     PasswordStep(FakeMimirUiModel(), onNext = {})
                 }
             }
+        }
+    }
+
+    @Test
+    fun captureTrayPopoverIdleDark() = saveScreenshot("tray_popover_idle_dark.png") {
+        ThemedContainer(dark = true) {
+            TrayPopoverScreen(
+                model = FakeMimirUiModel(
+                    status = SyncStatus.Idle,
+                    vaultPath = "/home/user/Notes",
+                    isLocked = false,
+                    lastSyncTime = Instant.fromEpochSeconds(1700000000),
+                ),
+                onOpenMainWindow = {},
+                onQuit = {},
+            )
+        }
+    }
+
+    @Test
+    fun captureTrayPopoverSyncingLight() = saveScreenshot("tray_popover_syncing_light.png") {
+        ThemedContainer(dark = false) {
+            TrayPopoverScreen(
+                model = FakeMimirUiModel(
+                    status = SyncStatus.Syncing,
+                    vaultPath = "/home/user/Notes",
+                    isLocked = false,
+                    progress = MutableStateFlow(
+                        SyncProgress(
+                            phase = SyncPhase.Applying,
+                            startedAt = Instant.fromEpochSeconds(1700000000),
+                            done = 42,
+                            total = 100,
+                        ),
+                    ),
+                ),
+                onOpenMainWindow = {},
+                onQuit = {},
+            )
         }
     }
 
