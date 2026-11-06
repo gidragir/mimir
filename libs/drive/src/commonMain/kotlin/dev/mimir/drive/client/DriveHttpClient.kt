@@ -8,6 +8,8 @@ import dev.mimir.drive.auth.RefreshingTokenSource
 import dev.mimir.drive.auth.TokenStorage
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.HttpRequestTimeoutException
+import io.ktor.client.plugins.HttpTimeout
+import io.ktor.client.plugins.HttpTimeoutConfig
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.HttpStatement
 import io.ktor.http.HttpHeaders
@@ -18,13 +20,30 @@ import kotlin.coroutines.cancellation.CancellationException
 import kotlin.random.Random
 import kotlin.time.Clock
 
+/**
+ * HTTP-клиент Drive: токены, повторы, сетевые ошибки.
+ *
+ * [httpClient] — внедрённый клиент с таймаутами Drive поверх него (движок общий): connect и socket (пауза между
+ * пакетами), но без таймаута на весь запрос — вложение в сотни МБ на медленном канале передаётся минутами.
+ * Плагин `HttpTimeout` обязателен: без него CIO применяет собственный `requestTimeout` (15 с) ко всему вызову
+ * вместе с телом, и такой файл обрывался бы на каждой попытке. Таймаут на весь запрос, заданный во внедрённом
+ * клиенте, здесь снимается.
+ */
 class DriveHttpClient(
-    val httpClient: HttpClient,
+    httpClient: HttpClient,
     private val tokenSource: AccessTokenSource,
     val clock: Clock = Clock.System,
     private val retryPolicy: RetryPolicy = RetryPolicy(),
     private val random: Random = Random.Default,
 ) {
+    val httpClient: HttpClient = httpClient.config {
+        install(HttpTimeout) {
+            connectTimeoutMillis = CONNECT_TIMEOUT_MS
+            socketTimeoutMillis = SOCKET_TIMEOUT_MS
+            requestTimeoutMillis = HttpTimeoutConfig.INFINITE_TIMEOUT_MS
+        }
+    }
+
     constructor(
         httpClient: HttpClient,
         tokenStorage: TokenStorage,
@@ -143,6 +162,11 @@ class DriveHttpClient(
     }
 
     private class Holder<T>(val value: T)
+
+    private companion object {
+        const val CONNECT_TIMEOUT_MS = 10_000L
+        const val SOCKET_TIMEOUT_MS = 30_000L
+    }
 
     /** Описание повторяемого сбоя (для сообщения об исчерпании) или `null`, если ответ возвращается вызывающему. */
     private suspend fun retryableFailure(response: HttpResponse): String? {

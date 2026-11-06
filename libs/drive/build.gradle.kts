@@ -16,5 +16,8 @@ kotlin {
             implementation(libs.coroutines.test)
             implementation(libs.ktor.client.mock)
         }
+        jvmTest.dependencies {
+            implementation(libs.ktor.client.cio)
+        }
     }
 }
