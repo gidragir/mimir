@@ -1,5 +1,6 @@
 package dev.mimir.desktop
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -18,6 +19,9 @@ import androidx.compose.ui.window.rememberWindowState
 import androidx.compose.ui.window.application
 import dev.mimir.core.BuildConfig
 import dev.mimir.daemon.DaemonConfig
+import dev.mimir.desktop.tray.PopoverVisibilityController
+import dev.mimir.desktop.tray.TrayClickAnchor
+import dev.mimir.desktop.tray.TrayPopoverWindow
 import dev.mimir.desktop.tray.bindUpdateItem
 import dev.mimir.desktop.tray.createTray
 import dev.mimir.desktop.tray.trayLabel
@@ -25,6 +29,7 @@ import dev.mimir.desktop.picker.DesktopObsidianVaultDiscovery
 import dev.mimir.desktop.picker.defaultFolderPicker
 import dev.mimir.desktop.platform.WindowsProtocolRegistrar
 import dev.mimir.desktop.ipc.SingleInstanceManager
+import dev.mimir.desktop.window.PlatformWindowStyler
 import dev.mimir.ui.MimirApp
 import dev.mimir.ui.picker.LocalFolderPicker
 import dev.mimir.ui.platform.LocalVaultDiscovery
@@ -67,6 +72,18 @@ private fun runDesktop(config: DaemonConfig, ipc: SingleInstanceManager) = appli
     var model by remember { mutableStateOf<MimirUiModel?>(null) }
     var visible by remember { mutableStateOf(true) }
     var startupError by remember { mutableStateOf<String?>(null) }
+    val popoverController = remember { PopoverVisibilityController() }
+    var popoverVisible by remember { mutableStateOf(false) }
+    var popoverAnchor by remember { mutableStateOf<TrayClickAnchor?>(null) }
+    val mainWindowRef = remember { AtomicReference<java.awt.Window?>(null) }
+    val openMainWindow: () -> Unit = {
+        scope.launch(Dispatchers.Main) {
+            popoverController.dismiss()
+            popoverVisible = false
+            visible = true
+            mainWindowRef.get()?.let(PlatformFocus::activate)
+        }
+    }
 
     LaunchedEffect(Unit) {
         try {
@@ -92,12 +109,18 @@ private fun runDesktop(config: DaemonConfig, ipc: SingleInstanceManager) = appli
             withContext(Dispatchers.Default) {
                 tray.show(
                     trayLabel(ready.status.value, ready.progress.value),
-                    onOpen = { visible = true },
+                    onOpen = openMainWindow,
                     onSyncNow = { scope.launch { runCatching { ready.triggerSync() } } },
                     onQuit = ::exitApplication,
+                    onActivate = { anchor ->
+                        scope.launch(Dispatchers.Main) {
+                            popoverVisible = popoverController.onTrayActivate(anchor)
+                            popoverAnchor = popoverController.lastAnchor
+                        }
+                    },
                 )
             }
-            launch { bindUpdateItem(tray, ready.updateState) { visible = true } }
+            launch { bindUpdateItem(tray, ready.updateState, openMainWindow) }
             combine(ready.status, ready.progress) { s, p -> trayLabel(s, p) }
                 .distinctUntilChanged()
                 .collect { tray.update(it) }
@@ -128,6 +151,11 @@ private fun runDesktop(config: DaemonConfig, ipc: SingleInstanceManager) = appli
         icon = windowIcon,
         state = rememberWindowState(size = DpSize(960.dp, 680.dp)),
     ) {
+        val isDark = isSystemInDarkTheme()
+        LaunchedEffect(window, isDark) {
+            mainWindowRef.set(window)
+            PlatformWindowStyler.apply(window, isDark)
+        }
         LaunchedEffect(window) {
             window.minimumSize = java.awt.Dimension(720, 520)
             ipc.onActivationRequest = {
@@ -149,4 +177,18 @@ private fun runDesktop(config: DaemonConfig, ipc: SingleInstanceManager) = appli
             StartupScreen(startupError?.let { "Не удалось запустить Mimir: $it" } ?: "Запуск…")
         }
     }
+
+    TrayPopoverWindow(
+        visible = popoverVisible,
+        anchor = popoverAnchor,
+        model = model,
+        startupError = startupError,
+        onFocusLost = { popoverVisible = popoverController.onFocusLost() },
+        onDismissRequest = {
+            popoverController.dismiss()
+            popoverVisible = false
+        },
+        onOpenMainWindow = openMainWindow,
+        onQuit = ::exitApplication,
+    )
 }

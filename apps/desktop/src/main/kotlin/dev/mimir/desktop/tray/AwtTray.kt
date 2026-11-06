@@ -1,30 +1,40 @@
 package dev.mimir.desktop.tray
 
-import dev.mimir.core.BuildConfig
-import java.awt.MenuItem
-import java.awt.PopupMenu
 import java.awt.SystemTray
 import java.awt.Toolkit
 import java.awt.TrayIcon
+import java.awt.event.MouseAdapter
+import java.awt.event.MouseEvent
+import javax.swing.SwingUtilities
 
+/**
+ * Windows и macOS. Без [java.awt.PopupMenu]: одиночный клик открывает Compose-поповер ([TrayPopoverWindow]),
+ * двойной — главное окно. Пункт «Доступно обновление» живёт в самом поповере, поэтому [setUpdate] не переопределён.
+ */
 class AwtTray : Tray {
     private var icon: TrayIcon? = null
-    private var menu: PopupMenu? = null
-    private var updateItem: MenuItem? = null
 
     override val available get() = icon != null
 
-    override fun show(status: String, onOpen: () -> Unit, onSyncNow: () -> Unit, onQuit: () -> Unit) {
+    override fun show(
+        status: String,
+        onOpen: () -> Unit,
+        onSyncNow: () -> Unit,
+        onQuit: () -> Unit,
+        onActivate: (TrayClickAnchor?) -> Unit,
+    ) {
         val image = Toolkit.getDefaultToolkit().getImage(AwtTray::class.java.getResource("/tray.png"))
-        val popup = PopupMenu().apply {
-            add(MenuItem("Открыть").apply { addActionListener { onOpen() } })
-            add(MenuItem("Синхронизировать сейчас").apply { addActionListener { onSyncNow() } })
-            add(MenuItem("Выход").apply { addActionListener { onQuit() } })
-        }
-        menu = popup
-        icon = TrayIcon(image, status, popup).apply {
+        icon = TrayIcon(image, status).apply {
             isImageAutoSize = true
-            addActionListener { onOpen() }
+            addMouseListener(object : MouseAdapter() {
+                override fun mouseReleased(e: MouseEvent) {
+                    if (e.clickCount >= 2 && SwingUtilities.isLeftMouseButton(e)) {
+                        onOpen()
+                    } else {
+                        onActivate(TrayClickAnchor(e.xOnScreen, e.yOnScreen))
+                    }
+                }
+            })
         }
         SystemTray.getSystemTray().add(icon)
     }
@@ -33,17 +43,7 @@ class AwtTray : Tray {
         icon?.toolTip = status
     }
 
-    override fun setUpdate(label: String?, onClick: () -> Unit) {
-        val popup = menu ?: return
-        updateItem?.let { popup.remove(it) }
-        updateItem = label?.let { text ->
-            MenuItem(text).apply { addActionListener { onClick() } }.also { popup.insert(it, 0) }
-        }
-    }
-
     override fun close() {
-        updateItem = null
-        menu = null
         icon?.let { SystemTray.getSystemTray().remove(it) }
         icon = null
     }

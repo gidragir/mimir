@@ -5,7 +5,13 @@ import java.util.logging.Logger
 class NoTray : Tray {
     override val available = false
 
-    override fun show(status: String, onOpen: () -> Unit, onSyncNow: () -> Unit, onQuit: () -> Unit) {
+    override fun show(
+        status: String,
+        onOpen: () -> Unit,
+        onSyncNow: () -> Unit,
+        onQuit: () -> Unit,
+        onActivate: (TrayClickAnchor?) -> Unit,
+    ) {
         logger.info("Tray is not available on this system; the window close button quits the application")
     }
 

@@ -8,7 +8,7 @@ import kotlin.test.assertSame
 class TrayTest {
     private object FakeLinuxTray : Tray {
         override val available = true
-        override fun show(status: String, onOpen: () -> Unit, onSyncNow: () -> Unit, onQuit: () -> Unit) = Unit
+        override fun show(status: String, onOpen: () -> Unit, onSyncNow: () -> Unit, onQuit: () -> Unit, onActivate: (TrayClickAnchor?) -> Unit) = Unit
         override fun update(status: String) = Unit
         override fun close() = Unit
     }
@@ -23,6 +23,16 @@ class TrayTest {
     @Test
     fun `windows with tray support gets AwtTray`() {
         assertIs<AwtTray>(createTray("Windows 11", { true }))
+    }
+
+    @Test
+    fun `macos with tray support gets AwtTray`() {
+        assertIs<AwtTray>(createTray("Mac OS X", { true }))
+    }
+
+    @Test
+    fun `macos without tray support gets NoTray`() {
+        assertIs<NoTray>(createTray("Mac OS X", { false }))
     }
 
     @Test

@@ -65,11 +65,18 @@ class TrayLifecycleTest {
         watcherBus.exportObject("/StatusNotifierWatcher", watcher)
 
         val opened = CountDownLatch(1)
+        val activations = java.util.concurrent.LinkedBlockingQueue<List<TrayClickAnchor?>>() // очередь не принимает null
         val synced = CountDownLatch(1)
         val quit = CountDownLatch(1)
         val tray = DbusStatusNotifierTray(address)
         try {
-            tray.show("Mimir: not connected", { opened.countDown() }, { synced.countDown() }, { quit.countDown() })
+            tray.show(
+                "Mimir: not connected",
+                { opened.countDown() },
+                { synced.countDown() },
+                { quit.countDown() },
+                { anchor -> activations.put(listOf(anchor)) },
+            )
             assertTrue(tray.available)
             assertTrue(watcher.latch.await(5, TimeUnit.SECONDS))
             val service = watcher.registered.single()
@@ -83,10 +90,16 @@ class TrayLifecycleTest {
             assertEquals("Mimir: idle", props.Get<String>("org.kde.StatusNotifierItem", "Title"))
             assertTrue(props.Get<List<*>>("org.kde.StatusNotifierItem", "IconPixmap").isNotEmpty())
 
+            // Клик с координатами → якорь; панели Wayland шлют (0, 0) → якоря нет.
+            item.Activate(420, 1050)
+            assertEquals(listOf(TrayClickAnchor(420, 1050)), activations.poll(5, TimeUnit.SECONDS))
             item.Activate(0, 0)
-            assertTrue(opened.await(5, TimeUnit.SECONDS))
+            assertEquals(listOf(null), activations.poll(5, TimeUnit.SECONDS))
+            assertEquals(0, activations.size)
 
             val menu = client.getRemoteObject(service, "/MenuBar", DbusMenu::class.java)
+            menu.Event(1, "clicked", Variant(0), UInt32(0))
+            assertTrue(opened.await(5, TimeUnit.SECONDS))
             val layout = menu.GetLayout(0, -1, emptyList())
             assertEquals(listOf(1, 2, 3), layout.layout.children.map { (it.value as Array<*>)[0] as Int })
             menu.Event(2, "clicked", Variant(0), UInt32(0))

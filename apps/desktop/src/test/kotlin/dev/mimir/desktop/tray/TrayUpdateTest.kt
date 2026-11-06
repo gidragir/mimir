@@ -19,7 +19,7 @@ class TrayUpdateTest {
         override val available = true
         val labels = mutableListOf<String?>()
         var onClick: () -> Unit = {}
-        override fun show(status: String, onOpen: () -> Unit, onSyncNow: () -> Unit, onQuit: () -> Unit) = Unit
+        override fun show(status: String, onOpen: () -> Unit, onSyncNow: () -> Unit, onQuit: () -> Unit, onActivate: (TrayClickAnchor?) -> Unit) = Unit
         override fun update(status: String) = Unit
         override fun setUpdate(label: String?, onClick: () -> Unit) {
             labels += label

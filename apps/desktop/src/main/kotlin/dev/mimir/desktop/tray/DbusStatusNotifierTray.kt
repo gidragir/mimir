@@ -39,7 +39,13 @@ class DbusStatusNotifierTray(private val busAddress: String? = null) : Tray {
     override var available: Boolean = false
         private set
 
-    override fun show(status: String, onOpen: () -> Unit, onSyncNow: () -> Unit, onQuit: () -> Unit) {
+    override fun show(
+        status: String,
+        onOpen: () -> Unit,
+        onSyncNow: () -> Unit,
+        onQuit: () -> Unit,
+        onActivate: (TrayClickAnchor?) -> Unit,
+    ) {
         try {
             val bus = (if (busAddress != null) DBusConnectionBuilder.forAddress(busAddress) else DBusConnectionBuilder.forSessionBus())
                 .withShared(false)
@@ -54,7 +60,7 @@ class DbusStatusNotifierTray(private val busAddress: String? = null) : Tray {
             }
             val serviceName = "org.freedesktop.StatusNotifierItem-${ProcessHandle.current().pid()}-1"
             bus.requestBusName(serviceName)
-            val statusItem = Item(status, onOpen, onSyncNow, onQuit)
+            val statusItem = Item(status, onOpen, onSyncNow, onQuit, onActivate)
             item = statusItem
             bus.exportObject(ITEM_PATH, statusItem)
             bus.exportObject(MENU_PATH, statusItem.menu)
@@ -92,6 +98,7 @@ class DbusStatusNotifierTray(private val busAddress: String? = null) : Tray {
         private val onOpen: () -> Unit,
         private val onSyncNow: () -> Unit,
         private val onQuit: () -> Unit,
+        private val onActivate: (TrayClickAnchor?) -> Unit,
     ) : StatusNotifierItem {
         val menu = Menu(onOpen, onSyncNow, onQuit)
         private val pixmap: List<IconPixmap> = loadIcon()
@@ -107,7 +114,8 @@ class DbusStatusNotifierTray(private val busAddress: String? = null) : Tray {
         override fun getItemIsMenu() = false
         override fun getMenu() = DBusPath(MENU_PATH)
 
-        override fun Activate(x: Int, y: Int) = onOpen()
+        // Панели Wayland без глобальных координат шлют (0, 0): это «якоря нет», а не левый верхний пиксель.
+        override fun Activate(x: Int, y: Int) = onActivate(if (x > 0 || y > 0) TrayClickAnchor(x, y) else null)
         override fun SecondaryActivate(x: Int, y: Int) = onOpen()
         override fun ContextMenu(x: Int, y: Int) = Unit
         override fun Scroll(delta: Int, orientation: String) = Unit
