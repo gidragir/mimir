@@ -29,7 +29,7 @@ class FetchUpdateHttpClient(
         try {
             val response = fetchFn(url, requestInit(headers)).await()
             val status = response.status as Int
-            if (status !in 200..299) return Result.failure(IllegalStateException("HTTP $status for $url"))
+            if (status !in 200..299) return Result.failure(UpdateHttpStatusException(status, url))
             val total = (response.headers.get("content-length") as? String)?.toLongOrNull() ?: -1L
             val body = response.body
             var read = 0L
