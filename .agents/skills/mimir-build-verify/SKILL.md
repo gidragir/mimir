@@ -27,6 +27,7 @@ description: Use when you need to build, test or verify a change in the Mimir re
 | Скриншоты UI (desktop + extension) | `mise run screenshots` (headless-рендеринг в `build/reports/screenshots/`) |
 | Граф зависимостей (`build.gradle.kts`) | `./gradlew buildHealth` (`com.autonomousapps.dependency-analysis`) |
 | Дизайн-токены (`design/tokens.json`) | `node design/generate-tokens.mjs --check` |
+| Yarn lock-файлы JS/Wasm (целостность путей) | `./gradlew kotlinNpmInstall kotlinWasmNpmInstall` (проверить отсутствие `kotlin-js-store/` в корне) |
 
 Первый запуск на новой машине: `gradlew` создаётся командой `mise x gradle@9.8 -- gradle wrapper --gradle-version <9.x ≥ 9.8>`.
 
