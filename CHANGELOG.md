@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.2](https://github.com/gidragir/mimir/compare/v0.3.1...v0.3.2) (2026-11-06)
+
+
+### Bug Fixes
+
+* **drive:** configure HttpTimeout on DriveHttpClient to prevent CIO 15s request timeout ([bca5a71](https://github.com/gidragir/mimir/commit/bca5a71aa25e84ea197c3bf1e2540a4de155de19))
+* **update:** stop CIO 15s timeout killing installer downloads; add error diagnostics ([#7](https://github.com/gidragir/mimir/issues/7)) ([1ae4a78](https://github.com/gidragir/mimir/commit/1ae4a785cafa17d7287e6c2b3cea3b8a7a947e02))
+
 ## [0.3.1](https://github.com/gidragir/mimir/compare/v0.3.0...v0.3.1) (2026-11-06)
 
 
