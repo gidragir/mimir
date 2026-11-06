@@ -2,8 +2,8 @@
 directory: apps/desktop
 source:
   kind: git
-  blob_sha: 2656a244795bd4ecc9b3a3f4e5a488d288913701
-  commit_sha: bca5a71aa25e84ea197c3bf1e2540a4de155de19
+  blob_sha: 2c13ade69527df049e1644c65675ccfbd2b7ddfc
+  commit_sha: f257ad8e5833023549c25d73ac019e725362bc88
 generated_by:
   component: context-init
   role: update
@@ -30,15 +30,15 @@ freshness:
 | `apps/desktop/src/main/kotlin/dev/mimir/desktop/DaemonServiceFactory.kt` | Исходный код |
 | `apps/desktop/src/main/kotlin/dev/mimir/desktop/Main.kt` | Исходный код |
 | `apps/desktop/src/main/kotlin/dev/mimir/desktop/PlatformFocus.kt` | Исходный код |
-| `apps/desktop/src/main/kotlin/dev/mimir/desktop/RememberedPassword.kt` | Исходный код |
-| `apps/desktop/src/main/kotlin/dev/mimir/desktop/SystemBrowserOpener.kt` | Исходный код |
 | `apps/desktop/src/main/kotlin/dev/mimir/desktop/ipc/SingleInstanceManager.kt` | Исходный код |
+| `apps/desktop/src/main/kotlin/dev/mimir/desktop/picker/DesktopObsidianVaultDiscovery.kt` | Исходный код |
+| `apps/desktop/src/main/kotlin/dev/mimir/desktop/picker/FallbackFolderPicker.kt` | Исходный код |
+| `apps/desktop/src/main/kotlin/dev/mimir/desktop/picker/MacFolderPicker.kt` | Исходный код |
 | `apps/desktop/src/main/kotlin/dev/mimir/desktop/picker/PortalFolderPicker.kt` | Исходный код |
+| `apps/desktop/src/main/kotlin/dev/mimir/desktop/picker/WindowsFolderPicker.kt` | Исходный код |
 | `apps/desktop/src/main/kotlin/dev/mimir/desktop/platform/WindowsProtocolRegistrar.kt` | Исходный код |
-| `apps/desktop/src/main/kotlin/dev/mimir/desktop/tray/AwtTray.kt` | Исходный код |
 | `apps/desktop/src/main/kotlin/dev/mimir/desktop/tray/DbusInterfaces.kt` | Исходный код |
 | `apps/desktop/src/main/kotlin/dev/mimir/desktop/tray/DbusStatusNotifierTray.kt` | Исходный код |
-| `apps/desktop/src/main/kotlin/dev/mimir/desktop/tray/Tray.kt` | Исходный код |
 | `apps/desktop/src/main/kotlin/dev/mimir/desktop/update/DesktopUpdateSupport.kt` | Исходный код |
 | `apps/desktop/src/main/kotlin/dev/mimir/desktop/update/WindowsMsiApplier.kt` | Исходный код |
 

@@ -2,8 +2,8 @@
 directory: libs/ui/src/commonMain/kotlin/dev/mimir/ui
 source:
   kind: git
-  blob_sha: e22ca240a2e33040115026f6610858c850961e6d
-  commit_sha: bca5a71aa25e84ea197c3bf1e2540a4de155de19
+  blob_sha: 8164a119b5d34ab8f0915553276eae4c25f0240b
+  commit_sha: f257ad8e5833023549c25d73ac019e725362bc88
 generated_by:
   component: context-init
   role: update
@@ -40,7 +40,7 @@ freshness:
 | `libs/ui/src/commonMain/kotlin/dev/mimir/ui/model/UpdateTexts.kt` | Исходный код |
 | `libs/ui/src/commonMain/kotlin/dev/mimir/ui/model/UpdateUiMapping.kt` | Исходный код |
 | `libs/ui/src/commonMain/kotlin/dev/mimir/ui/model/UpdateUiState.kt` | Исходный код |
-| `libs/ui/src/commonMain/kotlin/dev/mimir/ui/platform/SystemAccountLogin.kt` | Исходный код |
+| `libs/ui/src/commonMain/kotlin/dev/mimir/ui/picker/PlatformFolderPicker.kt` | Исходный код |
 
 ## 🔑 Ключевой контракт и экспорты
 ```text
