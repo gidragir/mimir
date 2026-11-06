@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.4.0](https://github.com/gidragir/mimir/compare/v0.3.2...v0.4.0) (2026-11-06)
+
+
+### Features
+
+* **desktop:** add DesktopObsidianVaultDiscovery and bind parent window to folder picker ([f257ad8](https://github.com/gidragir/mimir/commit/f257ad8e5833023549c25d73ac019e725362bc88))
+* **desktop:** add Windows, macOS and Zenity/KDialog native folder pickers ([949943e](https://github.com/gidragir/mimir/commit/949943e117eaf096fb2b1804caa834ec6d57f882))
+* **ui:** add FakeFolderPicker, single-flight browse lock and Windows path display name ([f8e411b](https://github.com/gidragir/mimir/commit/f8e411b18f6e3bb8a0ac60c5861b44e1cc3532fc))
+
+
+### Miscellaneous Chores
+
+* release 0.4.0 ([e5154c8](https://github.com/gidragir/mimir/commit/e5154c8912bb2d3f5b4814cb80045540925b4c3a))
+
+
+### Code Refactoring
+
+* **desktop:** introduce PickOutcome, FallbackFolderPicker and ProcessExecutor ([6c1e945](https://github.com/gidragir/mimir/commit/6c1e9453419c8fe689dc37a8d88154797f7cf927))
+
 ## [0.3.2](https://github.com/gidragir/mimir/compare/v0.3.1...v0.3.2) (2026-11-06)
 
 
