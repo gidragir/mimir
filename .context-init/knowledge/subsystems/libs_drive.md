@@ -2,11 +2,11 @@
 directory: libs/drive
 source:
   kind: git
-  blob_sha: a9c182c315da6f0ddd1ece2d8d3d677ebd5eda26
-  commit_sha: c4d15d5133f882d1b744714b839e702178c89e3c
+  blob_sha: 59203c88c9967271494c25c0b4a5a81821b939ce
+  commit_sha: bca5a71aa25e84ea197c3bf1e2540a4de155de19
 generated_by:
   component: context-init
-  role: init
+  role: update
   model: none
 freshness:
   total_entries: 15

@@ -15,24 +15,24 @@
     "test": "rtk mise run test",
     "run": "rtk mise run desktop",
     "custom": {
-      "package:arch": "rtk mise run package:arch",
+      "screenshots": "rtk mise run screenshots",
+      "tokens:check": "rtk mise run tokens:check",
+      "skills:check": "rtk mise run skills:check",
+      "package:msi": "rtk mise run package:msi",
       "daemon": "rtk mise run daemon",
       "plugin": "rtk mise run plugin",
+      "desktop": "rtk mise run desktop",
       "build:extension": "rtk mise run build:extension",
-      "test:fast": "rtk mise run test:fast",
-      "package:msi": "rtk mise run package:msi",
-      "web": "rtk mise run web",
-      "skills:check": "rtk mise run skills:check",
-      "extension": "rtk mise run extension",
-      "package:docker": "rtk mise run package:docker",
-      "tokens:check": "rtk mise run tokens:check",
-      "tokens:generate": "rtk mise run tokens:generate",
-      "skills:sync": "rtk mise run skills:sync",
       "package:extension": "rtk mise run package:extension",
+      "package:docker": "rtk mise run package:docker",
       "android": "rtk mise run android",
+      "skills:sync": "rtk mise run skills:sync",
+      "test:fast": "rtk mise run test:fast",
+      "extension": "rtk mise run extension",
+      "tokens:generate": "rtk mise run tokens:generate",
       "ci:fast": "rtk mise run ci:fast",
-      "screenshots": "rtk mise run screenshots",
-      "desktop": "rtk mise run desktop"
+      "package:arch": "rtk mise run package:arch",
+      "web": "rtk mise run web"
     }
   },
   "subsystems": [
@@ -804,9 +804,9 @@
         "libs/core/src/androidMain/kotlin/dev/mimir/core/fs/SymbolicLink.android.kt",
         "libs/core/src/jsMain/kotlin/dev/mimir/core/crypto/RandomNonce.js.kt",
         "libs/core/src/jsMain/kotlin/dev/mimir/core/fs/LastModified.js.kt",
+        "libs/core/src/jsMain/kotlin/dev/mimir/core/update/ConsoleUpdateLogger.kt",
         "libs/core/src/jsMain/kotlin/dev/mimir/core/update/FetchUpdateHttpClient.kt",
         "libs/core/src/jvmMain/kotlin/dev/mimir/core/crypto/RandomNonce.jvm.kt",
-        "libs/core/src/jvmMain/kotlin/dev/mimir/core/fs/LastModified.jvm.kt",
         "libs/core/src/jvmMain/kotlin/dev/mimir/core/fs/NioWatchServiceVaultWatcher.kt",
         "libs/core/src/jvmMain/kotlin/dev/mimir/core/fs/SymbolicLink.jvm.kt",
         "libs/core/src/wasmJsMain/kotlin/dev/mimir/core/crypto/RandomNonce.wasmJs.kt"
@@ -849,15 +849,15 @@
           "is_entrypoint": false
         },
         {
+          "path": "libs/core/src/jsMain/kotlin/dev/mimir/core/update/ConsoleUpdateLogger.kt",
+          "is_entrypoint": false
+        },
+        {
           "path": "libs/core/src/jsMain/kotlin/dev/mimir/core/update/FetchUpdateHttpClient.kt",
           "is_entrypoint": false
         },
         {
           "path": "libs/core/src/jvmMain/kotlin/dev/mimir/core/crypto/RandomNonce.jvm.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/core/src/jvmMain/kotlin/dev/mimir/core/fs/LastModified.jvm.kt",
           "is_entrypoint": false
         },
         {
@@ -1315,34 +1315,46 @@
       "summary_source": "heuristic"
     },
     {
-      "id": "libs_runtime_commonmain",
-      "name": "Runtime CommonMain",
-      "summary": "Модуль и компоненты директории `libs/runtime/src/commonMain` (15 файлов)",
-      "l1_path": "subsystems/libs_runtime_commonmain.md",
+      "id": "libs_runtime_commonmain_kotlin_dev_mimir_runtime",
+      "name": "Runtime CommonMain Kotlin Dev Mimir Runtime",
+      "summary": "Модуль и компоненты директории `libs/runtime/src/commonMain/kotlin/dev/mimir/runtime` (15 файлов)",
+      "l1_path": "subsystems/libs_runtime_commonmain_kotlin_dev_mimir_runtime.md",
       "tags": [
         "Kotlin (Gradle)",
-        "libs_runtime_commonmain"
+        "libs_runtime_commonmain_kotlin_dev_mimir_runtime"
       ],
       "key_files": [
+        "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/AccountStore.kt",
+        "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/AtomicFiles.kt",
         "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/Canary.kt",
+        "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/ConflictFiles.kt",
         "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/ConflictTracker.kt",
         "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/EngineAssembler.kt",
+        "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/FileTokenStorage.kt",
+        "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/JsonRuntimeSettingsStore.kt",
         "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/JsonSyncStateStore.kt",
         "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/MimirRuntime.kt",
         "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/SyncScheduler.kt",
         "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/login/BrowserLoginProvider.kt",
         "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/login/BrowserLoginReceiver.kt",
         "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/login/DeviceCodeLoginProvider.kt",
-        "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/update/ApkInstallApplier.kt",
-        "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/update/KtorUpdateHttpClient.kt",
-        "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/update/RuntimeUpdates.kt",
-        "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/update/UpdateFacade.kt",
-        "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/update/UpdateScheduler.kt",
-        "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/update/VerifiedFileDownloader.kt"
+        "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/login/LoginProvider.kt"
       ],
       "files": [
         {
+          "path": "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/AccountStore.kt",
+          "is_entrypoint": false
+        },
+        {
+          "path": "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/AtomicFiles.kt",
+          "is_entrypoint": false
+        },
+        {
           "path": "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/Canary.kt",
+          "is_entrypoint": false
+        },
+        {
+          "path": "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/ConflictFiles.kt",
           "is_entrypoint": false
         },
         {
@@ -1351,6 +1363,14 @@
         },
         {
           "path": "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/EngineAssembler.kt",
+          "is_entrypoint": false
+        },
+        {
+          "path": "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/FileTokenStorage.kt",
+          "is_entrypoint": false
+        },
+        {
+          "path": "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/JsonRuntimeSettingsStore.kt",
           "is_entrypoint": false
         },
         {
@@ -1378,6 +1398,44 @@
           "is_entrypoint": false
         },
         {
+          "path": "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/login/LoginProvider.kt",
+          "is_entrypoint": false
+        }
+      ],
+      "key_symbols": [
+        "internal class AccountStore(dataDir: Path)",
+        "fun email(): String? = read()?.email",
+        "suspend fun method(): DaemonLoginMethod?",
+        "fun save(email: String?, method: DaemonLoginMethod)",
+        "fun delete()",
+        "fun writeFileAtomically(target: Path, content: String, ownerOnly: Boolean = false)",
+        "class InvalidPasswordException(message: String) : IllegalArgumentException(message)",
+        "suspend fun verifyOrInitCanary(remote: RemoteStorage, cipher: Cipher, configDir: Path)",
+        "class SyncNotConfiguredException(message: String) : IllegalStateException(message)",
+        "typealias ConflictFileEntry = dev.mimir.core.ConflictFileEntry"
+      ],
+      "parent": "libs_runtime_commonmain_kotlin_dev_mimir",
+      "summary_source": "heuristic"
+    },
+    {
+      "id": "libs_runtime_commonmain_kotlin_dev_mimir_runtime_update",
+      "name": "Runtime CommonMain Kotlin Dev Mimir Runtime Update",
+      "summary": "Модуль и компоненты директории `libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/update` (6 файлов)",
+      "l1_path": "subsystems/libs_runtime_commonmain_kotlin_dev_mimir_runtime_update.md",
+      "tags": [
+        "Kotlin (Gradle)",
+        "libs_runtime_commonmain_kotlin_dev_mimir_runtime_update"
+      ],
+      "key_files": [
+        "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/update/ApkInstallApplier.kt",
+        "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/update/KtorUpdateHttpClient.kt",
+        "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/update/RuntimeUpdates.kt",
+        "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/update/UpdateFacade.kt",
+        "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/update/UpdateScheduler.kt",
+        "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/update/VerifiedFileDownloader.kt"
+      ],
+      "files": [
+        {
           "path": "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/update/ApkInstallApplier.kt",
           "is_entrypoint": false
         },
@@ -1403,18 +1461,18 @@
         }
       ],
       "key_symbols": [
-        "class InvalidPasswordException(message: String) : IllegalArgumentException(message)",
-        "suspend fun verifyOrInitCanary(remote: RemoteStorage, cipher: Cipher, configDir: Path)",
-        "class SyncNotConfiguredException(message: String) : IllegalStateException(message)",
-        "internal class ConflictTracker( private val scope: CoroutineScope, private val watcherFactory: VaultWatcherFactory, private val localVaultFactory: (Path) -> LocalVault, private val scanInterval: Duration, private val vaultPath: () -> String?, )",
-        "fun watch()",
-        "fun stop()",
-        "suspend fun refresh(): List<ConflictFileEntry> = refreshMutex.withLock",
-        "suspend fun resolve(originalPath: String, conflictPath: String, keepConflict: Boolean)",
-        "data class AssembledEngine( val engine: DefaultSyncEngine, val scheduler: SyncScheduler, val watcher: VaultWatcher, val remote: EncryptedRemoteStorage, )",
-        "class EngineAssembler( private val httpClient: HttpClient, private val cloudFactory: CloudStorageFactory, private val watcherFactory: VaultWatcherFactory, private val ioDispatcher: CoroutineDispatcher, private val scope: CoroutineScope, private val config: () -> RuntimeConfig, )"
+        "interface ApkInstallLauncher",
+        "fun canRequestInstalls(): Boolean",
+        "fun openInstallPermissionSettings()",
+        "fun launchInstaller(apk: Path)",
+        "interface UpdateQuiesce",
+        "suspend fun quiesce(): Boolean",
+        "suspend fun resume()",
+        "class ApkInstallApplier(...) : UpdateApplier",
+        "override suspend fun download( asset: UpdateAsset, release: UpdateRelease, onProgress: (Float, Long, Long) -> Unit, ): Result<DownloadedAsset> = downloader.download(asset, onProgress)",
+        "override suspend fun apply(downloadedAsset: DownloadedAsset): UpdateApplyResult"
       ],
-      "parent": "libs_runtime",
+      "parent": "libs_runtime_commonmain_kotlin_dev_mimir_runtime",
       "summary_source": "heuristic"
     },
     {

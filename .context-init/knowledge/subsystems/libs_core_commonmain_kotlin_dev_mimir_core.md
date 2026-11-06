@@ -2,11 +2,11 @@
 directory: libs/core/src/commonMain/kotlin/dev/mimir/core
 source:
   kind: git
-  blob_sha: a4a3bab4fc1a8bef8570e610ee5a8cb92fe81ef9
-  commit_sha: c4d15d5133f882d1b744714b839e702178c89e3c
+  blob_sha: f98cb9ad9bafe64e67800b97b0e406681dd2d943
+  commit_sha: bca5a71aa25e84ea197c3bf1e2540a4de155de19
 generated_by:
   component: context-init
-  role: init
+  role: update
   model: none
 freshness:
   total_entries: 15

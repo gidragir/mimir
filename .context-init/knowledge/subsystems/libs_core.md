@@ -2,8 +2,8 @@
 directory: libs/core
 source:
   kind: git
-  blob_sha: 136aaad3a1b517c492e4d729ac480ba338f7361c
-  commit_sha: f221fe644add8159ac86eacc977028d32eedc5d8
+  blob_sha: 6f7736da9ef7979d583cef854619a5132bd1d78b
+  commit_sha: bca5a71aa25e84ea197c3bf1e2540a4de155de19
 generated_by:
   component: context-init
   role: update
@@ -35,9 +35,9 @@ freshness:
 | `libs/core/src/androidMain/kotlin/dev/mimir/core/fs/SymbolicLink.android.kt` | Исходный код |
 | `libs/core/src/jsMain/kotlin/dev/mimir/core/crypto/RandomNonce.js.kt` | Исходный код |
 | `libs/core/src/jsMain/kotlin/dev/mimir/core/fs/LastModified.js.kt` | Исходный код |
+| `libs/core/src/jsMain/kotlin/dev/mimir/core/update/ConsoleUpdateLogger.kt` | Исходный код |
 | `libs/core/src/jsMain/kotlin/dev/mimir/core/update/FetchUpdateHttpClient.kt` | Исходный код |
 | `libs/core/src/jvmMain/kotlin/dev/mimir/core/crypto/RandomNonce.jvm.kt` | Исходный код |
-| `libs/core/src/jvmMain/kotlin/dev/mimir/core/fs/LastModified.jvm.kt` | Исходный код |
 | `libs/core/src/jvmMain/kotlin/dev/mimir/core/fs/NioWatchServiceVaultWatcher.kt` | Исходный код |
 | `libs/core/src/jvmMain/kotlin/dev/mimir/core/fs/SymbolicLink.jvm.kt` | Исходный код |
 | `libs/core/src/wasmJsMain/kotlin/dev/mimir/core/crypto/RandomNonce.wasmJs.kt` | Исходный код |

@@ -159,7 +159,8 @@ Mimir — клиент синхронизации Obsidian-хранилища с
 - `libs_core_commonmain_kotlin_dev_mimir_core_sync` (Core CommonMain Kotlin Dev Mimir Core Sync) — Модуль и компоненты директории `libs/core/src/commonMain/kotlin/dev/mimir/core/sync` (13 файлов)
 - `libs_drive` (Drive) — Подсистема `libs/drive` с ключевыми точками входа: libs/drive/build.gradle.kts
 - `libs_runtime` (Runtime) — Подсистема `libs/runtime` с ключевыми точками входа: libs/runtime/build.gradle.kts
-- `libs_runtime_commonmain` (Runtime CommonMain) — Модуль и компоненты директории `libs/runtime/src/commonMain` (15 файлов)
+- `libs_runtime_commonmain_kotlin_dev_mimir_runtime` (Runtime CommonMain Kotlin Dev Mimir Runtime) — Модуль и компоненты директории `libs/runtime/src/commonMain/kotlin/dev/mimir/runtime` (15 файлов)
+- `libs_runtime_commonmain_kotlin_dev_mimir_runtime_update` (Runtime CommonMain Kotlin Dev Mimir Runtime Update) — Модуль и компоненты директории `libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/update` (6 файлов)
 - `libs_ui` (Ui) — Подсистема `libs/ui` с ключевыми точками входа: libs/ui/build.gradle.kts
 - `libs_ui_commonmain_kotlin_dev_mimir_ui` (Ui CommonMain Kotlin Dev Mimir Ui) — Модуль и компоненты директории `libs/ui/src/commonMain/kotlin/dev/mimir/ui` (15 файлов)
 - `libs_ui_commonmain_kotlin_dev_mimir_ui_screens` (Ui CommonMain Kotlin Dev Mimir Ui Screens) — Модуль и компоненты директории `libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens` (12 файлов)

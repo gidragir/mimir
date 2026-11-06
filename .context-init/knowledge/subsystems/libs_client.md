@@ -2,11 +2,11 @@
 directory: libs/client
 source:
   kind: git
-  blob_sha: a9a06e12ef36f685e890981f0c0f41a66f76a8fb
-  commit_sha: c4d15d5133f882d1b744714b839e702178c89e3c
+  blob_sha: 4b73e85fb7e15610db2dc329a1bea2a9c66636ff
+  commit_sha: bca5a71aa25e84ea197c3bf1e2540a4de155de19
 generated_by:
   component: context-init
-  role: init
+  role: update
   model: none
 freshness:
   total_entries: 5
