@@ -47,7 +47,7 @@ import androidx.compose.ui.unit.dp
 
 /**
  * Single source of truth design tokens for Mimir UI.
- * Generated automatically from design/tokens.json by scripts/generate-tokens.mjs.
+ * Generated automatically from design/tokens.json by design/generate-tokens.mjs.
  * Do not edit directly.
  */
 object MimirTokens {
@@ -131,7 +131,7 @@ export function generateCss(tokens) {
 
   return `/**
  * Single source of truth design tokens for Mimir UI.
- * Generated automatically from design/tokens.json by scripts/generate-tokens.mjs.
+ * Generated automatically from design/tokens.json by design/generate-tokens.mjs.
  * Do not edit directly.
  */
 
@@ -250,7 +250,7 @@ function run() {
     }
 
     if (hasDiff) {
-      console.error('Tokens out of sync! Run "node scripts/generate-tokens.mjs" to update.');
+      console.error('Tokens out of sync! Run "node design/generate-tokens.mjs" to update.');
       process.exit(1);
     }
 

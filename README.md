@@ -193,7 +193,7 @@ mise run test                                # только тесты
 
 ### Android SDK
 
-Необязателен. Без него `mise run build` проходит, пропуская Android-таргеты с предупреждением `Android SDK not found: skipping Android targets`. Чтобы собирать Android, задайте `ANDROID_HOME` (в `mise.local.toml` или в окружении).
+Необязателен. Без него `mise run build` проходит, пропуская Android-таргеты с предупреждением `Android SDK not found: skipping Android targets`. Чтобы собирать Android, задайте `ANDROID_HOME` (в `mise.local.toml` или в окружении) или создайте в корне `local.properties` (в `.gitignore`) со строкой `sdk.dir=<путь к SDK>`, например `sdk.dir=/home/<user>/Android/Sdk`; на Windows обратные слэши и двоеточие экранируются: `sdk.dir=C\:\\Users\\<user>\\AppData\\Local\\Android\\Sdk`.
 
 ### Браузер для js-тестов
 
@@ -256,7 +256,7 @@ mise run test                                # только тесты
 rclone copy ":crypt,remote=/путь/к/копии/из/Drive,password=$(rclone obscure 'пароль')[,password2=$(rclone obscure 'соль')]:" ./vault-plain
 ```
 
-Оговорки (общие с rclone): размеры и время изменения файлов в Drive остаются видны; усечение файла ровно по границе блока не обнаруживается — у формата нет финального маркера. Первое получение ключей (scrypt) на js и wasm занимает порядка секунды, в проверках этапа — не дольше нескольких секунд вместе с запуском браузера. Golden-векторы лежат в `libs/core/src/commonTest/kotlin/dev/mimir/core/RcloneVectors.kt`; их генерирует `scripts/gen-rclone-vectors.sh` (нужен rclone ≥ 1.60), а опциональный `RcloneInteropTest` (jvm) сверяется с живым rclone, если он есть в `PATH`.
+Оговорки (общие с rclone): размеры и время изменения файлов в Drive остаются видны; усечение файла ровно по границе блока не обнаруживается — у формата нет финального маркера. Первое получение ключей (scrypt) на js и wasm занимает порядка секунды, в проверках этапа — не дольше нескольких секунд вместе с запуском браузера. Golden-векторы лежат в `libs/core/src/commonTest/kotlin/dev/mimir/core/RcloneVectors.kt`; их генерирует `libs/core/scripts/gen-rclone-vectors.sh` (нужен rclone ≥ 1.60), а опциональный `RcloneInteropTest` (jvm) сверяется с живым rclone, если он есть в `PATH`.
 
 ## Релизы
 

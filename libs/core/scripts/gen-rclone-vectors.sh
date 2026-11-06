@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Генерирует golden-векторы rclone crypt для core/src/commonTest/.../RcloneVectors.kt.
+# Генерирует golden-векторы rclone crypt для libs/core/src/commonTest/.../RcloneVectors.kt.
 # Нужен rclone >= 1.60 и python3. Обычная сборка и тесты скрипт не запускают.
 set -euo pipefail
 
-OUT="$(cd "$(dirname "$0")/.." && pwd)/libs/core/src/commonTest/kotlin/dev/mimir/core/RcloneVectors.kt"
+OUT="$(cd "$(dirname "$0")/.." && pwd)/src/commonTest/kotlin/dev/mimir/core/RcloneVectors.kt"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
@@ -62,7 +62,7 @@ emit_config 1 "$PASSWORD" "$PASSWORD2"
 {
   echo "package dev.mimir.core"
   echo
-  echo "// Сгенерировано scripts/gen-rclone-vectors.sh ($(rclone version | head -1)). Не править вручную."
+  echo "// Сгенерировано libs/core/scripts/gen-rclone-vectors.sh ($(rclone version | head -1)). Не править вручную."
   echo "internal object RcloneVectors {"
   echo "    class Config(val password: String, val password2: String?)"
   echo "    class NameVector(val config: Int, val plain: String, val encrypted: String)"

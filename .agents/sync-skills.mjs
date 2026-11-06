@@ -3,8 +3,8 @@
 // .claude/skills содержит только относительные симлинки на него (Claude Code читает этот каталог).
 // Исключение — VENDOR: скиллы, которые установщик генерирует отдельно под каждый инструмент.
 //
-//   node scripts/sync-skills.mjs          проверить, код 1 при расхождении
-//   node scripts/sync-skills.mjs --fix    перенести реальные каталоги из .claude/skills в .agents/skills
+//   node .agents/sync-skills.mjs          проверить, код 1 при расхождении
+//   node .agents/sync-skills.mjs --fix    перенести реальные каталоги из .claude/skills в .agents/skills
 //                                         и создать недостающие симлинки
 import { existsSync, lstatSync, mkdirSync, readdirSync, readlinkSync, renameSync, rmSync, statSync, symlinkSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
