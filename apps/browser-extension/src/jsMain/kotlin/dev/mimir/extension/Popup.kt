@@ -7,6 +7,7 @@ import dev.mimir.core.InMemoryRemoteStorage
 import dev.mimir.core.RcloneCipher
 import dev.mimir.core.RemotePath
 import dev.mimir.core.RemoteStorage
+import dev.mimir.core.update.ConsoleUpdateLogger
 import dev.mimir.core.update.DefaultUpdateManager
 import dev.mimir.core.update.FetchUpdateHttpClient
 import dev.mimir.core.update.GitHubReleasesChannel
@@ -104,8 +105,9 @@ private fun startUpdateChecks(platform: ChromeExtensionPlatform, scope: Coroutin
     val manager = DefaultUpdateManager(
         currentVersion = currentVersion,
         targetPlatform = TargetPlatform.BROWSER_EXTENSION_ANY,
-        channel = GitHubReleasesChannel(CoreBuildConfig.GITHUB_OWNER, CoreBuildConfig.GITHUB_REPO, FetchUpdateHttpClient()),
+        channel = GitHubReleasesChannel(CoreBuildConfig.GITHUB_OWNER, CoreBuildConfig.GITHUB_REPO, FetchUpdateHttpClient(), ConsoleUpdateLogger),
         applier = WebExtensionNotifyApplier(platform),
+        logger = ConsoleUpdateLogger,
     )
     val updates = ExtensionUpdateController(manager, platform, currentVersion)
     val banner = UpdateBannerView(bannerRoot, updates, scope)

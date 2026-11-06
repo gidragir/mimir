@@ -14,6 +14,9 @@ import androidx.compose.ui.test.v2.runComposeUiTest
 import dev.mimir.core.SyncStatus
 import dev.mimir.ui.model.FakeMimirUiModel
 import dev.mimir.client.UpdateErrorCode
+import dev.mimir.client.UpdateStatus
+import dev.mimir.client.UpdateStatusDto
+import dev.mimir.ui.model.toUi
 import dev.mimir.ui.model.UpdateInstallKind
 import dev.mimir.ui.model.UpdateRetry
 import dev.mimir.ui.model.UpdateTexts
@@ -160,6 +163,34 @@ class UpdateCardTest {
     }
 
     @Test
+    fun `error details are collapsed by default and toggle on click`() = runComposeUiTest {
+        val raw = "Request timeout has expired [url=https://github.com/x/Mimir-0.3.1.msi, request_timeout=15000 ms]"
+        card(UpdateUiState.Error("Не удалось скачать обновление. Попробуйте ещё раз позже.", UpdateRetry.Download, details = raw))
+        onNodeWithText(raw).assertDoesNotExist()
+        onNodeWithText(UpdateTexts.details(expanded = false)).performClick()
+        onNodeWithText(raw).assertExists()
+        onNodeWithText(UpdateTexts.DETAILS_HINT).assertExists()
+        onNodeWithText(UpdateTexts.details(expanded = true)).performClick()
+        onNodeWithText(raw).assertDoesNotExist()
+    }
+
+    @Test
+    fun `error without details has no details toggle`() = runComposeUiTest {
+        card(UpdateUiState.Error("Обновление уже скачивается."))
+        onNodeWithText(UpdateTexts.details(expanded = false)).assertDoesNotExist()
+    }
+
+    @Test
+    fun `raw daemon message becomes error details`() {
+        val dto = UpdateStatusDto(
+            "0.1.0", UpdateStatus.ERROR, latestVersion = "0.2.0",
+            errorMessage = "HTTP 404 for https://x/m.msi", errorCode = "HTTP_ERROR", failedStep = "DOWNLOAD",
+        )
+        assertEquals("HTTP 404 for https://x/m.msi", (dto.toUi() as UpdateUiState.Error).details)
+        assertEquals(null, (dto.copy(errorMessage = " ").toUi() as UpdateUiState.Error).details)
+    }
+
+    @Test
     fun `running sync disables download and shows the hint`() = runComposeUiTest {
         card(available, syncRunning = true)
         onNodeWithText("Скачать").assertIsNotEnabled()
@@ -201,6 +232,32 @@ class UpdateCardTest {
             "Идёт синхронизация — установите обновление, когда она закончится.",
             UpdateTexts.errorText(UpdateRetry.Install, UpdateErrorCode.SYNC_RUNNING),
         )
+    }
+
+    @Test
+    fun `download failure codes explain what happened`() {
+        assertEquals(
+            "Не удалось скачать обновление. Файл обновления сейчас недоступен на сервере — попробуйте позже.",
+            UpdateTexts.errorText(UpdateRetry.Download, UpdateErrorCode.HTTP_ERROR),
+        )
+        assertEquals(
+            "Не удалось скачать обновление. Не получилось проверить подлинность файла — проверьте обновления ещё раз чуть позже.",
+            UpdateTexts.errorText(UpdateRetry.Download, UpdateErrorCode.NO_CHECKSUM),
+        )
+        assertEquals(
+            "Не удалось скачать обновление. Файл не удалось сохранить на диск — проверьте свободное место и повторите.",
+            UpdateTexts.errorText(UpdateRetry.Download, UpdateErrorCode.DISK),
+        )
+    }
+
+    @Test
+    fun `missing checksum is retried by a fresh check and an unknown code reads as a generic failure`() {
+        fun error(code: String?) = UpdateStatusDto("0.1.0", UpdateStatus.ERROR, latestVersion = "0.2.0", errorCode = code, failedStep = "DOWNLOAD").toUi()
+        assertEquals(UpdateRetry.Check, (error("NO_CHECKSUM") as UpdateUiState.Error).retry)
+        assertEquals(UpdateRetry.Download, (error("HTTP_ERROR") as UpdateUiState.Error).retry)
+        val unknown = error("SOMETHING_FROM_A_NEWER_DAEMON") as UpdateUiState.Error
+        assertEquals(UpdateTexts.errorText(UpdateRetry.Download, UpdateErrorCode.FAILED), unknown.message)
+        assertEquals(UpdateRetry.Download, unknown.retry)
     }
 
     @Test

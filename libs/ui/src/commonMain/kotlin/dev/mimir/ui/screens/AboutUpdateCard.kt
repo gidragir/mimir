@@ -12,7 +12,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -103,6 +109,7 @@ fun AboutUpdateCard(
                         MimirButton(UpdateTexts.RETRY, retry, variant = MimirButtonVariant.Primary)
                         MimirButton(UpdateTexts.DISMISS, onDismiss, variant = MimirButtonVariant.Ghost)
                     }
+                    state.details?.let { ErrorDetails(it) }
                 }
             }
         }
@@ -166,6 +173,36 @@ private fun NotesBlock(notes: String) {
                 .testTag("update_notes"),
         ) {
             Text(notes, style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+/**
+ * Исходный текст ошибки для поддержки: свёрнут по умолчанию, раскрывается в моноширинном блоке с выделением
+ * (можно скопировать). Сворачивается заново, когда приходит другая ошибка.
+ */
+@Composable
+private fun ErrorDetails(details: String) {
+    var expanded by remember(details) { mutableStateOf(false) }
+    Column(verticalArrangement = Arrangement.spacedBy(MimirTokens.Space4)) {
+        MimirButton(UpdateTexts.details(expanded), { expanded = !expanded }, variant = MimirButtonVariant.Ghost)
+        if (expanded) {
+            Muted(UpdateTexts.DETAILS_HINT)
+            SelectionContainer {
+                Text(
+                    details,
+                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(MimirTokens.Radius6))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                        .heightIn(max = 120.dp)
+                        .verticalScroll(rememberScrollState())
+                        .padding(MimirTokens.Space8)
+                        .testTag("update_error_details"),
+                )
+            }
         }
     }
 }

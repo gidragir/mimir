@@ -127,7 +127,7 @@ class DaemonServiceUiModel(
             localError = true
             // Причину даёт устойчивый код; всё, что не отказ демона по состоянию, — проблема связи.
             val code = (e as? UpdateCommandException)?.code ?: UpdateErrorCode.NETWORK
-            _updateState.value = UpdateUiState.Error(UpdateTexts.errorText(step, code), retryFor(step, code))
+            _updateState.value = UpdateUiState.Error(UpdateTexts.errorText(step, code), retryFor(step, code), e.message?.takeIf { it.isNotBlank() })
             false
         }
 

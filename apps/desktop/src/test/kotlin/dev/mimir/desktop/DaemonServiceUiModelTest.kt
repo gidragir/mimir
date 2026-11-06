@@ -152,7 +152,7 @@ class DaemonServiceUiModelTest {
             availableDto.copy(status = UpdateStatus.ERROR, errorMessage = "raw english", errorCode = "CHECKSUM_MISMATCH", failedStep = "DOWNLOAD"),
         )
         assertEquals(
-            UpdateUiState.Error("Не удалось скачать обновление. Файл повредился при загрузке — скачайте его заново.", UpdateRetry.Download),
+            UpdateUiState.Error("Не удалось скачать обновление. Файл повредился при загрузке — скачайте его заново.", UpdateRetry.Download, details = "raw english"),
             error,
         )
         assertEquals(
@@ -238,7 +238,11 @@ class DaemonServiceUiModelTest {
         service.updateFailure = IllegalStateException("java.net.UnknownHostException: api.github.com")
         model.checkForUpdates()
         assertEquals(
-            UpdateUiState.Error("Не удалось проверить обновления. Проверьте подключение к интернету и повторите.", UpdateRetry.Check),
+            UpdateUiState.Error(
+                "Не удалось проверить обновления. Проверьте подключение к интернету и повторите.",
+                UpdateRetry.Check,
+                details = "java.net.UnknownHostException: api.github.com",
+            ),
             model.updateState.value,
         )
         // периодический опрос не стирает ошибку команды, пока состояние демона не сдвинулось
@@ -273,7 +277,11 @@ class DaemonServiceUiModelTest {
         service.updateFailure = UpdateCommandException(UpdateErrorCode.SYNC_RUNNING)
         model.applyUpdate()
         assertEquals(
-            UpdateUiState.Error("Идёт синхронизация — установите обновление, когда она закончится.", UpdateRetry.Install),
+            UpdateUiState.Error(
+                "Идёт синхронизация — установите обновление, когда она закончится.",
+                UpdateRetry.Install,
+                details = UpdateErrorCode.SYNC_RUNNING.defaultMessage,
+            ),
             model.updateState.value,
         )
         service.updateFailure = null

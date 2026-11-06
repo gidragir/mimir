@@ -2,6 +2,7 @@ package dev.mimir.obsidian.update
 
 import dev.mimir.core.BuildConfig
 import dev.mimir.core.update.DailyUpdateChecker
+import dev.mimir.core.update.ConsoleUpdateLogger
 import dev.mimir.core.update.DefaultUpdateManager
 import dev.mimir.core.update.FetchUpdateHttpClient
 import dev.mimir.core.update.GitHubReleasesChannel
@@ -32,8 +33,9 @@ class PluginUpdater(private val plugin: Plugin, private val scope: CoroutineScop
     private val manager = DefaultUpdateManager(
         currentVersion = currentVersion,
         targetPlatform = TargetPlatform.OBSIDIAN_ANY,
-        channel = GitHubReleasesChannel(BuildConfig.GITHUB_OWNER, BuildConfig.GITHUB_REPO, http),
+        channel = GitHubReleasesChannel(BuildConfig.GITHUB_OWNER, BuildConfig.GITHUB_REPO, http, ConsoleUpdateLogger),
         applier = ObsidianInPlaceApplier(http, pluginDir, plugin.manifest.id, plugin.app.vault.adapter),
+        logger = ConsoleUpdateLogger,
     )
     private val daily = DailyUpdateChecker(
         manager,

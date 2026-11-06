@@ -20,6 +20,10 @@ object UpdateTexts {
     const val DISABLED_NOTE = "Автоматическая проверка обновлений выключена."
     const val NOT_CHECKED = "Обновления ещё не проверялись."
     const val NOTES_TRUNCATED = "…"
+    const val DETAILS_HINT = "Технические сведения об ошибке — пригодятся, если будете писать в поддержку."
+
+    /** Переключатель сворачиваемых подробностей ошибки. */
+    fun details(expanded: Boolean) = "Подробности " + if (expanded) "▾" else "▸"
 
     /** Сколько символов списка изменений показывать; длинные заметки обрезаются, полный текст — на странице релиза. */
     const val NOTES_LIMIT = 1200
@@ -70,6 +74,10 @@ object UpdateTexts {
         UpdateErrorCode.NETWORK -> "${summary(step)} Проверьте подключение к интернету и повторите."
         UpdateErrorCode.RATE_LIMITED -> "${summary(step)} Слишком много запросов, попробуйте через несколько минут."
         UpdateErrorCode.CHECKSUM_MISMATCH -> "${summary(step)} Файл повредился при загрузке — скачайте его заново."
+        UpdateErrorCode.HTTP_ERROR -> "${summary(step)} Файл обновления сейчас недоступен на сервере — попробуйте позже."
+        UpdateErrorCode.NO_CHECKSUM ->
+            "${summary(step)} Не получилось проверить подлинность файла — проверьте обновления ещё раз чуть позже."
+        UpdateErrorCode.DISK -> "${summary(step)} Файл не удалось сохранить на диск — проверьте свободное место и повторите."
         UpdateErrorCode.FAILED -> "${summary(step)} Попробуйте ещё раз позже."
         UpdateErrorCode.UPDATES_DISABLED -> "Проверка обновлений выключена."
         UpdateErrorCode.NO_INSTALLABLE_FILE ->

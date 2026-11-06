@@ -20,3 +20,9 @@ interface UpdateHttpClient {
         onChunk: suspend (ByteArray, Long, Long) -> Unit,
     ): Result<Unit>
 }
+
+/**
+ * Сервер ответил на скачивание не-2xx. Текст `HTTP NNN for <url>` разбирает `classifyUpdateError` (→ `HTTP_ERROR`),
+ * а [statusCode] — политика повторов: 4xx не повторяются, 5xx повторяются.
+ */
+class UpdateHttpStatusException(val statusCode: Int, val url: String) : IllegalStateException("HTTP $statusCode for $url")

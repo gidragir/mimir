@@ -4,6 +4,7 @@ import dev.mimir.core.Sha256
 import dev.mimir.core.update.AssetKind
 import dev.mimir.core.update.TargetPlatform
 import dev.mimir.core.update.UpdateAsset
+import dev.mimir.core.update.UpdateHttpStatusException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -16,6 +17,7 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlin.time.Duration
 
 class VerifiedFileDownloaderTest {
     private val root = Files.createTempDirectory("mimir dl test")
@@ -33,7 +35,8 @@ class VerifiedFileDownloaderTest {
 
     private fun chunked() = content.toList().chunked(1500).map { it.toByteArray() }
 
-    private fun downloader(client: ScriptedUpdateHttpClient) = VerifiedFileDownloader(client, dir, "mimir-update-", ".bin", Dispatchers.IO)
+    private fun downloader(client: ScriptedUpdateHttpClient) =
+        VerifiedFileDownloader(client, dir, "mimir-update-", ".bin", Dispatchers.IO, retryBaseDelay = Duration.ZERO)
 
     private fun leftovers() = if (Files.exists(dir)) Files.list(dir).use { it.toList() } else emptyList()
 
@@ -73,6 +76,60 @@ class VerifiedFileDownloaderTest {
     }
 
     @Test
+    fun `http 404 is not retried`() = runBlocking<Unit> {
+        val client = ScriptedUpdateHttpClient(attempts = listOf(ScriptedAttempt(emptyList(), Result.failure(UpdateHttpStatusException(404, asset().downloadUrl)))))
+        val error = downloader(client).download(asset()) { _, _, _ -> }.exceptionOrNull()!!
+        assertEquals("HTTP 404 for https://example.test/file.bin", error.message)
+        assertEquals(1, client.downloads)
+        assertTrue(leftovers().isEmpty())
+    }
+
+    @Test
+    fun `server error 5xx is retried`() = runBlocking<Unit> {
+        val client = ScriptedUpdateHttpClient(
+            attempts = listOf(
+                ScriptedAttempt(emptyList(), Result.failure(UpdateHttpStatusException(503, asset().downloadUrl))),
+                ScriptedAttempt(chunked()),
+            ),
+        )
+        assertTrue(downloader(client).download(asset()) { _, _, _ -> }.isSuccess)
+        assertEquals(2, client.downloads)
+    }
+
+    @Test
+    fun `connection reset mid-stream succeeds on the second attempt with a fresh file`() = runBlocking<Unit> {
+        val client = ScriptedUpdateHttpClient(
+            attempts = listOf(
+                ScriptedAttempt(chunked().take(2), Result.failure(IOException("Connection reset"))),
+                ScriptedAttempt(chunked()),
+            ),
+        )
+        val local = downloader(client).download(asset()) { _, _, _ -> }.getOrThrow()
+        assertEquals(2, client.downloads)
+        assertTrue(Files.readAllBytes(Path.of(local.localPath)).contentEquals(content), "partial bytes must not be kept")
+        assertEquals(listOf(Path.of(local.localPath)), leftovers())
+        assertEquals(3000L + content.size, client.bytesSent)
+    }
+
+    @Test
+    fun `incomplete download is retried at most three times then fails`() = runBlocking<Unit> {
+        val client = ScriptedUpdateHttpClient(
+            attempts = listOf(ScriptedAttempt(chunked().take(1), Result.failure(IllegalStateException("Incomplete download: 1500 of 7000 bytes")))),
+        )
+        val error = downloader(client).download(asset()) { _, _, _ -> }.exceptionOrNull()!!
+        assertTrue(error.message!!.startsWith("Incomplete download"), error.message)
+        assertEquals(3, client.downloads)
+        assertTrue(leftovers().isEmpty())
+    }
+
+    @Test
+    fun `hash mismatch is not retried`() = runBlocking<Unit> {
+        val client = ScriptedUpdateHttpClient(chunked())
+        assertTrue(downloader(client).download(asset("0".repeat(64))) { _, _, _ -> }.isFailure)
+        assertEquals(1, client.downloads)
+    }
+
+    @Test
     fun `cancellation deletes the partial file`() = runBlocking<Unit> {
         val started = CompletableDeferred<Unit>()
         val client = ScriptedUpdateHttpClient(chunked().take(2), hangAfterChunks = CompletableDeferred(), onFirstChunkSent = started)
@@ -81,6 +138,16 @@ class VerifiedFileDownloaderTest {
         assertEquals(1, leftovers().size)
         job.cancelAndJoin()
         assertTrue(leftovers().isEmpty())
+    }
+
+    @Test
+    fun `unwritable update directory is reported as a disk failure without a request`() = runBlocking<Unit> {
+        Files.createDirectories(root)
+        Files.writeString(dir, "not a directory")
+        val client = ScriptedUpdateHttpClient(chunked())
+        val error = downloader(client).download(asset()) { _, _, _ -> }.exceptionOrNull()!!
+        assertTrue(error.message!!.startsWith("Cannot write update file:"), error.message)
+        assertEquals(0, client.downloads)
     }
 
     @Test

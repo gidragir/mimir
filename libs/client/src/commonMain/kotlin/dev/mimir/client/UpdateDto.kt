@@ -32,6 +32,15 @@ enum class UpdateErrorCode(val defaultMessage: String) {
     RATE_LIMITED("Too many requests; try again later"),
     CHECKSUM_MISMATCH("The downloaded file did not pass verification"),
 
+    /** Сервер ответил 4xx/5xx на скачивание файла обновления (`HTTP NNN for <url>`). */
+    HTTP_ERROR("The update file could not be downloaded from the server"),
+
+    /** У релиза нет контрольной суммы файла (или её не удалось получить): без неё файл не ставится. */
+    NO_CHECKSUM("The update file has no published checksum"),
+
+    /** Не удалось создать или записать временный файл обновления. */
+    DISK("The update file could not be saved to disk"),
+
     /** Нет связи с демоном или GitHub (на стороне клиента). */
     NETWORK("Network error"),
     FAILED("Update failed"),
@@ -45,16 +54,23 @@ enum class UpdateErrorCode(val defaultMessage: String) {
 /** Ошибка команды обновления с устойчивым [code]. */
 class UpdateCommandException(val code: UpdateErrorCode, message: String = code.defaultMessage) : IllegalStateException(message)
 
+/** `HTTP 404 for https://…` — отказ сервера при скачивании ассета (формат `KtorUpdateHttpClient`/`FetchUpdateHttpClient`). */
+private val HTTP_STATUS_FOR_URL = Regex("""\bhttp [45]\d\d for \S""")
+
 /**
  * Единственное место, где по тексту ошибки менеджера определяется причина (менеджер отдаёт только строку).
- * [retryAfterSeconds] != null — GitHub попросил подождать.
+ * [retryAfterSeconds] != null — GitHub попросил подождать. Порядок важен: «no checksum published» содержит
+ * «checksum», но это не повреждённый файл. Новый код старому клиенту неизвестен — он покажет `FAILED`.
  */
 fun classifyUpdateError(message: String?, retryAfterSeconds: Long? = null): UpdateErrorCode {
     val lower = message.orEmpty().lowercase()
     return when {
         retryAfterSeconds != null || "rate limit" in lower -> UpdateErrorCode.RATE_LIMITED
+        "no checksum published" in lower -> UpdateErrorCode.NO_CHECKSUM
         "checksum" in lower || "sha-256" in lower || "sha256" in lower || "mismatch" in lower || "verification" in lower ->
             UpdateErrorCode.CHECKSUM_MISMATCH
+        HTTP_STATUS_FOR_URL.containsMatchIn(lower) -> UpdateErrorCode.HTTP_ERROR
+        "cannot write update file" in lower -> UpdateErrorCode.DISK
         else -> UpdateErrorCode.FAILED
     }
 }
