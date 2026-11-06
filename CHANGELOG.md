@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.1](https://github.com/gidragir/mimir/compare/v0.3.0...v0.3.1) (2026-11-06)
+
+
+### Features
+
+* add Mimir logo across platforms ([0ccc260](https://github.com/gidragir/mimir/commit/0ccc2604f8e34ee04766cf29b297612f08ac97a0))
+
+
+### Bug Fixes
+
+* **android:** compile launcher foreground gradient stroke ([472f54b](https://github.com/gidragir/mimir/commit/472f54b76ee90c0841d387cf320effabbf0b956c))
+
 ## [0.3.0](https://github.com/gidragir/mimir/compare/v0.2.0...v0.3.0) (2026-11-05)
 
 
