@@ -15,24 +15,24 @@
     "test": "rtk mise run test",
     "run": "rtk mise run desktop",
     "custom": {
-      "ci:fast": "rtk mise run ci:fast",
-      "skills:check": "rtk mise run skills:check",
-      "plugin": "rtk mise run plugin",
       "package:extension": "rtk mise run package:extension",
-      "web": "rtk mise run web",
       "tokens:generate": "rtk mise run tokens:generate",
-      "skills:sync": "rtk mise run skills:sync",
-      "tokens:check": "rtk mise run tokens:check",
-      "build:extension": "rtk mise run build:extension",
-      "package:arch": "rtk mise run package:arch",
-      "extension": "rtk mise run extension",
-      "package:docker": "rtk mise run package:docker",
-      "test:fast": "rtk mise run test:fast",
-      "package:msi": "rtk mise run package:msi",
       "desktop": "rtk mise run desktop",
       "daemon": "rtk mise run daemon",
+      "plugin": "rtk mise run plugin",
+      "ci:fast": "rtk mise run ci:fast",
+      "skills:sync": "rtk mise run skills:sync",
+      "extension": "rtk mise run extension",
+      "package:arch": "rtk mise run package:arch",
+      "test:fast": "rtk mise run test:fast",
+      "package:docker": "rtk mise run package:docker",
+      "build:extension": "rtk mise run build:extension",
+      "skills:check": "rtk mise run skills:check",
+      "web": "rtk mise run web",
+      "package:msi": "rtk mise run package:msi",
       "android": "rtk mise run android",
-      "screenshots": "rtk mise run screenshots"
+      "screenshots": "rtk mise run screenshots",
+      "tokens:check": "rtk mise run tokens:check"
     }
   },
   "subsystems": [
@@ -442,7 +442,29 @@
         "apps/desktop/build.gradle.kts"
       ],
       "key_files": [
-        "apps/desktop/build.gradle.kts",
+        "apps/desktop/build.gradle.kts"
+      ],
+      "files": [
+        {
+          "path": "apps/desktop/build.gradle.kts",
+          "is_entrypoint": true
+        }
+      ],
+      "key_symbols": [
+        "fun macBundleVersion(version: String): String"
+      ],
+      "summary_source": "heuristic"
+    },
+    {
+      "id": "apps_desktop_main_kotlin_dev_mimir_desktop",
+      "name": "Desktop Main Kotlin Dev Mimir Desktop",
+      "summary": "Модуль и компоненты директории `apps/desktop/src/main/kotlin/dev/mimir/desktop` (15 файлов)",
+      "l1_path": "subsystems/apps_desktop_main_kotlin_dev_mimir_desktop.md",
+      "tags": [
+        "Kotlin (Gradle)",
+        "apps_desktop_main_kotlin_dev_mimir_desktop"
+      ],
+      "key_files": [
         "apps/desktop/src/main/kotlin/dev/mimir/desktop/DaemonServiceFactory.kt",
         "apps/desktop/src/main/kotlin/dev/mimir/desktop/Main.kt",
         "apps/desktop/src/main/kotlin/dev/mimir/desktop/PlatformFocus.kt",
@@ -451,18 +473,15 @@
         "apps/desktop/src/main/kotlin/dev/mimir/desktop/picker/FallbackFolderPicker.kt",
         "apps/desktop/src/main/kotlin/dev/mimir/desktop/picker/MacFolderPicker.kt",
         "apps/desktop/src/main/kotlin/dev/mimir/desktop/picker/PortalFolderPicker.kt",
+        "apps/desktop/src/main/kotlin/dev/mimir/desktop/picker/ProcessExecutor.kt",
         "apps/desktop/src/main/kotlin/dev/mimir/desktop/picker/WindowsFolderPicker.kt",
+        "apps/desktop/src/main/kotlin/dev/mimir/desktop/picker/ZenityFolderPicker.kt",
         "apps/desktop/src/main/kotlin/dev/mimir/desktop/platform/WindowsProtocolRegistrar.kt",
-        "apps/desktop/src/main/kotlin/dev/mimir/desktop/tray/DbusInterfaces.kt",
-        "apps/desktop/src/main/kotlin/dev/mimir/desktop/tray/DbusStatusNotifierTray.kt",
         "apps/desktop/src/main/kotlin/dev/mimir/desktop/update/DesktopUpdateSupport.kt",
-        "apps/desktop/src/main/kotlin/dev/mimir/desktop/update/WindowsMsiApplier.kt"
+        "apps/desktop/src/main/kotlin/dev/mimir/desktop/update/WindowsMsiApplier.kt",
+        "apps/desktop/src/main/kotlin/dev/mimir/desktop/window/PlatformWindowStyler.kt"
       ],
       "files": [
-        {
-          "path": "apps/desktop/build.gradle.kts",
-          "is_entrypoint": true
-        },
         {
           "path": "apps/desktop/src/main/kotlin/dev/mimir/desktop/DaemonServiceFactory.kt",
           "is_entrypoint": false
@@ -496,11 +515,73 @@
           "is_entrypoint": false
         },
         {
+          "path": "apps/desktop/src/main/kotlin/dev/mimir/desktop/picker/ProcessExecutor.kt",
+          "is_entrypoint": false
+        },
+        {
           "path": "apps/desktop/src/main/kotlin/dev/mimir/desktop/picker/WindowsFolderPicker.kt",
           "is_entrypoint": false
         },
         {
+          "path": "apps/desktop/src/main/kotlin/dev/mimir/desktop/picker/ZenityFolderPicker.kt",
+          "is_entrypoint": false
+        },
+        {
           "path": "apps/desktop/src/main/kotlin/dev/mimir/desktop/platform/WindowsProtocolRegistrar.kt",
+          "is_entrypoint": false
+        },
+        {
+          "path": "apps/desktop/src/main/kotlin/dev/mimir/desktop/update/DesktopUpdateSupport.kt",
+          "is_entrypoint": false
+        },
+        {
+          "path": "apps/desktop/src/main/kotlin/dev/mimir/desktop/update/WindowsMsiApplier.kt",
+          "is_entrypoint": false
+        },
+        {
+          "path": "apps/desktop/src/main/kotlin/dev/mimir/desktop/window/PlatformWindowStyler.kt",
+          "is_entrypoint": false
+        }
+      ],
+      "key_symbols": [
+        "class DesktopBackend(...) : AutoCloseable",
+        "enum class Mode",
+        "override fun close() = onClose()",
+        "object DaemonServiceFactory",
+        "suspend fun create( config: DaemonConfig, platform: TargetPlatform = detectTargetPlatform(System.getProperty(\"os.name\").orEmpty(), System.getProperty(\"os.arch\").orEmpty()), updateTempDir: Path = Path.of(System.getProperty(\"java.io.tmpdir\"), \"mimir-updates\"), ): DesktopBackend",
+        "override suspend fun quiesce() = runtimeRef.get()?.quiesceForUpdate() ?: false",
+        "override suspend fun resume()",
+        "override suspend fun shutdown()",
+        "fun main(args: Array<String>)",
+        "object PlatformFocus"
+      ],
+      "parent": "apps_desktop_main_kotlin_dev_mimir",
+      "summary_source": "heuristic"
+    },
+    {
+      "id": "apps_desktop_main_kotlin_dev_mimir_desktop_tray",
+      "name": "Desktop Main Kotlin Dev Mimir Desktop Tray",
+      "summary": "Модуль и компоненты директории `apps/desktop/src/main/kotlin/dev/mimir/desktop/tray` (10 файлов)",
+      "l1_path": "subsystems/apps_desktop_main_kotlin_dev_mimir_desktop_tray.md",
+      "tags": [
+        "Kotlin (Gradle)",
+        "apps_desktop_main_kotlin_dev_mimir_desktop_tray"
+      ],
+      "key_files": [
+        "apps/desktop/src/main/kotlin/dev/mimir/desktop/tray/AwtTray.kt",
+        "apps/desktop/src/main/kotlin/dev/mimir/desktop/tray/DbusInterfaces.kt",
+        "apps/desktop/src/main/kotlin/dev/mimir/desktop/tray/DbusStatusNotifierTray.kt",
+        "apps/desktop/src/main/kotlin/dev/mimir/desktop/tray/NoTray.kt",
+        "apps/desktop/src/main/kotlin/dev/mimir/desktop/tray/PopoverVisibilityController.kt",
+        "apps/desktop/src/main/kotlin/dev/mimir/desktop/tray/ScreenPositionCalculator.kt",
+        "apps/desktop/src/main/kotlin/dev/mimir/desktop/tray/Tray.kt",
+        "apps/desktop/src/main/kotlin/dev/mimir/desktop/tray/TrayLabel.kt",
+        "apps/desktop/src/main/kotlin/dev/mimir/desktop/tray/TrayPopoverWindow.kt",
+        "apps/desktop/src/main/kotlin/dev/mimir/desktop/tray/TrayUpdates.kt"
+      ],
+      "files": [
+        {
+          "path": "apps/desktop/src/main/kotlin/dev/mimir/desktop/tray/AwtTray.kt",
           "is_entrypoint": false
         },
         {
@@ -512,26 +593,47 @@
           "is_entrypoint": false
         },
         {
-          "path": "apps/desktop/src/main/kotlin/dev/mimir/desktop/update/DesktopUpdateSupport.kt",
+          "path": "apps/desktop/src/main/kotlin/dev/mimir/desktop/tray/NoTray.kt",
           "is_entrypoint": false
         },
         {
-          "path": "apps/desktop/src/main/kotlin/dev/mimir/desktop/update/WindowsMsiApplier.kt",
+          "path": "apps/desktop/src/main/kotlin/dev/mimir/desktop/tray/PopoverVisibilityController.kt",
+          "is_entrypoint": false
+        },
+        {
+          "path": "apps/desktop/src/main/kotlin/dev/mimir/desktop/tray/ScreenPositionCalculator.kt",
+          "is_entrypoint": false
+        },
+        {
+          "path": "apps/desktop/src/main/kotlin/dev/mimir/desktop/tray/Tray.kt",
+          "is_entrypoint": false
+        },
+        {
+          "path": "apps/desktop/src/main/kotlin/dev/mimir/desktop/tray/TrayLabel.kt",
+          "is_entrypoint": false
+        },
+        {
+          "path": "apps/desktop/src/main/kotlin/dev/mimir/desktop/tray/TrayPopoverWindow.kt",
+          "is_entrypoint": false
+        },
+        {
+          "path": "apps/desktop/src/main/kotlin/dev/mimir/desktop/tray/TrayUpdates.kt",
           "is_entrypoint": false
         }
       ],
       "key_symbols": [
-        "fun macBundleVersion(version: String): String",
-        "class DesktopBackend(...) : AutoCloseable",
-        "enum class Mode",
-        "override fun close() = onClose()",
-        "object DaemonServiceFactory",
-        "suspend fun create( config: DaemonConfig, platform: TargetPlatform = detectTargetPlatform(System.getProperty(\"os.name\").orEmpty(), System.getProperty(\"os.arch\").orEmpty()), updateTempDir: Path = Path.of(System.getProperty(\"java.io.tmpdir\"), \"mimir-updates\"), ): DesktopBackend",
-        "override suspend fun quiesce() = runtimeRef.get()?.quiesceForUpdate() ?: false",
-        "override suspend fun resume()",
-        "override suspend fun shutdown()",
-        "fun main(args: Array<String>)"
+        "class AwtTray : Tray",
+        "override fun show( status: String, onOpen: () -> Unit, onSyncNow: () -> Unit, onQuit: () -> Unit, onActivate: (TrayClickAnchor?) -> Unit, )",
+        "override fun mouseReleased(e: MouseEvent)",
+        "override fun update(status: String)",
+        "override fun close()",
+        "interface StatusNotifierWatcher : DBusInterface",
+        "fun RegisterStatusNotifierItem(service: String)",
+        "interface StatusNotifierItem : DBusInterface",
+        "fun Activate(x: Int, y: Int)",
+        "fun SecondaryActivate(x: Int, y: Int)"
       ],
+      "parent": "apps_desktop_main_kotlin_dev_mimir_desktop",
       "summary_source": "heuristic"
     },
     {
@@ -1604,7 +1706,7 @@
     {
       "id": "libs_ui_commonmain_kotlin_dev_mimir_ui_screens",
       "name": "Ui CommonMain Kotlin Dev Mimir Ui Screens",
-      "summary": "Модуль и компоненты директории `libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens` (12 файлов)",
+      "summary": "Модуль и компоненты директории `libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens` (13 файлов)",
       "l1_path": "subsystems/libs_ui_commonmain_kotlin_dev_mimir_ui_screens.md",
       "tags": [
         "Kotlin (Gradle)",
@@ -1618,6 +1720,7 @@
         "libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/StartupScreen.kt",
         "libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/StatusScreen.kt",
         "libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/SyncTexts.kt",
+        "libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/TrayPopoverScreen.kt",
         "libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/setup/AccessStep.kt",
         "libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/setup/GoogleStep.kt",
         "libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/setup/InitialResolutionStep.kt",
@@ -1651,6 +1754,10 @@
         },
         {
           "path": "libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/SyncTexts.kt",
+          "is_entrypoint": false
+        },
+        {
+          "path": "libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/TrayPopoverScreen.kt",
           "is_entrypoint": false
         },
         {

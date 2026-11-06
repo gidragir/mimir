@@ -148,6 +148,8 @@ Mimir — клиент синхронизации Obsidian-хранилища с
 - `apps_browser-extension_jsmain_kotlin_dev_mimir_extension_ui` (Browser Extension JsMain Kotlin Dev Mimir Extension Ui) — Модуль и компоненты директории `apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/ui` (8 файлов)
 - `apps_daemon` (Daemon) — Подсистема `apps/daemon` с ключевыми точками входа: apps/daemon/build.gradle.kts
 - `apps_desktop` (Desktop) — Подсистема `apps/desktop` с ключевыми точками входа: apps/desktop/build.gradle.kts
+- `apps_desktop_main_kotlin_dev_mimir_desktop` (Desktop Main Kotlin Dev Mimir Desktop) — Модуль и компоненты директории `apps/desktop/src/main/kotlin/dev/mimir/desktop` (15 файлов)
+- `apps_desktop_main_kotlin_dev_mimir_desktop_tray` (Desktop Main Kotlin Dev Mimir Desktop Tray) — Модуль и компоненты директории `apps/desktop/src/main/kotlin/dev/mimir/desktop/tray` (10 файлов)
 - `apps_obsidian-plugin` (Obsidian Plugin) — Подсистема `apps/obsidian-plugin` с ключевыми точками входа: apps/obsidian-plugin/build.gradle.kts
 - `apps_web-ui` (Web Ui) — Подсистема `apps/web-ui` с ключевыми точками входа: apps/web-ui/build.gradle.kts
 - `build-logic` (Build Logic) — Подсистема `build-logic` с ключевыми точками входа: build-logic/build.gradle.kts
@@ -163,5 +165,5 @@ Mimir — клиент синхронизации Obsidian-хранилища с
 - `libs_runtime_commonmain_kotlin_dev_mimir_runtime_update` (Runtime CommonMain Kotlin Dev Mimir Runtime Update) — Модуль и компоненты директории `libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/update` (6 файлов)
 - `libs_ui` (Ui) — Подсистема `libs/ui` с ключевыми точками входа: libs/ui/build.gradle.kts
 - `libs_ui_commonmain_kotlin_dev_mimir_ui` (Ui CommonMain Kotlin Dev Mimir Ui) — Модуль и компоненты директории `libs/ui/src/commonMain/kotlin/dev/mimir/ui` (15 файлов)
-- `libs_ui_commonmain_kotlin_dev_mimir_ui_screens` (Ui CommonMain Kotlin Dev Mimir Ui Screens) — Модуль и компоненты директории `libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens` (12 файлов)
+- `libs_ui_commonmain_kotlin_dev_mimir_ui_screens` (Ui CommonMain Kotlin Dev Mimir Ui Screens) — Модуль и компоненты директории `libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens` (13 файлов)
 - `packaging` (Packaging) — Модуль и компоненты директории `packaging` (2 файлов)

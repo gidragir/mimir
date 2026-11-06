@@ -2,22 +2,22 @@
 directory: libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens
 source:
   kind: git
-  blob_sha: dc4177472bca8d8012709fa4e423939975765689
-  commit_sha: f257ad8e5833023549c25d73ac019e725362bc88
+  blob_sha: 456c8d026655c819bdebb684f20d07d695709ed8
+  commit_sha: 4afcd4b2c289461cc47f4dc71fea776a420f6dfa
 generated_by:
   component: context-init
   role: update
   model: none
 freshness:
-  total_entries: 12
-  sampled_entries: 12
+  total_entries: 13
+  sampled_entries: 13
   unsampled_entries: 0
   pending_child_changes: 0
 ---
 
 # Подсистема: Ui CommonMain Kotlin Dev Mimir Ui Screens (L1)
 
-Модуль и компоненты директории `libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens` (12 файлов)
+Модуль и компоненты директории `libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens` (13 файлов)
 
 > **Идентификатор:** `libs_ui_commonmain_kotlin_dev_mimir_ui_screens`
 > **Теги:** Kotlin (Gradle), libs_ui_commonmain_kotlin_dev_mimir_ui_screens
@@ -33,6 +33,7 @@ freshness:
 | `libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/StartupScreen.kt` | Исходный код |
 | `libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/StatusScreen.kt` | Исходный код |
 | `libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/SyncTexts.kt` | Исходный код |
+| `libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/TrayPopoverScreen.kt` | Исходный код |
 | `libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/setup/AccessStep.kt` | Исходный код |
 | `libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/setup/GoogleStep.kt` | Исходный код |
 | `libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/setup/InitialResolutionStep.kt` | Исходный код |

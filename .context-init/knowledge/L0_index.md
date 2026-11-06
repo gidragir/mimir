@@ -32,6 +32,8 @@ rtk mise run desktop
 | **Browser Extension JsMain Kotlin Dev Mimir Extension Ui** | Модуль и компоненты директории `apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/ui` (8 файлов) | `-` | [subsystems/apps_browser-extension_jsmain_kotlin_dev_mimir_extension_ui.md](subsystems/apps_browser-extension_jsmain_kotlin_dev_mimir_extension_ui.md) |
 | **Daemon** | Подсистема `apps/daemon` с ключевыми точками входа: apps/daemon/build.gradle.kts | `apps/daemon/build.gradle.kts` | [subsystems/apps_daemon.md](subsystems/apps_daemon.md) |
 | **Desktop** | Подсистема `apps/desktop` с ключевыми точками входа: apps/desktop/build.gradle.kts | `apps/desktop/build.gradle.kts` | [subsystems/apps_desktop.md](subsystems/apps_desktop.md) |
+| **Desktop Main Kotlin Dev Mimir Desktop** | Модуль и компоненты директории `apps/desktop/src/main/kotlin/dev/mimir/desktop` (15 файлов) | `-` | [subsystems/apps_desktop_main_kotlin_dev_mimir_desktop.md](subsystems/apps_desktop_main_kotlin_dev_mimir_desktop.md) |
+| **Desktop Main Kotlin Dev Mimir Desktop Tray** | Модуль и компоненты директории `apps/desktop/src/main/kotlin/dev/mimir/desktop/tray` (10 файлов) | `-` | [subsystems/apps_desktop_main_kotlin_dev_mimir_desktop_tray.md](subsystems/apps_desktop_main_kotlin_dev_mimir_desktop_tray.md) |
 | **Obsidian Plugin** | Подсистема `apps/obsidian-plugin` с ключевыми точками входа: apps/obsidian-plugin/build.gradle.kts | `apps/obsidian-plugin/build.gradle.kts` | [subsystems/apps_obsidian-plugin.md](subsystems/apps_obsidian-plugin.md) |
 | **Web Ui** | Подсистема `apps/web-ui` с ключевыми точками входа: apps/web-ui/build.gradle.kts | `apps/web-ui/build.gradle.kts` | [subsystems/apps_web-ui.md](subsystems/apps_web-ui.md) |
 | **Build Logic** | Подсистема `build-logic` с ключевыми точками входа: build-logic/build.gradle.kts | `build-logic/build.gradle.kts` | [subsystems/build-logic.md](subsystems/build-logic.md) |
@@ -47,7 +49,7 @@ rtk mise run desktop
 | **Runtime CommonMain Kotlin Dev Mimir Runtime Update** | Модуль и компоненты директории `libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/update` (6 файлов) | `-` | [subsystems/libs_runtime_commonmain_kotlin_dev_mimir_runtime_update.md](subsystems/libs_runtime_commonmain_kotlin_dev_mimir_runtime_update.md) |
 | **Ui** | Подсистема `libs/ui` с ключевыми точками входа: libs/ui/build.gradle.kts | `libs/ui/build.gradle.kts` | [subsystems/libs_ui.md](subsystems/libs_ui.md) |
 | **Ui CommonMain Kotlin Dev Mimir Ui** | Модуль и компоненты директории `libs/ui/src/commonMain/kotlin/dev/mimir/ui` (15 файлов) | `-` | [subsystems/libs_ui_commonmain_kotlin_dev_mimir_ui.md](subsystems/libs_ui_commonmain_kotlin_dev_mimir_ui.md) |
-| **Ui CommonMain Kotlin Dev Mimir Ui Screens** | Модуль и компоненты директории `libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens` (12 файлов) | `-` | [subsystems/libs_ui_commonmain_kotlin_dev_mimir_ui_screens.md](subsystems/libs_ui_commonmain_kotlin_dev_mimir_ui_screens.md) |
+| **Ui CommonMain Kotlin Dev Mimir Ui Screens** | Модуль и компоненты директории `libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens` (13 файлов) | `-` | [subsystems/libs_ui_commonmain_kotlin_dev_mimir_ui_screens.md](subsystems/libs_ui_commonmain_kotlin_dev_mimir_ui_screens.md) |
 | **Packaging** | Модуль и компоненты директории `packaging` (2 файлов) | `-` | [subsystems/packaging.md](subsystems/packaging.md) |
 
 ## 📋 Инварианты и правила проекта
