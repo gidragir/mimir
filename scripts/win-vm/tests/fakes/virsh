@@ -8,12 +8,22 @@ if [[ ${args[0]:-} == -c ]]; then args=("${args[@]:2}"); fi
 cmd=${args[0]:-}
 printf '%s\n' "${args[*]}" >>"${FAKE_VIRSH_LOG:?}"
 state_file="$FAKE_VIRSH_LOG.exec"
+vm_state_file="$FAKE_VIRSH_LOG.vmstate"
+snaps_file="$FAKE_VIRSH_LOG.snaps"
+[[ -e $snaps_file ]] || tr ' ' '\n' <<<"${FAKE_SNAPSHOTS:-}" >"$snaps_file"
+vm_state() { if [[ -e $vm_state_file ]]; then cat "$vm_state_file"; else echo "${FAKE_VM_STATE:-running}"; fi; }
 
 case "$cmd" in
   dominfo)
-    [[ ${FAKE_VM_STATE:-running} == missing ]] && { echo "error: failed to get domain '${args[1]:-}'" >&2; exit 1; }
-    echo "State:          ${FAKE_VM_STATE:-running}"
+    [[ $(vm_state) == missing ]] && { echo "error: failed to get domain '${args[1]:-}'" >&2; exit 1; }
+    echo "State:          $(vm_state)"
     ;;
+  domstate) vm_state ;;
+  start) echo running >"$vm_state_file" ;;
+  shutdown | destroy) echo "shut off" >"$vm_state_file" ;;
+  dumpxml) echo "<domain><os><nvram template='/usr/share/edk2/x64/OVMF_VARS.4m.fd'>${FAKE_NVRAM:-/var/lib/libvirt/qemu/nvram/win11_VARS.fd}</nvram></os></domain>" ;;
+  snapshot-list) grep -v '^$' "$snaps_file" || true ;;
+  snapshot-create-as) echo "${args[2]}" >>"$snaps_file" ;;
   qemu-agent-command)
     json=${args[2]}
     exe=$(jq -r .execute <<<"$json")

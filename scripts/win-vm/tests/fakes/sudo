@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Фейк sudo: пишет вызов в $FAKE_VIRSH_LOG и ничего не выполняет (FAKE_SUDO_FAIL=1 — отказ).
+printf 'sudo %s\n' "$*" >>"${FAKE_VIRSH_LOG:?}"
+[[ ${FAKE_SUDO_FAIL:-0} == 1 ]] && exit 1
+exit 0

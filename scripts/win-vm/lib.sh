@@ -33,12 +33,18 @@ _virsh() { virsh -c "$WINVM_URI" "$@"; }
 
 _agent() { _virsh qemu-agent-command "$WINVM_NAME" "$1"; }
 
-# winvm_ensure_running — VM существует, запущена и гостевой агент отвечает.
-winvm_ensure_running() {
-  local info state started
+# winvm_vm_state — состояние домена (running, shut off, ...); нет домена — код 2.
+winvm_vm_state() {
+  local info
   info=$(_virsh dominfo "$WINVM_NAME" 2>/dev/null) \
     || winvm_die 2 "VM $WINVM_NAME not found in $WINVM_URI"
-  state=$(awk -F: '/^State:/ { sub(/^[ \t]+/, "", $2); print $2 }' <<<"$info")
+  awk -F: '/^State:/ { sub(/^[ \t]+/, "", $2); print $2 }' <<<"$info"
+}
+
+# winvm_ensure_running — VM существует, запущена и гостевой агент отвечает.
+winvm_ensure_running() {
+  local state started
+  state=$(winvm_vm_state) || exit $?
   if [[ $state != running ]]; then
     echo "Starting VM $WINVM_NAME..." >&2
     _virsh start "$WINVM_NAME" >/dev/null
@@ -205,4 +211,34 @@ winvm_secret_source() {
     return 0
   fi
   winvm_die 1 "mise.local.toml not found in $root or $main"
+}
+
+# winvm_nvram_path — путь к NVRAM домена из dumpxml.
+winvm_nvram_path() {
+  _virsh dumpxml "$WINVM_NAME" | sed -n 's|.*<nvram[^>]*>\([^<]*\)</nvram>.*|\1|p' | head -n1
+}
+
+winvm_snapshot_exists() {
+  _virsh snapshot-list "$WINVM_NAME" --name 2>/dev/null | grep -qx 'provisioned'
+}
+
+# winvm_shutdown_wait — корректное выключение; через WINVM_SHUTDOWN_TIMEOUT (деф. 180) — destroy.
+winvm_shutdown_wait() {
+  local started=$SECONDS
+  [[ $(winvm_vm_state) == running ]] || return 0
+  echo "Shutting down VM $WINVM_NAME..." >&2
+  _virsh shutdown "$WINVM_NAME" >/dev/null
+  until [[ $(winvm_vm_state) == "shut off" ]]; do
+    if ((SECONDS - started >= ${WINVM_SHUTDOWN_TIMEOUT:-180})); then
+      echo "VM $WINVM_NAME did not shut down in ${WINVM_SHUTDOWN_TIMEOUT:-180}s — forcing off" >&2
+      _virsh destroy "$WINVM_NAME" >/dev/null
+      break
+    fi
+    sleep "$WINVM_POLL"
+  done
+}
+
+# winvm_nvram_copy <from> <to> — best-effort: root-файл, sudo может спросить пароль или быть недоступен.
+winvm_nvram_copy() {
+  sudo cp "$1" "$2" || echo "warning: could not copy NVRAM ($1 -> $2); disk revert still works without it" >&2
 }

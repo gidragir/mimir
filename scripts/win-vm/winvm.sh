@@ -92,9 +92,54 @@ winvm_cmd_uninstall() {
   winvm_wait_status "$id" ok 600
   cat "$WINVM_HOST_DIR/out/report.log"
 }
-winvm_cmd_logs() { winvm_die 70 "logs is not implemented yet"; }
-winvm_cmd_snapshot() { winvm_die 70 "snapshot is not implemented yet"; }
-winvm_cmd_reset() { winvm_die 70 "reset is not implemented yet"; }
+winvm_cmd_logs() {
+  local out="$WINVM_HOST_DIR/out" files
+  case "${1:-run}" in
+    run) files=("$out/run.log" "$out/run.err.log") ;;
+    build) files=("$out/build.log") ;;
+    msi) files=("$out/msi.log") ;;
+    *) usage; exit 64 ;;
+  esac
+  mkdir -p "$out"
+  if [[ -n ${WINVM_NO_TAIL:-} ]]; then
+    printf '%s\n' "${files[@]}"
+    return 0
+  fi
+  exec tail -F "${files[@]}"
+}
+winvm_cmd_snapshot() {
+  local nvram
+  winvm_vm_state >/dev/null
+  winvm_snapshot_exists \
+    && winvm_die 6 "Snapshot provisioned already exists — delete it with virsh snapshot-delete first"
+  winvm_shutdown_wait
+  _virsh snapshot-create-as "$WINVM_NAME" provisioned --disk-only --atomic >/dev/null
+  nvram=$(winvm_nvram_path)
+  [[ -z $nvram ]] || winvm_nvram_copy "$nvram" "$nvram.provisioned"
+  echo "Snapshot provisioned created; VM $WINVM_NAME is shut off (the next win:* command starts it)" >&2
+}
+winvm_cmd_reset() {
+  local yes=0 nvram
+  while (($# > 0)); do
+    case "$1" in
+      --yes) yes=1 ;;
+      *) usage; exit 64 ;;
+    esac
+    shift
+  done
+  winvm_vm_state >/dev/null
+  winvm_snapshot_exists || winvm_die 1 "Snapshot provisioned not found — run win:snapshot first"
+  if ((!yes)); then
+    echo "This discards everything in $WINVM_NAME since snapshot provisioned. Re-run with --yes" >&2
+    exit 1
+  fi
+  winvm_shutdown_wait
+  _virsh snapshot-revert "$WINVM_NAME" provisioned >/dev/null
+  nvram=$(winvm_nvram_path)
+  if [[ -n $nvram ]]; then winvm_nvram_copy "$nvram.provisioned" "$nvram"; fi
+  winvm_ensure_running
+  echo "VM $WINVM_NAME reverted to snapshot provisioned" >&2
+}
 
 main() {
   local cmd=${1:-}
