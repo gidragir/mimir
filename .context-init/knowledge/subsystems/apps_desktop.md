@@ -2,8 +2,8 @@
 directory: apps/desktop
 source:
   kind: git
-  blob_sha: 8021a14c31e2b1da6b58951e0e2e35218dd9a2a8
-  commit_sha: 26d53005b2cd507dcc6d6b2875e8475b7ca8fb6c
+  blob_sha: 56b13122d53cef09b20a7193d7d4acd09f094f4e
+  commit_sha: f221fe644add8159ac86eacc977028d32eedc5d8
 generated_by:
   component: context-init
   role: update
@@ -44,6 +44,7 @@ freshness:
 
 ## 🔑 Ключевой контракт и экспорты
 ```text
+fun macBundleVersion(version: String): String
 class DesktopBackend(...) : AutoCloseable
 enum class Mode
 override fun close() = onClose()
@@ -53,7 +54,6 @@ override suspend fun quiesce() = runtimeRef.get()?.quiesceForUpdate() ?: false
 override suspend fun resume()
 override suspend fun shutdown()
 fun main(args: Array<String>)
-object PlatformFocus
 ```
 
 ## 🧪 Запуск и тестирование

@@ -2,8 +2,8 @@
 directory: libs/core
 source:
   kind: git
-  blob_sha: 416f20f22bae24637dcb355a2fa1967857f88e40
-  commit_sha: 26d53005b2cd507dcc6d6b2875e8475b7ca8fb6c
+  blob_sha: 136aaad3a1b517c492e4d729ac480ba338f7361c
+  commit_sha: f221fe644add8159ac86eacc977028d32eedc5d8
 generated_by:
   component: context-init
   role: update
@@ -27,6 +27,7 @@ freshness:
 | Файл | Статус |
 | :--- | :--- |
 | `libs/core/build.gradle.kts` | ⭐ Точка входа |
+| `libs/core/scripts/gen-rclone-vectors.sh` | Исходный код |
 | `libs/core/src/androidMain/kotlin/dev/mimir/core/crypto/AndroidKeystoreSecretStore.kt` | Исходный код |
 | `libs/core/src/androidMain/kotlin/dev/mimir/core/crypto/RandomNonce.android.kt` | Исходный код |
 | `libs/core/src/androidMain/kotlin/dev/mimir/core/fs/AndroidFileObserverVaultWatcher.kt` | Исходный код |
@@ -40,7 +41,6 @@ freshness:
 | `libs/core/src/jvmMain/kotlin/dev/mimir/core/fs/NioWatchServiceVaultWatcher.kt` | Исходный код |
 | `libs/core/src/jvmMain/kotlin/dev/mimir/core/fs/SymbolicLink.jvm.kt` | Исходный код |
 | `libs/core/src/wasmJsMain/kotlin/dev/mimir/core/crypto/RandomNonce.wasmJs.kt` | Исходный код |
-| `libs/core/src/wasmJsMain/kotlin/dev/mimir/core/fs/LastModified.wasmJs.kt` | Исходный код |
 
 ## 🔑 Ключевой контракт и экспорты
 ```text

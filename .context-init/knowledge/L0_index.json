@@ -3,7 +3,7 @@
   "schema_version": 4,
   "project": "mimir",
   "description": "Один открытый инструмент синхронизации Obsidian-хранилища на всех платформах (Linux, Windows, Android). Он ощущается как Google Drive Desktop: один раз указал папку vault и пароль, дальше всё синхронизируется само.",
-  "updated_at": "2026-11-05",
+  "updated_at": "2026-11-06",
   "project_type": "Kotlin (Gradle)",
   "entrypoints": [
     "mise.toml",
@@ -15,22 +15,24 @@
     "test": "rtk mise run test",
     "run": "rtk mise run desktop",
     "custom": {
-      "plugin": "rtk mise run plugin",
       "package:arch": "rtk mise run package:arch",
-      "package:msi": "rtk mise run package:msi",
-      "package:docker": "rtk mise run package:docker",
-      "web": "rtk mise run web",
-      "screenshots": "rtk mise run screenshots",
-      "extension": "rtk mise run extension",
-      "build:extension": "rtk mise run build:extension",
-      "android": "rtk mise run android",
-      "desktop": "rtk mise run desktop",
-      "tokens:generate": "rtk mise run tokens:generate",
-      "tokens:check": "rtk mise run tokens:check",
-      "ci:fast": "rtk mise run ci:fast",
-      "package:extension": "rtk mise run package:extension",
       "daemon": "rtk mise run daemon",
-      "test:fast": "rtk mise run test:fast"
+      "plugin": "rtk mise run plugin",
+      "build:extension": "rtk mise run build:extension",
+      "test:fast": "rtk mise run test:fast",
+      "package:msi": "rtk mise run package:msi",
+      "web": "rtk mise run web",
+      "skills:check": "rtk mise run skills:check",
+      "extension": "rtk mise run extension",
+      "package:docker": "rtk mise run package:docker",
+      "tokens:check": "rtk mise run tokens:check",
+      "tokens:generate": "rtk mise run tokens:generate",
+      "skills:sync": "rtk mise run skills:sync",
+      "package:extension": "rtk mise run package:extension",
+      "android": "rtk mise run android",
+      "ci:fast": "rtk mise run ci:fast",
+      "screenshots": "rtk mise run screenshots",
+      "desktop": "rtk mise run desktop"
     }
   },
   "subsystems": [
@@ -60,8 +62,8 @@
         "apps/android/src/main/kotlin/dev/mimir/android/platform/AndroidNetworkState.kt",
         "apps/android/src/main/kotlin/dev/mimir/android/platform/AndroidStorageAccess.kt",
         "apps/android/src/main/kotlin/dev/mimir/android/platform/TreeUriPaths.kt",
-        "apps/android/src/main/kotlin/dev/mimir/android/work/MimirWorkerFactory.kt",
-        "apps/android/src/main/kotlin/dev/mimir/android/work/SyncWorkScheduler.kt"
+        "apps/android/src/main/kotlin/dev/mimir/android/work/SyncWorkScheduler.kt",
+        "apps/android/src/main/res/drawable/ic_launcher_foreground.xml"
       ],
       "files": [
         {
@@ -117,11 +119,11 @@
           "is_entrypoint": false
         },
         {
-          "path": "apps/android/src/main/kotlin/dev/mimir/android/work/MimirWorkerFactory.kt",
+          "path": "apps/android/src/main/kotlin/dev/mimir/android/work/SyncWorkScheduler.kt",
           "is_entrypoint": false
         },
         {
-          "path": "apps/android/src/main/kotlin/dev/mimir/android/work/SyncWorkScheduler.kt",
+          "path": "apps/android/src/main/res/drawable/ic_launcher_foreground.xml",
           "is_entrypoint": false
         }
       ],
@@ -519,6 +521,7 @@
         }
       ],
       "key_symbols": [
+        "fun macBundleVersion(version: String): String",
         "class DesktopBackend(...) : AutoCloseable",
         "enum class Mode",
         "override fun close() = onClose()",
@@ -527,8 +530,7 @@
         "override suspend fun quiesce() = runtimeRef.get()?.quiesceForUpdate() ?: false",
         "override suspend fun resume()",
         "override suspend fun shutdown()",
-        "fun main(args: Array<String>)",
-        "object PlatformFocus"
+        "fun main(args: Array<String>)"
       ],
       "summary_source": "heuristic"
     },
@@ -694,20 +696,34 @@
     {
       "id": "design",
       "name": "Design",
-      "summary": "Модуль и компоненты директории `design` (1 файлов)",
+      "summary": "Модуль и компоненты директории `design` (3 файлов)",
       "l1_path": "subsystems/design.md",
       "tags": [
         "Kotlin (Gradle)",
         "design"
       ],
       "key_files": [
+        "design/generate-tokens.mjs",
+        "design/logo/README.md",
         "design/tokens.json"
       ],
       "files": [
         {
+          "path": "design/generate-tokens.mjs",
+          "is_entrypoint": false
+        },
+        {
+          "path": "design/logo/README.md",
+          "is_entrypoint": false
+        },
+        {
           "path": "design/tokens.json",
           "is_entrypoint": false
         }
+      ],
+      "key_symbols": [
+        "export function generateKotlin(tokens)",
+        "export function generateCss(tokens)"
       ],
       "summary_source": "heuristic"
     },
@@ -780,6 +796,7 @@
       ],
       "key_files": [
         "libs/core/build.gradle.kts",
+        "libs/core/scripts/gen-rclone-vectors.sh",
         "libs/core/src/androidMain/kotlin/dev/mimir/core/crypto/AndroidKeystoreSecretStore.kt",
         "libs/core/src/androidMain/kotlin/dev/mimir/core/crypto/RandomNonce.android.kt",
         "libs/core/src/androidMain/kotlin/dev/mimir/core/fs/AndroidFileObserverVaultWatcher.kt",
@@ -792,13 +809,16 @@
         "libs/core/src/jvmMain/kotlin/dev/mimir/core/fs/LastModified.jvm.kt",
         "libs/core/src/jvmMain/kotlin/dev/mimir/core/fs/NioWatchServiceVaultWatcher.kt",
         "libs/core/src/jvmMain/kotlin/dev/mimir/core/fs/SymbolicLink.jvm.kt",
-        "libs/core/src/wasmJsMain/kotlin/dev/mimir/core/crypto/RandomNonce.wasmJs.kt",
-        "libs/core/src/wasmJsMain/kotlin/dev/mimir/core/fs/LastModified.wasmJs.kt"
+        "libs/core/src/wasmJsMain/kotlin/dev/mimir/core/crypto/RandomNonce.wasmJs.kt"
       ],
       "files": [
         {
           "path": "libs/core/build.gradle.kts",
           "is_entrypoint": true
+        },
+        {
+          "path": "libs/core/scripts/gen-rclone-vectors.sh",
+          "is_entrypoint": false
         },
         {
           "path": "libs/core/src/androidMain/kotlin/dev/mimir/core/crypto/AndroidKeystoreSecretStore.kt",
@@ -850,10 +870,6 @@
         },
         {
           "path": "libs/core/src/wasmJsMain/kotlin/dev/mimir/core/crypto/RandomNonce.wasmJs.kt",
-          "is_entrypoint": false
-        },
-        {
-          "path": "libs/core/src/wasmJsMain/kotlin/dev/mimir/core/fs/LastModified.wasmJs.kt",
           "is_entrypoint": false
         }
       ],
@@ -1640,35 +1656,6 @@
       ],
       "key_symbols": [
         "export _JAVA_AWT_WM_NONREPARENTING=1 exec java -jar /usr/share/java/mimir/mimir.jar \"$@\""
-      ],
-      "summary_source": "heuristic"
-    },
-    {
-      "id": "scripts",
-      "name": "Scripts",
-      "summary": "Модуль и компоненты директории `scripts` (2 файлов)",
-      "l1_path": "subsystems/scripts.md",
-      "tags": [
-        "Kotlin (Gradle)",
-        "scripts"
-      ],
-      "key_files": [
-        "scripts/gen-rclone-vectors.sh",
-        "scripts/generate-tokens.mjs"
-      ],
-      "files": [
-        {
-          "path": "scripts/gen-rclone-vectors.sh",
-          "is_entrypoint": false
-        },
-        {
-          "path": "scripts/generate-tokens.mjs",
-          "is_entrypoint": false
-        }
-      ],
-      "key_symbols": [
-        "export function generateKotlin(tokens)",
-        "export function generateCss(tokens)"
       ],
       "summary_source": "heuristic"
     }
