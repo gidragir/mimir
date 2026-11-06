@@ -3,7 +3,7 @@ package dev.mimir.desktop.picker
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNull
+import kotlin.test.assertIs
 
 class PortalFolderPickerTest {
     @Test
@@ -18,19 +18,19 @@ class PortalFolderPickerTest {
     fun `approved response yields the decoded folder path`() {
         // Портал есть только на Linux, но тест идёт на всей CI-матрице: путь ОС сравниваем в её собственной форме.
         assertEquals(
-            File("/home/me/My Notes").absolutePath,
-            PortalFolderPicker.pathFromResponse(0, listOf("file:///home/me/My%20Notes")),
+            PickOutcome.Selected(File("/home/me/My Notes").absolutePath),
+            PortalFolderPicker.outcomeFromResponse(0, listOf("file:///home/me/My%20Notes")),
         )
     }
 
     @Test
-    fun `cancelled response yields null so the caller keeps its path`() {
-        assertNull(PortalFolderPicker.pathFromResponse(1, emptyList()))
-        assertNull(PortalFolderPicker.pathFromResponse(0, emptyList()))
+    fun `cancelled response yields Cancelled so the chain stops`() {
+        assertEquals(PickOutcome.Cancelled, PortalFolderPicker.outcomeFromResponse(1, emptyList()))
+        assertEquals(PickOutcome.Cancelled, PortalFolderPicker.outcomeFromResponse(0, emptyList()))
     }
 
     @Test
-    fun `non-file uris are ignored`() {
-        assertNull(PortalFolderPicker.pathFromResponse(0, listOf("smb://server/share")))
+    fun `non-file uris are Unavailable`() {
+        assertIs<PickOutcome.Unavailable>(PortalFolderPicker.outcomeFromResponse(0, listOf("smb://server/share")))
     }
 }

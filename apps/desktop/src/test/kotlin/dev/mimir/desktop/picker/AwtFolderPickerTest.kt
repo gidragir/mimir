@@ -17,8 +17,11 @@ class AwtFolderPickerTest {
     }
 
     @Test
-    fun `picker falls back to user home when initialPath does not exist`() {
-        val missing = File(System.getProperty("java.io.tmpdir"), "mimir-no-such-dir-${System.nanoTime()}")
-        assertEquals(File(System.getProperty("user.home")), AwtFolderPicker().resolveInitialDirectory(missing.absolutePath))
+    fun `picker uses existing parent when initialPath does not exist and user home when no parent exists`() {
+        val tmp = File(System.getProperty("java.io.tmpdir"))
+        val missing = File(tmp, "mimir-no-such-dir-${System.nanoTime()}")
+        assertEquals(tmp, AwtFolderPicker().resolveInitialDirectory(missing.absolutePath))
+        val deep = File(missing, "a/b")
+        assertEquals(File(System.getProperty("user.home")), AwtFolderPicker().resolveInitialDirectory(deep.absolutePath))
     }
 }

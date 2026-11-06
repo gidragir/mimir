@@ -1,6 +1,5 @@
 package dev.mimir.desktop.picker
 
-import dev.mimir.ui.picker.PlatformFolderPicker
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -16,8 +15,6 @@ import org.freedesktop.dbus.types.UInt32
 import org.freedesktop.dbus.types.Variant
 import java.io.File
 import java.net.URI
-import java.util.logging.Level
-import java.util.logging.Logger
 import kotlin.coroutines.resume
 
 private const val PORTAL_NAME = "org.freedesktop.portal.Desktop"
@@ -34,24 +31,18 @@ interface PortalRequest : DBusInterface {
     class Response(path: String, val response: UInt32, val results: @JvmSuppressWildcards Map<String, Variant<*>>) : DBusSignal(path, response, results)
 }
 
-/**
- * Выбор папки через XDG Desktop Portal: открывается диалог, выбранный в системе по умолчанию (GTK, KDE, GNOME…).
- * Если портала нет или вызов не удался, работает [fallback] (Swing).
- */
-class PortalFolderPicker(private val fallback: PlatformFolderPicker = AwtFolderPicker()) : PlatformFolderPicker {
-    override suspend fun pickDirectory(initialPath: String?): String? {
-        val outcome = try {
+/** Выбор папки через XDG Desktop Portal: диалог, выбранный в системе по умолчанию (GTK, KDE, GNOME…). */
+class PortalFolderPicker : FolderPickerCandidate {
+    override suspend fun tryPick(initialPath: String?): PickOutcome =
+        try {
             withContext(Dispatchers.IO) { pickViaPortal(initialPath) }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Throwable) {
-            logger.log(Level.INFO, "XDG portal file chooser unavailable; falling back to the Swing dialog", e)
-            return fallback.pickDirectory(initialPath)
+            PickOutcome.Unavailable("XDG portal file chooser unavailable", e)
         }
-        return outcome
-    }
 
-    private suspend fun pickViaPortal(initialPath: String?): String? {
+    private suspend fun pickViaPortal(initialPath: String?): PickOutcome {
         val bus = DBusConnectionBuilder.forSessionBus().withShared(false).build()
         try {
             val hasPortal = bus.getRemoteObject("org.freedesktop.DBus", "/org/freedesktop/DBus", DBus::class.java).NameHasOwner(PORTAL_NAME)
@@ -62,7 +53,7 @@ class PortalFolderPicker(private val fallback: PlatformFolderPicker = AwtFolderP
         }
     }
 
-    private suspend fun openDialog(bus: DBusConnection, initialPath: String?): String? = suspendCancellableCoroutine { continuation ->
+    private suspend fun openDialog(bus: DBusConnection, initialPath: String?): PickOutcome = suspendCancellableCoroutine { continuation ->
         val token = "mimir_${System.nanoTime()}"
         val requestPath = requestPath(bus.uniqueName, token)
         // Подписка до вызова: ответ может прийти раньше, чем вернётся OpenFile.
@@ -72,7 +63,7 @@ class PortalFolderPicker(private val fallback: PlatformFolderPicker = AwtFolderP
                 if (signal.path != requestPath) return@DBusSigHandler
                 @Suppress("UNCHECKED_CAST")
                 val uris = (signal.results["uris"]?.value as? List<*>)?.filterIsInstance<String>().orEmpty()
-                if (continuation.isActive) continuation.resume(pathFromResponse(signal.response.toInt(), uris))
+                if (continuation.isActive) continuation.resume(outcomeFromResponse(signal.response.toInt(), uris))
             },
         )
         continuation.invokeOnCancellation { runCatching { subscription.close() } }
@@ -82,11 +73,11 @@ class PortalFolderPicker(private val fallback: PlatformFolderPicker = AwtFolderP
                 "directory" to Variant(true),
                 "modal" to Variant(true),
             )
-            initialPath?.let(::File)?.takeIf { it.isDirectory }?.let {
+            resolveExistingDirectory(initialPath)?.let {
                 options["current_folder"] = Variant(it.absolutePath.encodeToByteArray() + 0)
             }
             bus.getRemoteObject(PORTAL_NAME, PORTAL_PATH, PortalFileChooser::class.java)
-                .OpenFile("", "Выберите папку хранилища", options)
+                .OpenFile("", FOLDER_PICKER_TITLE, options)
         } catch (e: Throwable) {
             runCatching { subscription.close() }
             if (continuation.isActive) continuation.resumeWith(Result.failure(e))
@@ -94,22 +85,18 @@ class PortalFolderPicker(private val fallback: PlatformFolderPicker = AwtFolderP
     }
 
     internal companion object {
-        private val logger = Logger.getLogger(PortalFolderPicker::class.java.name)
 
         /** Путь запроса, на который портал пришлёт Response: `/…/request/<имя отправителя без ':' с '_' вместо '.'>/<токен>`. */
         fun requestPath(uniqueName: String, token: String): String =
             "$PORTAL_PATH/request/${uniqueName.removePrefix(":").replace('.', '_')}/$token"
 
-        /** `null` — выбор отменён (или портал вернул не локальный путь); иначе первый выбранный каталог. */
-        fun pathFromResponse(code: Int, uris: List<String>): String? {
-            if (code != 0) return null
-            val uri = uris.firstOrNull()?.let { runCatching { URI(it) }.getOrNull() } ?: return null
-            if (uri.scheme != "file") return null
-            return File(uri).absolutePath
+        /** Отмена или пустой ответ → [PickOutcome.Cancelled]; не локальный URI → [PickOutcome.Unavailable]. */
+        fun outcomeFromResponse(code: Int, uris: List<String>): PickOutcome {
+            if (code != 0) return PickOutcome.Cancelled
+            val raw = uris.firstOrNull() ?: return PickOutcome.Cancelled
+            val uri = runCatching { URI(raw) }.getOrNull()
+            if (uri == null || uri.scheme != "file") return PickOutcome.Unavailable("Portal returned a non-local URI: $raw")
+            return PickOutcome.Selected(File(uri).absolutePath)
         }
     }
 }
-
-/** Системный диалог на Linux (через портал), иначе Swing. */
-fun defaultFolderPicker(): PlatformFolderPicker =
-    if (System.getProperty("os.name").lowercase().contains("linux")) PortalFolderPicker() else AwtFolderPicker()
