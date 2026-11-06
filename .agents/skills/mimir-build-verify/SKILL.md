@@ -31,6 +31,21 @@ description: Use when you need to build, test or verify a change in the Mimir re
 
 Первый запуск на новой машине: `gradlew` создаётся командой `mise x gradle@9.8 -- gradle wrapper --gradle-version <9.x ≥ 9.8>`.
 
+## Проверка на Windows-VM
+
+Когда: правка `PlatformWindowStyler`, трея, выбора папки, `mimir://`, упаковки (MSI, лаунчер) — всё, что нельзя проверить на Linux. Одноразовая VM `win11` (virt-manager, qemu:///system), сборка идёт внутри неё; на реальный Windows-ПК по-прежнему ничего не ставится.
+
+| Что | Команда |
+|---|---|
+| Окно приложения из текущего дерева | `mise run win:run` |
+| MSI: сборка, установка, запуск с ярлыка | `mise run win:msi` (`--upgrade` — без удаления старой версии, проверка MajorUpgrade) |
+| Удалить MSI и показать остатки | `mise run win:uninstall` |
+| Логи (`build`, `run`, `msi`) | `mise run win:logs [build\|run\|msi]` |
+| Чистая система | `mise run win:reset --yes` (стирает всё после снапшота `provisioned`) |
+| Разовая подготовка / снапшот | `mise run win:provision --with-secrets`, затем `mise run win:snapshot` |
+
+Предусловие: войти в Windows в окне virt-manager (иначе код 4: `No user is logged in to Windows`). Первый `win:msi` долгий (Wasm/Node, WiX скачивается плагином Compose). Выключенную VM команды запускают сами. Тесты хостового CLI — `mise run win:test` (входит в `ci:fast`). Подробности: `docs/superpowers/specs/2026-11-07-windows-vm-test-flow-design.md`.
+
 ## Обязательная базовая линия
 
 1. **Без Android SDK** (`ANDROID_HOME`/`ANDROID_SDK_ROOT` не заданы, нет `sdk.dir` в `local.properties`): `mise run build` проходит, в выводе `Android SDK not found: skipping Android targets`. Обратите внимание: `local.properties` имеет приоритет над `-Pandroid.sdk.dir=`, поэтому для локальной проверки сборки без SDK необходимо временно переименовать `local.properties` (например, `mv local.properties local.properties.bak`).

@@ -4,7 +4,7 @@ Mimir — клиент синхронизации Obsidian-хранилища с
 
 ## Среда
 
-- **Машина разработки — Arch Linux** (bash). На Windows-ПК пользователя ничего не устанавливать и не запускать (ни gradle, ни mise, ни JDK). Windows-специфичное (MSI) проверяется только в CI. Без явного разрешения пользователя сессия на Windows = «только писать файлы».
+- **Машина разработки — Arch Linux** (bash). На Windows-ПК пользователя ничего не устанавливать и не запускать (ни gradle, ни mise, ни JDK). Исключение — одноразовая VM `win11` (virt-manager) со снапшотом `provisioned`: в неё можно ставить mise/JDK и собирать через `mise run win:*` (`scripts/win-vm/`, спека `docs/superpowers/specs/2026-11-07-windows-vm-test-flow-design.md`). Windows-специфичное (MSI, GUI) проверяется в CI и в VM `win11`, до CI. Без явного разрешения пользователя сессия на Windows = «только писать файлы».
 - Kotlin 2.4.21, JDK 27, Gradle ≥ 9.8. Откат компонента на JDK 25 допустим только с записью причины в README («Версии»).
 - Запуск через `mise run <задача>` (см. `mise.toml`); у каждой задачи есть `run_windows`.
 
@@ -55,6 +55,7 @@ Mimir — клиент синхронизации Obsidian-хранилища с
 | UI и дизайн-система | контракт — `libs/ui/model/MimirUiModel`; экраны — `libs/ui/screens/`; крафтовые компоненты — `libs/ui/components/MimirComponents.kt`; токен-константы — `libs/ui/MimirTokens.kt`; темы — `MimirTheme`, `ObsidianStyle`; тексты — `SyncTexts`; сервисы (CompositionLocal) — `libs/ui/picker/`, `libs/ui/platform/` |
 | Дизайн-токены (Single Source of Truth) | `design/tokens.json`; генератор — `design/generate-tokens.mjs` (`mise run tokens:generate` / `tokens:check`); артефакты — `libs/ui/MimirTokens.kt`, `apps/browser-extension/.../tokens.css` |
 | Desktop | composition root — `apps/desktop/Main.kt`; встроенный/удалённый демон — `DaemonServiceFactory`; трей — `tray/`; выбор папки — `picker/`; браузер — `SystemBrowserOpener` |
+| Windows-VM | хостовый CLI — `scripts/win-vm/winvm.sh` + `lib.sh`; гость — `scripts/win-vm/guest/` (`agent.ps1`, `provision.ps1`, `sync.ps1`); тесты на фейковом `virsh` — `scripts/win-vm/tests/` (`mise run win:test`); задачи `win:*` — `mise.toml` |
 | Сборка | convention-плагины — `build-logic/src/main/kotlin/`; версии — `gradle/libs.versions.toml`; идентификаторы — `gradle.properties` |
 
 ## Правила
