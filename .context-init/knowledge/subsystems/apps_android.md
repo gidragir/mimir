@@ -2,8 +2,8 @@
 directory: apps/android
 source:
   kind: git
-  blob_sha: 671b141b50000562049535ec86d1ad61ffbb25f4
-  commit_sha: 11dce9a6c7c135b6b69e11ddd04d540dd4131e91
+  blob_sha: a81a7eaad1a5a78886b6464944bcf63e8130ce76
+  commit_sha: f221fe644add8159ac86eacc977028d32eedc5d8
 generated_by:
   component: context-init
   role: update
@@ -39,8 +39,8 @@ freshness:
 | `apps/android/src/main/kotlin/dev/mimir/android/platform/AndroidNetworkState.kt` | Исходный код |
 | `apps/android/src/main/kotlin/dev/mimir/android/platform/AndroidStorageAccess.kt` | Исходный код |
 | `apps/android/src/main/kotlin/dev/mimir/android/platform/TreeUriPaths.kt` | Исходный код |
-| `apps/android/src/main/kotlin/dev/mimir/android/work/MimirWorkerFactory.kt` | Исходный код |
 | `apps/android/src/main/kotlin/dev/mimir/android/work/SyncWorkScheduler.kt` | Исходный код |
+| `apps/android/src/main/res/drawable/ic_launcher_foreground.xml` | Исходный код |
 
 ## 🔑 Ключевой контракт и экспорты
 ```text

@@ -6,7 +6,7 @@ import androidx.compose.ui.unit.dp
 
 /**
  * Single source of truth design tokens for Mimir UI.
- * Generated automatically from design/tokens.json by scripts/generate-tokens.mjs.
+ * Generated automatically from design/tokens.json by design/generate-tokens.mjs.
  * Do not edit directly.
  */
 object MimirTokens {

@@ -2,8 +2,8 @@
 directory: build-logic
 source:
   kind: git
-  blob_sha: 42396b0729eb1678e0293a0a47d70d8079c85a3d
-  commit_sha: 26d53005b2cd507dcc6d6b2875e8475b7ca8fb6c
+  blob_sha: 85436bb40bda93a34bc1ad6094a5a4eacbe5828c
+  commit_sha: f221fe644add8159ac86eacc977028d32eedc5d8
 generated_by:
   component: context-init
   role: update

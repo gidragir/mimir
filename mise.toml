@@ -21,19 +21,19 @@ run_windows = "gradlew.bat ciJvmTests"
 
 [tasks."tokens:generate"]
 description = "Сгенерировать артефакты дизайн-токенов из design/tokens.json"
-run = "node scripts/generate-tokens.mjs"
+run = "node design/generate-tokens.mjs"
 
 [tasks."tokens:check"]
 description = "Проверить, что артефакты дизайн-токенов не разошлись с design/tokens.json"
-run = "node scripts/generate-tokens.mjs --check"
+run = "node design/generate-tokens.mjs --check"
 
 [tasks."skills:sync"]
 description = "Перенести проектные скиллы в .agents/skills и пересоздать симлинки в .claude/skills"
-run = "node scripts/sync-skills.mjs --fix"
+run = "node .agents/sync-skills.mjs --fix"
 
 [tasks."skills:check"]
 description = "Проверить, что .claude/skills — только симлинки на .agents/skills (единый источник скиллов)"
-run = "node scripts/sync-skills.mjs"
+run = "node .agents/sync-skills.mjs"
 
 [tasks."ci:fast"]
 description = "Быстрая локальная предпроверка перед push (токены + скиллы + jactionlint + ciJvmTests)"

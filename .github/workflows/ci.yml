@@ -114,7 +114,7 @@ jobs:
               - 'apps/obsidian-plugin/**'
               - 'apps/browser-extension/**'
               - 'design/**'
-              - 'scripts/**'
+              - 'gradle/yarn/**'
       - id: matrix
         env:
           HEAD_REF: ${{ github.head_ref }}

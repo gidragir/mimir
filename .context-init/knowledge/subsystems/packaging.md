@@ -2,8 +2,8 @@
 directory: packaging/arch
 source:
   kind: git
-  blob_sha: d9971f85e52f228b3f9ed40b07d99a7980babefc
-  commit_sha: 26d53005b2cd507dcc6d6b2875e8475b7ca8fb6c
+  blob_sha: cc4508e2308d216ba29e24e0c0b19b74ee6dd4dd
+  commit_sha: f221fe644add8159ac86eacc977028d32eedc5d8
 generated_by:
   component: context-init
   role: update

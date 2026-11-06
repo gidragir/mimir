@@ -25,6 +25,8 @@ mise.local.toml
 
 # Рабочая область superpowers
 .superpowers/
+.worktrees/
+
 
 # Node
 node_modules/

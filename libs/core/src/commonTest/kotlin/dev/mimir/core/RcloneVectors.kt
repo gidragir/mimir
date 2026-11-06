@@ -1,6 +1,6 @@
 package dev.mimir.core
 
-// Сгенерировано scripts/gen-rclone-vectors.sh (rclone v1.75.2). Не править вручную.
+// Сгенерировано libs/core/scripts/gen-rclone-vectors.sh (rclone v1.75.2). Не править вручную.
 internal object RcloneVectors {
     class Config(val password: String, val password2: String?)
     class NameVector(val config: Int, val plain: String, val encrypted: String)

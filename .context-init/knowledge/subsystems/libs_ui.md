@@ -2,8 +2,8 @@
 directory: libs/ui/build.gradle.kts
 source:
   kind: git
-  blob_sha: 3724240776aa4e958c34d11220b3653b4f45c28e
-  commit_sha: 26d53005b2cd507dcc6d6b2875e8475b7ca8fb6c
+  blob_sha: 2f8bfee8a00fa37713c2eaeb8d9dac30858060b3
+  commit_sha: f221fe644add8159ac86eacc977028d32eedc5d8
 generated_by:
   component: context-init
   role: update

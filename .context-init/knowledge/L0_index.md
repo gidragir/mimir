@@ -1,6 +1,6 @@
 # 🗺 Карта архитектуры: mimir (L0)
 
-> **Стек:** Kotlin (Gradle) | **Обновлено:** 2026-11-05
+> **Стек:** Kotlin (Gradle) | **Обновлено:** 2026-11-06
 > **Описание:** Один открытый инструмент синхронизации Obsidian-хранилища на всех платформах (Linux, Windows, Android). Он ощущается как Google Drive Desktop: один раз указал папку vault и пароль, дальше всё синхронизируется само.
 
 ## 🚪 Точки входа (Root Entrypoints)
@@ -35,7 +35,7 @@ rtk mise run desktop
 | **Obsidian Plugin** | Подсистема `apps/obsidian-plugin` с ключевыми точками входа: apps/obsidian-plugin/build.gradle.kts | `apps/obsidian-plugin/build.gradle.kts` | [subsystems/apps_obsidian-plugin.md](subsystems/apps_obsidian-plugin.md) |
 | **Web Ui** | Подсистема `apps/web-ui` с ключевыми точками входа: apps/web-ui/build.gradle.kts | `apps/web-ui/build.gradle.kts` | [subsystems/apps_web-ui.md](subsystems/apps_web-ui.md) |
 | **Build Logic** | Подсистема `build-logic` с ключевыми точками входа: build-logic/build.gradle.kts | `build-logic/build.gradle.kts` | [subsystems/build-logic.md](subsystems/build-logic.md) |
-| **Design** | Модуль и компоненты директории `design` (1 файлов) | `-` | [subsystems/design.md](subsystems/design.md) |
+| **Design** | Модуль и компоненты директории `design` (3 файлов) | `-` | [subsystems/design.md](subsystems/design.md) |
 | **Client** | Подсистема `libs/client` с ключевыми точками входа: libs/client/build.gradle.kts | `libs/client/build.gradle.kts` | [subsystems/libs_client.md](subsystems/libs_client.md) |
 | **Core** | Подсистема `libs/core` с ключевыми точками входа: libs/core/build.gradle.kts | `libs/core/build.gradle.kts` | [subsystems/libs_core.md](subsystems/libs_core.md) |
 | **Core CommonMain Kotlin Dev Mimir Core** | Модуль и компоненты директории `libs/core/src/commonMain/kotlin/dev/mimir/core` (15 файлов) | `-` | [subsystems/libs_core_commonmain_kotlin_dev_mimir_core.md](subsystems/libs_core_commonmain_kotlin_dev_mimir_core.md) |
@@ -48,7 +48,6 @@ rtk mise run desktop
 | **Ui CommonMain Kotlin Dev Mimir Ui** | Модуль и компоненты директории `libs/ui/src/commonMain/kotlin/dev/mimir/ui` (15 файлов) | `-` | [subsystems/libs_ui_commonmain_kotlin_dev_mimir_ui.md](subsystems/libs_ui_commonmain_kotlin_dev_mimir_ui.md) |
 | **Ui CommonMain Kotlin Dev Mimir Ui Screens** | Модуль и компоненты директории `libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens` (12 файлов) | `-` | [subsystems/libs_ui_commonmain_kotlin_dev_mimir_ui_screens.md](subsystems/libs_ui_commonmain_kotlin_dev_mimir_ui_screens.md) |
 | **Packaging** | Модуль и компоненты директории `packaging` (2 файлов) | `-` | [subsystems/packaging.md](subsystems/packaging.md) |
-| **Scripts** | Модуль и компоненты директории `scripts` (2 файлов) | `-` | [subsystems/scripts.md](subsystems/scripts.md) |
 
 ## 📋 Инварианты и правила проекта
 - Код форматируется согласно Kotlin Coding Conventions (ktlint).
