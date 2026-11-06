@@ -26,7 +26,10 @@ case "$path $joined" in
   schtasks.exe*/run*)
     case "${FAKE_GUEST_SCENARIO:-silent}" in
       launched) write_status launched run 0 ;;
-      ok) write_status ok "${FAKE_GUEST_STEP:-run}" 0 ;;
+      ok)
+        [[ -n ${FAKE_REPORT:-} ]] && printf '%s\n' "$FAKE_REPORT" >"$out/report.log"
+        write_status ok "${FAKE_GUEST_STEP:-run}" 0
+        ;;
       failed)
         step=${FAKE_GUEST_STEP:-run}
         seq 1 50 | sed 's/^/line /' >"$out/$step.log"

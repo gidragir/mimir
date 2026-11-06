@@ -146,7 +146,8 @@ _winvm_step_logs() {
   case "$1" in
     run) echo "$out/run.log $out/run.err.log" ;;
     build | prepare) echo "$out/build.log" ;;
-    install | uninstall) echo "$out/msi.log" ;;
+    install) echo "$out/msi.log" ;;
+    uninstall) echo "$out/msi-uninstall.log" ;;
     *) echo "$out/$1.log" ;;
   esac
 }

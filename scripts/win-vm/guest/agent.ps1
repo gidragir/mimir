@@ -78,12 +78,90 @@ function Invoke-Prepare {
     Set-Status 'ok' 'prepare' 0
 }
 
+function Stop-InstalledMimir([string]$AppName) {
+    Get-Process -Name $AppName -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+}
+
+# Ключи удаления установленного продукта (per-user MSI регистрируется в HKCU).
+function Get-MimirUninstallKeys([string]$AppName) {
+    Get-ChildItem 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall' -ErrorAction SilentlyContinue |
+        Where-Object { (Get-ItemProperty -LiteralPath $_.PSPath).DisplayName -eq $AppName }
+}
+
+# Отчёт об остатках после удаления: ярлыки, ключ mimir://, каталог установки. report.log (msi.log затирается msiexec /i).
+function Write-UninstallReport([string]$AppName, $InstallLocations) {
+    $startMenu = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs'
+    $desktop = [Environment]::GetFolderPath('Desktop')
+    $lnkMenu = @(Get-ChildItem -Path $startMenu -Recurse -Filter "$AppName*.lnk" -ErrorAction SilentlyContinue | ForEach-Object FullName)
+    $lnkDesk = @(Get-ChildItem -Path $desktop -Filter "$AppName*.lnk" -ErrorAction SilentlyContinue | ForEach-Object FullName)
+    $uri = Test-Path 'HKCU:\Software\Classes\mimir'
+    $lines = @(
+        "Start menu shortcuts: " + $(if ($lnkMenu) { $lnkMenu -join '; ' } else { 'none' }),
+        "Desktop shortcuts: " + $(if ($lnkDesk) { $lnkDesk -join '; ' } else { 'none' }),
+        "HKCU\Software\Classes\mimir: " + $(if ($uri) { 'present' } else { 'absent' }),
+        "Install location: " + $(if ($InstallLocations) { ($InstallLocations | ForEach-Object { $_ + $(if (Test-Path $_) { ' (exists)' } else { ' (gone)' }) }) -join '; ' } else { 'not installed' })
+    )
+    [IO.File]::WriteAllText((Join-Path $Out 'report.log'), (($lines -join "`r`n") + "`r`n"), $utf8)
+}
+
+# Удаляет установленный MSI по ключам реестра (нет ключа — не ошибка). Возвращает код msiexec (0 — успех).
+function Uninstall-Mimir([string]$AppName) {
+    Set-Status 'running' 'uninstall'
+    Stop-InstalledMimir $AppName
+    $keys = @(Get-MimirUninstallKeys $AppName)
+    $locations = @($keys | ForEach-Object { (Get-ItemProperty -LiteralPath $_.PSPath).InstallLocation } | Where-Object { $_ })
+    $code = 0
+    foreach ($k in $keys) {
+        $p = Start-Process -FilePath 'msiexec.exe' -ArgumentList '/x', $k.PSChildName, '/qn', '/l*v', "`"$Out\msi-uninstall.log`"" -Wait -PassThru
+        if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) { $code = $p.ExitCode }
+    }
+    Write-UninstallReport $AppName $locations
+    return $code
+}
+
+function Invoke-Msi($Request) {
+    $log = Join-Path $Out 'build.log'
+    Set-Content -Path $log -Value '' -Encoding ASCII
+    Set-Location $Root
+    Set-Status 'running' 'build'
+    $code = Invoke-Logged 'mise exec -- cmd /c gradlew.bat :apps:desktop:packageMsi' $log
+    if ($code -ne 0) { Set-Status 'failed' 'build' $code; return }
+    if (-not $Request.upgrade) {
+        # без --upgrade старую версию удаляем: одинаковая версия MSI даёт ошибку 1638
+        $code = [int](@(Uninstall-Mimir $Request.appName)[-1])
+        if ($code -ne 0) { Set-Status 'failed' 'uninstall' $code; return }
+    }
+    Set-Status 'running' 'install'
+    $msiLog = Join-Path $Out 'msi.log'
+    $msi = Get-ChildItem (Join-Path $Root 'apps\desktop\build\compose\binaries\main\msi') -Filter '*.msi' -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    if (-not $msi) {
+        Set-Content -Path $msiLog -Value 'No .msi found in apps\desktop\build\compose\binaries\main\msi' -Encoding ASCII
+        Set-Status 'failed' 'install' 2
+        return
+    }
+    $p = Start-Process -FilePath 'msiexec.exe' -ArgumentList '/i', "`"$($msi.FullName)`"", '/qn', '/l*v', "`"$msiLog`"" -Wait -PassThru
+    if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) { Set-Status 'failed' 'install' $p.ExitCode; return }
+    # запуск через ярлык меню «Пуск» проверяет сам лаунчер
+    $lnk = Get-ChildItem -Path (Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs') -Recurse -Filter "$($Request.appName)*.lnk" -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+    if ($lnk) { Start-Process -FilePath $lnk.FullName }
+    Set-Status 'ok' 'install' 0
+}
+
+function Invoke-Uninstall($Request) {
+    $code = [int](@(Uninstall-Mimir $Request.appName)[-1])
+    if ($code -ne 0) { Set-Status 'failed' 'uninstall' $code } else { Set-Status 'ok' 'uninstall' 0 }
+}
+
 try {
     $req = Get-Content -Raw -Encoding UTF8 (Join-Path $Out 'request.json') | ConvertFrom-Json
     $script:ReqId = $req.id
     switch ($req.action) {
         'run' { Invoke-Run }
         'prepare' { Invoke-Prepare }
+        'msi' { Invoke-Msi $req }
+        'uninstall' { Invoke-Uninstall $req }
         default { Set-Status 'failed' 'agent' 64 }
     }
 } catch {

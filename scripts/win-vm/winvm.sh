@@ -69,8 +69,29 @@ winvm_cmd_run() {
   echo "Mimir запущен в VM — смотрите в virt-manager"
   [[ -n ${WINVM_NO_TAIL:-} ]] || exec tail -F "$out/run.log" "$out/run.err.log"
 }
-winvm_cmd_msi() { winvm_ensure_running; winvm_die 70 "msi is not implemented yet"; }
-winvm_cmd_uninstall() { winvm_ensure_running; winvm_die 70 "uninstall is not implemented yet"; }
+winvm_cmd_msi() {
+  local upgrade=false id
+  while (($# > 0)); do
+    case "$1" in
+      --upgrade) upgrade=true ;;
+      *) usage; exit 64 ;;
+    esac
+    shift
+  done
+  winvm_ensure_running
+  winvm_sync
+  id=$(winvm_request msi "$upgrade")
+  winvm_wait_status "$id" ok 3600
+  echo "MSI установлен и запущен — смотрите в virt-manager"
+}
+winvm_cmd_uninstall() {
+  local id
+  winvm_ensure_running
+  winvm_sync
+  id=$(winvm_request uninstall)
+  winvm_wait_status "$id" ok 600
+  cat "$WINVM_HOST_DIR/out/report.log"
+}
 winvm_cmd_logs() { winvm_die 70 "logs is not implemented yet"; }
 winvm_cmd_snapshot() { winvm_die 70 "snapshot is not implemented yet"; }
 winvm_cmd_reset() { winvm_die 70 "reset is not implemented yet"; }
