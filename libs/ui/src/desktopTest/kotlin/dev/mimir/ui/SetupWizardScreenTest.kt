@@ -15,7 +15,7 @@ import dev.mimir.ui.model.UiLoginPoll
 import dev.mimir.ui.model.UiLoginMethod
 import dev.mimir.ui.model.UiVaultInspection
 import dev.mimir.ui.picker.LocalFolderPicker
-import dev.mimir.ui.picker.PlatformFolderPicker
+import dev.mimir.ui.picker.FakeFolderPicker
 import dev.mimir.ui.platform.LocalStorageAccess
 import dev.mimir.ui.platform.LocalVaultDiscovery
 import dev.mimir.ui.platform.StorageAccess
@@ -224,9 +224,7 @@ class SetupWizardScreenTest {
     @Test
     fun `vault step invokes platform folder picker and displays file count`() = runComposeUiTest {
         val model = FakeMimirUiModel(fileCount = 42)
-        val picker = object : PlatformFolderPicker {
-            override suspend fun pickDirectory(initialPath: String?): String? = "/notes/vault"
-        }
+        val picker = FakeFolderPicker(nextResult = "/notes/vault")
         setContent { CompositionLocalProvider(LocalFolderPicker provides picker) { SetupWizardScreen(model, onComplete = {}) } }
 
         onNodeWithText("Обзор…").performClick()
@@ -238,9 +236,7 @@ class SetupWizardScreenTest {
     fun `cancelling the folder picker keeps the typed path`() = runComposeUiTest {
         var configured = false
         val model = FakeMimirUiModel(onConfigureVault = { configured = true })
-        val picker = object : PlatformFolderPicker {
-            override suspend fun pickDirectory(initialPath: String?): String? = null
-        }
+        val picker = FakeFolderPicker(nextResult = null)
         setContent { CompositionLocalProvider(LocalFolderPicker provides picker) { SetupWizardScreen(model, onComplete = {}) } }
 
         onNodeWithText("Введите путь к папке").performTextInput("/typed")
@@ -378,11 +374,9 @@ class SetupWizardScreenTest {
     @Test
     fun `untranslatable uri error in vault step is displayed`() = runComposeUiTest {
         val model = FakeMimirUiModel()
-        val picker = object : PlatformFolderPicker {
-            override suspend fun pickDirectory(initialPath: String?): String? {
-                throw IllegalArgumentException("Эта папка не на телефоне. Выберите папку во внутренней памяти или на карте памяти")
-            }
-        }
+        val picker = FakeFolderPicker(onPick = {
+            throw IllegalArgumentException("Эта папка не на телефоне. Выберите папку во внутренней памяти или на карте памяти")
+        })
         setContent {
             CompositionLocalProvider(LocalFolderPicker provides picker) {
                 SetupWizardScreen(model, onComplete = {})
@@ -400,5 +394,31 @@ class SetupWizardScreenTest {
         onNodeWithContentDescription("Показать пароль").assertIsDisplayed().performClick()
         onNodeWithContentDescription("Скрыть пароль").assertIsDisplayed().performClick()
         onNodeWithContentDescription("Показать пароль").assertIsDisplayed()
+    }
+
+    @Test
+    fun `vaultDisplayName extracts folder name from both unix and windows paths`() {
+        assertEquals("Notes", dev.mimir.ui.screens.setup.vaultDisplayName("/home/user/Notes/"))
+        assertEquals("My Vault", dev.mimir.ui.screens.setup.vaultDisplayName("C:\\Users\\Alex\\Documents\\My Vault\\"))
+        assertEquals("C:", dev.mimir.ui.screens.setup.vaultDisplayName("C:\\"))
+    }
+
+    @Test
+    fun `browse button is disabled while folder picker dialog is open`() = runComposeUiTest {
+        val gate = kotlinx.coroutines.CompletableDeferred<String?>()
+        val picker = FakeFolderPicker(onPick = { gate.await() })
+        setContent {
+            CompositionLocalProvider(LocalFolderPicker provides picker) {
+                SetupWizardScreen(FakeMimirUiModel(fileCount = 7), onComplete = {})
+            }
+        }
+
+        onNodeWithText("Обзор…").performClick()
+        waitForIdle()
+        onNodeWithText("Обзор…").performClick()
+        assertEquals(1, picker.callCount)
+
+        gate.complete("/notes/vault")
+        waitUntilExactlyOneExists(hasText("✓ Найдено заметок: 7"))
     }
 }

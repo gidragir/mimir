@@ -29,7 +29,7 @@ import dev.mimir.ui.components.MimirCard
 import dev.mimir.ui.model.FakeMimirUiModel
 import dev.mimir.ui.model.UiLoginMethod
 import dev.mimir.ui.picker.LocalFolderPicker
-import dev.mimir.ui.picker.PlatformFolderPicker
+import dev.mimir.ui.picker.FakeFolderPicker
 import dev.mimir.ui.screens.SetupWizardScreen
 import dev.mimir.ui.screens.StatusScreen
 import dev.mimir.ui.screens.setup.PasswordStep
@@ -45,9 +45,7 @@ class UiScreenshotTest {
 
     private val outputDir = File("../../build/reports/screenshots/desktop").apply { mkdirs() }
 
-    private val dummyPicker = object : PlatformFolderPicker {
-        override suspend fun pickDirectory(initialPath: String?): String? = null
-    }
+    private val dummyPicker = FakeFolderPicker()
 
     @Composable
     private fun ThemedContainer(dark: Boolean, content: @Composable () -> Unit) {

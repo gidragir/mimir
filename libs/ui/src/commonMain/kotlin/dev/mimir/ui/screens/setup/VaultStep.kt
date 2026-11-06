@@ -37,6 +37,9 @@ import dev.mimir.ui.platform.LocalVaultDiscovery
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
+internal fun vaultDisplayName(vaultPath: String): String =
+    vaultPath.trimEnd('/', '\\').substringAfterLast('/').substringAfterLast('\\').ifEmpty { vaultPath }
+
 internal fun Throwable.userMessage(): String = message ?: this::class.simpleName ?: "Ошибка"
 
 @Composable
@@ -46,6 +49,7 @@ fun VaultStep(model: MimirUiModel, onNext: () -> Unit) {
     var error by remember { mutableStateOf<String?>(null) }
     var noteCount by remember { mutableStateOf<Int?>(null) }
     var busy by remember { mutableStateOf(false) }
+    var picking by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val picker = LocalFolderPicker.current
     val discovery = LocalVaultDiscovery.current
@@ -104,7 +108,7 @@ fun VaultStep(model: MimirUiModel, onNext: () -> Unit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             for (vault in discoveredVaults) {
-                val label = vault.trimEnd('/').substringAfterLast('/').ifEmpty { vault }
+                val label = vaultDisplayName(vault)
                 MimirButton(
                     text = "$label ($vault)",
                     icon = {
@@ -154,7 +158,9 @@ fun VaultStep(model: MimirUiModel, onNext: () -> Unit) {
                     )
                 },
                 onClick = {
+                    if (picking) return@MimirButton
                     scope.launch {
+                        picking = true
                         try {
                             val picked = picker.pickDirectory(path.trim().ifEmpty { null }) ?: return@launch
                             path = picked
@@ -165,10 +171,12 @@ fun VaultStep(model: MimirUiModel, onNext: () -> Unit) {
                         } catch (e: Exception) {
                             noteCount = null
                             error = e.userMessage()
+                        } finally {
+                            picking = false
                         }
                     }
                 },
-                enabled = !busy,
+                enabled = !busy && !picking,
                 variant = MimirButtonVariant.Secondary,
                 modifier = Modifier.height(56.dp),
             )
