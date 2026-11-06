@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# Фейк virsh для тестов win-vm. Каждый вызов — строка в $FAKE_VIRSH_LOG.
+# Управление: FAKE_VM_STATE (running|"shut off"|missing), FAKE_AGENT=down, FAKE_EXIT, FAKE_OUT,
+# FAKE_ON_EXEC — скрипт-гость: получает JSON аргументов guest-exec, его stdout — out-data, код — exitcode.
+set -u
+args=("$@")
+if [[ ${args[0]:-} == -c ]]; then args=("${args[@]:2}"); fi
+cmd=${args[0]:-}
+printf '%s\n' "${args[*]}" >>"${FAKE_VIRSH_LOG:?}"
+state_file="$FAKE_VIRSH_LOG.exec"
+
+case "$cmd" in
+  dominfo)
+    [[ ${FAKE_VM_STATE:-running} == missing ]] && { echo "error: failed to get domain '${args[1]:-}'" >&2; exit 1; }
+    echo "State:          ${FAKE_VM_STATE:-running}"
+    ;;
+  qemu-agent-command)
+    json=${args[2]}
+    exe=$(jq -r .execute <<<"$json")
+    case "$exe" in
+      guest-ping)
+        if [[ ${FAKE_AGENT:-up} == down ]]; then echo "error: Guest agent is not responding" >&2; exit 1; fi
+        echo '{"return":{}}'
+        ;;
+      guest-exec)
+        code=${FAKE_EXIT:-0}
+        out=${FAKE_OUT:-}
+        if [[ -n ${FAKE_ON_EXEC:-} ]]; then
+          code=0
+          out=$("$FAKE_ON_EXEC" "$(jq -c .arguments <<<"$json")") || code=$?
+        fi
+        printf '%s\n%s' "$code" "$out" >"$state_file"
+        echo '{"return":{"pid":42}}'
+        ;;
+      guest-exec-status)
+        code=0 out=""
+        if [[ -e $state_file ]]; then
+          code=$(head -n1 "$state_file")
+          out=$(tail -n +2 "$state_file")
+        fi
+        jq -cn --argjson code "$code" --arg out "$(printf '%s' "$out" | base64 -w0)" \
+          '{return:{exited:true,exitcode:$code,"out-data":$out}}'
+        ;;
+      *) echo "fake virsh: unknown agent command $exe" >&2; exit 1 ;;
+    esac
+    ;;
+  *) ;;
+esac
+exit 0

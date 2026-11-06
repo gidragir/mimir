@@ -1,4 +1,5 @@
 [tools]
+jq = "1.8.2" # win:* (scripts/win-vm) разбирают JSON guest-agent
 java = "temurin-27" # если в реестре mise нет — заменить на "openjdk-27"
 node = "lts"
 jactionlint = "2.5.0" # поддерживаемый форк rhysd/actionlint (бывший actionlint объявлен в mise устаревшим)
@@ -36,8 +37,8 @@ description = "Проверить, что .claude/skills — только сим
 run = "node .agents/sync-skills.mjs"
 
 [tasks."ci:fast"]
-description = "Быстрая локальная предпроверка перед push (токены + скиллы + jactionlint + ciJvmTests)"
-depends = ["tokens:check", "skills:check"]
+description = "Быстрая локальная предпроверка перед push (токены + скиллы + win-vm тесты + jactionlint + ciJvmTests)"
+depends = ["tokens:check", "skills:check", "win:test"]
 # --profile correctness — паритет с проверками actionlint; профиль default добавляет правила безопасности и политик.
 run = "jactionlint --profile correctness && ./gradlew ciJvmTests"
 run_windows = "gradlew.bat ciJvmTests"
@@ -101,3 +102,48 @@ run_windows = "gradlew.bat :apps:desktop:packageUberJarForCurrentOS"
 description = "Собрать Docker-образ демона"
 run = "docker build -f packaging/docker/Dockerfile -t mimir:dev ."
 run_windows = "docker build -f packaging/docker/Dockerfile -t mimir:dev ."
+
+[tasks."win:test"]
+description = "Тесты хостового CLI Windows-VM (scripts/win-vm) на фейковом virsh"
+run = "bash scripts/win-vm/tests/run.sh"
+run_windows = "cmd /c echo win:test - пропущено, только Linux"
+
+[tasks."win:provision"]
+description = "Подготовить Windows-VM: mise, JDK, задача MimirDev (--with-secrets копирует mise.local.toml)"
+run = "bash scripts/win-vm/winvm.sh provision"
+run_windows = "cmd /c echo win:provision - только на Linux-хосте с libvirt & exit /b 1"
+
+[tasks."win:sync"]
+description = "Синхронизировать рабочее дерево в Windows-VM"
+run = "bash scripts/win-vm/winvm.sh sync"
+run_windows = "cmd /c echo win:sync - только на Linux-хосте с libvirt & exit /b 1"
+
+[tasks."win:run"]
+description = "Собрать и запустить desktop в сессии пользователя Windows-VM"
+run = "bash scripts/win-vm/winvm.sh run"
+run_windows = "cmd /c echo win:run - только на Linux-хосте с libvirt & exit /b 1"
+
+[tasks."win:msi"]
+description = "Собрать и установить MSI в Windows-VM (--upgrade — без удаления старой версии)"
+run = "bash scripts/win-vm/winvm.sh msi"
+run_windows = "cmd /c echo win:msi - только на Linux-хосте с libvirt & exit /b 1"
+
+[tasks."win:uninstall"]
+description = "Удалить MSI в Windows-VM и показать отчёт об остатках"
+run = "bash scripts/win-vm/winvm.sh uninstall"
+run_windows = "cmd /c echo win:uninstall - только на Linux-хосте с libvirt & exit /b 1"
+
+[tasks."win:logs"]
+description = "Хвост лога Windows-VM: build | run | msi"
+run = "bash scripts/win-vm/winvm.sh logs"
+run_windows = "cmd /c echo win:logs - только на Linux-хосте с libvirt & exit /b 1"
+
+[tasks."win:snapshot"]
+description = "Создать снапшот provisioned у Windows-VM"
+run = "bash scripts/win-vm/winvm.sh snapshot"
+run_windows = "cmd /c echo win:snapshot - только на Linux-хосте с libvirt & exit /b 1"
+
+[tasks."win:reset"]
+description = "Откатить Windows-VM к снапшоту provisioned (--yes)"
+run = "bash scripts/win-vm/winvm.sh reset"
+run_windows = "cmd /c echo win:reset - только на Linux-хосте с libvirt & exit /b 1"
