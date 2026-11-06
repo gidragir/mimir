@@ -20,12 +20,13 @@ winvm_config() {
   : "${WINVM_POLL:=2}"
   : "${WINVM_EXEC_POLL:=1}"
   : "${WINVM_EXEC_TIMEOUT:=600}"
+  : "${WINVM_MISE_VERSION:=2026.11.2}"
   : "${WINVM_STATUS_TIMEOUT:=30}"
   : "${WINVM_STATUS_POLL:=1}"
   WINVM_HOST_DIR="$WINVM_SHARE/mimir"
   WINVM_GUEST_DIR="$WINVM_SHARE_DRIVE\\mimir"
   export WINVM_NAME WINVM_URI WINVM_SHARE WINVM_SHARE_DRIVE WINVM_AGENT_TIMEOUT \
-    WINVM_POLL WINVM_EXEC_POLL WINVM_EXEC_TIMEOUT WINVM_STATUS_TIMEOUT WINVM_STATUS_POLL WINVM_HOST_DIR WINVM_GUEST_DIR
+    WINVM_POLL WINVM_EXEC_POLL WINVM_EXEC_TIMEOUT WINVM_MISE_VERSION WINVM_STATUS_TIMEOUT WINVM_STATUS_POLL WINVM_HOST_DIR WINVM_GUEST_DIR
 }
 
 _virsh() { virsh -c "$WINVM_URI" "$@"; }
@@ -53,12 +54,12 @@ winvm_ensure_running() {
 
 # winvm_exec <exe> [args...] — guest-exec от SYSTEM; stdout/stderr гостя → наши, код возврата — гостя.
 winvm_exec() {
-  local exe=$1 req pid status started argv='[]'
+  local exe=$1 req pid status started arg_json='[]'
   shift
   # jq --args путает аргументы вида -NoProfile с собственными опциями, поэтому массив собираем через stdin
-  if (($# > 0)); then argv=$(printf '%s\0' "$@" | jq -Rsc 'split("\u0000")[:-1]'); fi
-  req=$(jq -cn --arg path "$exe" --argjson argv "$argv" \
-    '{execute: "guest-exec", arguments: {path: $path, arg: $argv, "capture-output": true}}')
+  if (($# > 0)); then arg_json=$(printf '%s\0' "$@" | jq -Rsc 'split("\u0000")[:-1]'); fi
+  req=$(jq -cn --arg path "$exe" --argjson arg_json "$arg_json" \
+    '{execute: "guest-exec", arguments: {path: $path, arg: $arg_json, "capture-output": true}}')
   pid=$(_agent "$req" | jq -er '.return.pid') || winvm_die 1 "guest-exec failed to start: $exe"
   started=$SECONDS
   while :; do
@@ -88,9 +89,11 @@ winvm_sync() {
   root=$(git rev-parse --show-toplevel) || winvm_die 1 "not inside a git working tree"
   mkdir -p "$WINVM_HOST_DIR/src" "$WINVM_HOST_DIR/out" "$WINVM_HOST_DIR/tmp"
   echo "Sync: working tree -> $WINVM_HOST_DIR/src" >&2
-  (cd "$root" && rsync -a --delete --delete-excluded --filter=':- .gitignore' \
+  (cd "$root" && rsync -aq --no-links --delete --delete-excluded --filter=':- .gitignore' \
     --exclude=/.git --exclude=/mise.local.toml --exclude=build/ ./ "$WINVM_HOST_DIR/src/") \
     || winvm_die 1 "rsync failed"
+  # rsync не удаляет в приёмнике симлинк, чьё имя совпадает с пропущенным симлинком источника
+  find "$WINVM_HOST_DIR/src" -type l -delete
   echo "Sync: robocopy in guest -> C:\\mimir" >&2
   # bootstrap: в C:\mimir скрипта может ещё не быть, поэтому запуск из шары
   winvm_exec powershell.exe -NoProfile -ExecutionPolicy Bypass \
@@ -185,4 +188,20 @@ winvm_wait_status() {
     fi
     sleep "$WINVM_STATUS_POLL"
   done
+}
+
+# winvm_secret_source — mise.local.toml из рабочего дерева, а в linked-worktree (секрет не в git) — из основного checkout.
+winvm_secret_source() {
+  local root main
+  root=$(git rev-parse --show-toplevel)
+  if [[ -f $root/mise.local.toml ]]; then
+    printf '%s' "$root/mise.local.toml"
+    return 0
+  fi
+  main=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
+  if [[ -f $main/mise.local.toml ]]; then
+    printf '%s' "$main/mise.local.toml"
+    return 0
+  fi
+  winvm_die 1 "mise.local.toml not found in $root or $main"
 }

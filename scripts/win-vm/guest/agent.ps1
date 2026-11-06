@@ -38,7 +38,7 @@ function Invoke-Run {
     $log = Join-Path $Out 'run.log'
     $err = Join-Path $Out 'run.err.log'
     # PowerShell 5.1 не пишет оба потока Start-Process в один файл: два лога, win:logs run хвостит оба.
-    $p = Start-Process -FilePath 'mise' -ArgumentList 'exec', '--', 'gradlew.bat', ':apps:desktop:run' `
+    $p = Start-Process -FilePath 'mise' -ArgumentList 'exec', '--', 'cmd', '/c', 'gradlew.bat', ':apps:desktop:run' `
         -WorkingDirectory $Root -RedirectStandardOutput $log -RedirectStandardError $err `
         -WindowStyle Hidden -PassThru
     $null = $p.Handle   # кэшируем дескриптор, иначе ExitCode может оказаться пустым
@@ -58,11 +58,32 @@ function Invoke-Run {
     if ($p.ExitCode -eq 0) { Set-Status 'ok' 'run' 0 } else { Set-Status 'failed' 'run' $p.ExitCode }
 }
 
+# Запуск команды с выводом в лог через cmd.exe: в PowerShell 5.1 stderr нативных команд при
+# $ErrorActionPreference='Stop' превращается в исключение. Возвращает код процесса.
+function Invoke-Logged([string]$CommandLine, [string]$Log) {
+    & cmd.exe /c "$CommandLine >> `"$Log`" 2>&1"
+    return $LASTEXITCODE
+}
+
+function Invoke-Prepare {
+    Set-Status 'running' 'prepare'
+    $log = Join-Path $Out 'build.log'
+    Set-Content -Path $log -Value '' -Encoding ASCII
+    Set-Location $Root
+    foreach ($cmd in @("mise trust `"$Root\mise.toml`"", 'mise install java', 'mise exec -- cmd /c gradlew.bat --version')) {
+        Add-Content -Path $log -Value "> $cmd"
+        $code = Invoke-Logged $cmd $log
+        if ($code -ne 0) { Set-Status 'failed' 'prepare' $code; return }
+    }
+    Set-Status 'ok' 'prepare' 0
+}
+
 try {
     $req = Get-Content -Raw -Encoding UTF8 (Join-Path $Out 'request.json') | ConvertFrom-Json
     $script:ReqId = $req.id
     switch ($req.action) {
         'run' { Invoke-Run }
+        'prepare' { Invoke-Prepare }
         default { Set-Status 'failed' 'agent' 64 }
     }
 } catch {

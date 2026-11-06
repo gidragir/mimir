@@ -53,3 +53,21 @@ test_sync_fails_on_guest_error() {
   assert_eq "$RC" 8
   assert_contains "$ERR" "robocopy"
 }
+
+test_sync_skips_symlinks() {
+  local repo src
+  repo=$(make_repo)
+  src="$WINVM_SHARE/mimir/src"
+  ln -s a.txt "$repo/link.txt"
+  mkdir -p "$repo/linkdir/sub"
+  ln -s ../a.txt "$repo/linkdir/sub/rel"
+  mkdir -p "$src"
+  ln -s stale-target "$src/stale-link"
+  ln -s stale-target "$src/link.txt"
+  run sync_from "$repo"
+  assert_eq "$RC" 0
+  assert_file "$src/a.txt"
+  [[ ! -L $src/link.txt ]] || fail "symlink was copied to the share"
+  [[ ! -L $src/linkdir/sub/rel ]] || fail "nested symlink was copied to the share"
+  [[ ! -L $src/stale-link ]] || fail "stale symlink from an earlier sync was left in the share"
+}

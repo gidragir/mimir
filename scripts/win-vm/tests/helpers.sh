@@ -41,7 +41,7 @@ sync_from() {
 
 # cli <args...> — winvm.sh из временного репозитория (нужен git-корень для sync).
 cli() {
-  local repo
-  repo=$(make_repo)
+  local repo=${CLI_CWD:-}
+  [[ -n $repo ]] || repo=$(make_repo)
   (cd "$repo" && bash "$WINVM_TEST_ROOT/scripts/win-vm/winvm.sh" "$@")
 }
