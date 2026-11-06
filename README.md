@@ -1,3 +1,5 @@
+<p align="center"><img src="design/logo/logo.svg" width="112" alt="Логотип Mimir"></p>
+
 # Mimir
 
 Один открытый инструмент синхронизации Obsidian-хранилища на всех платформах: Linux, Windows, macOS, Android, плюс headless-демон в Docker. Работает как Google Drive Desktop: один раз указываете папку vault и пароль, дальше всё синхронизируется само. Локально лежат обычные `.md`, в Google Drive — только зашифрованные данные.

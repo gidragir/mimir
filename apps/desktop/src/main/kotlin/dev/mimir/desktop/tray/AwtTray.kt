@@ -15,7 +15,7 @@ class AwtTray : Tray {
     override val available get() = icon != null
 
     override fun show(status: String, onOpen: () -> Unit, onSyncNow: () -> Unit, onQuit: () -> Unit) {
-        val image = Toolkit.getDefaultToolkit().getImage(AwtTray::class.java.getResource("/icon.png"))
+        val image = Toolkit.getDefaultToolkit().getImage(AwtTray::class.java.getResource("/tray.png"))
         val popup = PopupMenu().apply {
             add(MenuItem("Открыть").apply { addActionListener { onOpen() } })
             add(MenuItem("Синхронизировать сейчас").apply { addActionListener { onSyncNow() } })

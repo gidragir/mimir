@@ -83,7 +83,7 @@ val assembleExtension = tasks.register<Sync>("assembleExtension") {
         expand(props)
     }
     from("src/jsMain/resources") { include("popup.css", "background.js") }
-    from("src/jsMain/resources") { include("icon-128.png") }
+    from("src/jsMain/resources") { include("icon-*.png") }
 }
 
 val zipExtension = tasks.register<Zip>("zipExtension") {

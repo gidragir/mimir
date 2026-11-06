@@ -1,0 +1,24 @@
+<!-- Знак для 16–32 px: та же геометрия, толще линии, без паутины. Сгенерировано из единой геометрии знака. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" fill="none">
+  <defs>
+    <linearGradient id="mimir-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#181229"/>
+      <stop offset="100%" stop-color="#080510"/>
+    </linearGradient>
+    <linearGradient id="mimir-m" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#e9d5ff"/>
+      <stop offset="50%" stop-color="#c084fc"/>
+      <stop offset="100%" stop-color="#7c3aed"/>
+    </linearGradient>
+  </defs>
+  <rect x="12" y="12" width="488" height="488" rx="112" fill="url(#mimir-bg)" stroke="#2e2148" stroke-width="3"/>
+  <g transform="translate(256 256) scale(1.42) translate(-256 -256)">
+    <path d="M148 352 L148 160 L256 264 L364 160 L364 352" fill="none" stroke="url(#mimir-m)" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="148" cy="352" r="22" fill="#080510" stroke="#7c3aed" stroke-width="10"/>
+    <circle cx="148" cy="160" r="24" fill="#080510" stroke="#c084fc" stroke-width="10"/>
+    <circle cx="256" cy="264" r="26" fill="#080510" stroke="#ffffff" stroke-width="10"/>
+    <circle cx="364" cy="160" r="24" fill="#080510" stroke="#c084fc" stroke-width="10"/>
+    <circle cx="364" cy="352" r="22" fill="#080510" stroke="#7c3aed" stroke-width="10"/>
+    <circle cx="256" cy="264" r="9" fill="#c084fc"/>
+  </g>
+</svg>

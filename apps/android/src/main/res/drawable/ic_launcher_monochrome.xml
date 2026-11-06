@@ -1,13 +1,63 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Сгенерировано из единой геометрии знака (design/logo). -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path
-        android:pathData="M30,75V33l24,27 24,-27v42"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="7"
-        android:strokeLineJoin="round"
-        android:strokeLineCap="round" />
+    <group
+        android:pivotX="256"
+        android:pivotY="256"
+        android:scaleX="0.21"
+        android:scaleY="0.21"
+        android:translateX="-202"
+        android:translateY="-202">
+        <path
+            android:pathData="M148,330 L148,184"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="22"
+            android:strokeLineCap="butt"
+            android:strokeLineJoin="round" />
+        <path
+            android:pathData="M165.29,176.65 L237.27,245.97"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="22"
+            android:strokeLineCap="butt"
+            android:strokeLineJoin="round" />
+        <path
+            android:pathData="M274.73,245.97 L346.71,176.65"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="22"
+            android:strokeLineCap="butt"
+            android:strokeLineJoin="round" />
+        <path
+            android:pathData="M364,184 L364,330"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="22"
+            android:strokeLineCap="butt"
+            android:strokeLineJoin="round" />
+        <path
+            android:pathData="M121,352 a27,27 0 1,0 54,0 a27,27 0 1,0 -54,0 Z M131,352 a17,17 0 1,0 34,0 a17,17 0 1,0 -34,0 Z"
+            android:fillColor="#FFFFFFFF"
+            android:fillType="evenOdd" />
+        <path
+            android:pathData="M119,160 a29,29 0 1,0 58,0 a29,29 0 1,0 -58,0 Z M129,160 a19,19 0 1,0 38,0 a19,19 0 1,0 -38,0 Z"
+            android:fillColor="#FFFFFFFF"
+            android:fillType="evenOdd" />
+        <path
+            android:pathData="M225,264 a31,31 0 1,0 62,0 a31,31 0 1,0 -62,0 Z M235,264 a21,21 0 1,0 42,0 a21,21 0 1,0 -42,0 Z"
+            android:fillColor="#FFFFFFFF"
+            android:fillType="evenOdd" />
+        <path
+            android:pathData="M335,160 a29,29 0 1,0 58,0 a29,29 0 1,0 -58,0 Z M345,160 a19,19 0 1,0 38,0 a19,19 0 1,0 -38,0 Z"
+            android:fillColor="#FFFFFFFF"
+            android:fillType="evenOdd" />
+        <path
+            android:pathData="M337,352 a27,27 0 1,0 54,0 a27,27 0 1,0 -54,0 Z M347,352 a17,17 0 1,0 34,0 a17,17 0 1,0 -34,0 Z"
+            android:fillColor="#FFFFFFFF"
+            android:fillType="evenOdd" />
+        <path
+            android:pathData="M247,264 a9,9 0 1,0 18,0 a9,9 0 1,0 -18,0 Z"
+            android:fillColor="#FFFFFFFF" />
+    </group>
 </vector>

@@ -1,0 +1,113 @@
+<svg width="1280" height="640" viewBox="0 0 1280 640" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <!-- Глубокий строгий фон в фирменном стиле Obsidian -->
+                <linearGradient id="gh-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#0f0b18"/>
+                  <stop offset="50%" stop-color="#090611"/>
+                  <stop offset="100%" stop-color="#050308"/>
+                </linearGradient>
+
+                <!-- Мягкое фоновое свечение за иконкой без выбеливания контраста -->
+                <radialGradient id="gh-glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(1020 320) rotate(90) scale(320 360)">
+                  <stop offset="0%" stop-color="#7c3aed" stop-opacity="0.28"/>
+                  <stop offset="60%" stop-color="#4c1d95" stop-opacity="0.08"/>
+                  <stop offset="100%" stop-color="#090611" stop-opacity="0"/>
+                </radialGradient>
+
+                <!-- Чистый градиент заголовка -->
+                <linearGradient id="gh-text-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="#ffffff"/>
+                  <stop offset="60%" stop-color="#f3e8ff"/>
+                  <stop offset="100%" stop-color="#d8b4fe"/>
+                </linearGradient>
+
+                <!-- Четкая координатная сетка -->
+                <pattern id="gh-grid" width="48" height="48" patternUnits="userSpaceOnUse">
+                  <path d="M 48 0 L 0 0 0 48" fill="none" stroke="#22153b" stroke-width="0.9" opacity="0.4"/>
+                </pattern>
+
+                <!-- Точная копия цветов мастер-иконки Mimir -->
+                <linearGradient id="gh-icon-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#181229"/>
+                  <stop offset="100%" stop-color="#080510"/>
+                </linearGradient>
+                <linearGradient id="gh-icon-m-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#e9d5ff"/>
+                  <stop offset="50%" stop-color="#c084fc"/>
+                  <stop offset="100%" stop-color="#7c3aed"/>
+                </linearGradient>
+              </defs>
+
+              <!-- Фон и декоративная сетка -->
+              <rect width="1280" height="640" fill="url(#gh-bg)"/>
+              <rect width="1280" height="640" fill="url(#gh-grid)"/>
+              <rect width="1280" height="640" fill="url(#gh-glow)"/>
+
+              <!-- Внешний аккуратный контур карточки -->
+              <rect x="2" y="2" width="1276" height="636" rx="12" stroke="#331c52" stroke-width="3" fill="none"/>
+
+              <!-- ЛЕВАЯ ЧАСТЬ: Высококонтрастная типографика, оптимизированная под масштабирование GitHub -->
+              <g transform="translate(90, 0)">
+                <!-- Repo Pill -->
+                <g transform="translate(0, 105)">
+                  <rect width="250" height="44" rx="22" fill="#1b112d" stroke="#6b21a8" stroke-width="2"/>
+                  <!-- GitHub Repo Icon -->
+                  <path d="M22 22a4 4 0 0 1 3.8-3.99L26 18a4 4 0 0 1 4 4c0 1.85-1.26 3.4-2.97 3.86L27 29.5a1 1 0 0 1-2 0V25.9A4.01 4.01 0 0 1 22 22z" fill="#c084fc"/>
+                  <text x="44" y="28" font-family="'JetBrains Mono', monospace" font-size="16" font-weight="700" fill="#ffffff" letter-spacing="-0.01em">gidragir / mimir</text>
+                </g>
+
+                <!-- Заголовок mimir (сверхкрупный и сверхконтрастный) -->
+                <text x="0" y="255" font-family="'Inter', sans-serif" font-size="96" font-weight="800" letter-spacing="-0.04em" fill="url(#gh-text-grad)">mimir</text>
+
+                <!-- Главный дескриптор: яркий белый #f8fafc, четко виден при любом уменьшении -->
+                <text x="0" y="325" font-family="'Inter', sans-serif" font-size="33" font-weight="700" fill="#f8fafc" letter-spacing="-0.02em">Encrypted Vault Synchronizer for Obsidian</text>
+
+                <!-- Дополнительный ряд возможностей: контрастный светлый #cbd5e1 -->
+                <text x="0" y="380" font-family="'Inter', sans-serif" font-size="19" font-weight="500" fill="#cbd5e1" letter-spacing="-0.01em">Zero-Knowledge E2EE • Dual-Way Replication • Knowledge Graph Aware</text>
+
+                <!-- Контрастные статусные бейджи -->
+                <g transform="translate(0, 435)">
+                  <!-- Бейдж 1: E2EE Sync (Зеленый крипто-статус) -->
+                  <rect x="0" y="0" width="140" height="42" rx="10" fill="#06281e" stroke="#10b981" stroke-width="1.8"/>
+                  <circle cx="22" cy="21" r="5" fill="#10b981"/>
+                  <text x="36" y="27" font-family="'JetBrains Mono', monospace" font-size="14" font-weight="700" fill="#34d399">E2EE SYNC</text>
+
+                  <!-- Бейдж 2: Obsidian Vault (Фирменный аметист) -->
+                  <rect x="156" y="0" width="138" height="42" rx="10" fill="#201138" stroke="#a855f7" stroke-width="1.8"/>
+                  <text x="26" y="27" transform="translate(156, 0)" font-family="'JetBrains Mono', monospace" font-size="14" font-weight="700" fill="#e9d5ff">OBSIDIAN</text>
+
+                  <!-- Бейдж 3: Zero-Knowledge (Информационный циан) -->
+                  <rect x="310" y="0" width="176" height="42" rx="10" fill="#082236" stroke="#0ea5e9" stroke-width="1.8"/>
+                  <text x="20" y="27" transform="translate(310, 0)" font-family="'JetBrains Mono', monospace" font-size="14" font-weight="700" fill="#7dd3fc">ZERO-KNOWLEDGE</text>
+                </g>
+              </g>
+
+              <!-- ПРАВАЯ ЧАСТЬ: Иконка Mimir в точном эталонном масштабе и цвете -->
+              <g transform="translate(860, 160)">
+                <svg width="320" height="320" viewBox="0 0 512 512" fill="none">
+                  <rect x="12" y="12" width="488" height="488" rx="112" fill="url(#gh-icon-bg)" stroke="#2e2148" stroke-width="4"/>
+                  <g transform="translate(256 256) scale(1.42) translate(-256 -256)">
+                    <!-- Паутина связей графа знаний -->
+                    <g stroke="#3b275c" stroke-width="2" opacity="0.6">
+                      <line x1="148" y1="352" x2="256" y2="380"/>
+                      <line x1="364" y1="352" x2="256" y2="380"/>
+                      <line x1="256" y1="264" x2="256" y2="380"/>
+                      <circle cx="256" cy="380" r="5" fill="#7c3aed"/>
+                      <line x1="148" y1="160" x2="202" y2="124"/>
+                      <line x1="364" y1="160" x2="310" y2="124"/>
+                      <circle cx="202" cy="124" r="5" fill="#a855f7"/>
+                      <circle cx="310" cy="124" r="5" fill="#a855f7"/>
+                    </g>
+                    <!-- Ребра 'M' с защитой fill="none" и эталонным градиентом gh-icon-m-grad -->
+                    <path d="M148 352 L148 160 L256 264 L364 160 L364 352" fill="none" stroke="url(#gh-icon-m-grad)" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
+                    <!-- Узлы графа со строгим сохранением цветов -->
+                    <circle cx="148" cy="352" r="14" fill="#080510" stroke="#7c3aed" stroke-width="6"/>
+                    <circle cx="148" cy="160" r="16" fill="#080510" stroke="#c084fc" stroke-width="6"/>
+                    <circle cx="256" cy="264" r="18" fill="#080510" stroke="#ffffff" stroke-width="6"/>
+                    <circle cx="256" cy="264" r="6" fill="#c084fc"/>
+                    <circle cx="364" cy="160" r="16" fill="#080510" stroke="#c084fc" stroke-width="6"/>
+                    <circle cx="364" cy="352" r="14" fill="#080510" stroke="#7c3aed" stroke-width="6"/>
+                  </g>
+                </svg>
+              </g>
+            </svg>

@@ -93,7 +93,7 @@ class StatusNotifier(context: Context) {
         )
 
         val notification = NotificationCompat.Builder(context, content.channel.id)
-            .setSmallIcon(R.drawable.ic_launcher)
+            .setSmallIcon(R.drawable.ic_stat_mimir)
             .setContentTitle(content.title)
             .setContentText(content.text)
             .setContentIntent(contentIntent)

@@ -178,7 +178,7 @@ class DbusStatusNotifierTray(private val busAddress: String? = null) : Tray {
         val logger: Logger = Logger.getLogger(DbusStatusNotifierTray::class.java.name)
 
         fun loadIcon(): List<IconPixmap> {
-            val source = DbusStatusNotifierTray::class.java.getResourceAsStream("/icon.png")?.use { ImageIO.read(it) }
+            val source = DbusStatusNotifierTray::class.java.getResourceAsStream("/tray.png")?.use { ImageIO.read(it) }
                 ?: return emptyList()
             val scaled = BufferedImage(ICON_SIZE, ICON_SIZE, BufferedImage.TYPE_INT_ARGB).apply {
                 createGraphics().apply {

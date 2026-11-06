@@ -1,0 +1,15 @@
+<!-- Одноцветный силуэт без фона (currentColor): уведомления Android, тематическая иконка. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" fill="none" color="#ffffff">
+  <g transform="translate(256 256) scale(1.42) translate(-256 -256)">
+    <line x1="148" y1="330" x2="148" y2="184" stroke="currentColor" stroke-width="22"/>
+    <line x1="165.29" y1="176.65" x2="237.27" y2="245.97" stroke="currentColor" stroke-width="22"/>
+    <line x1="274.73" y1="245.97" x2="346.71" y2="176.65" stroke="currentColor" stroke-width="22"/>
+    <line x1="364" y1="184" x2="364" y2="330" stroke="currentColor" stroke-width="22"/>
+    <path d="M121,352 a27,27 0 1,0 54,0 a27,27 0 1,0 -54,0 Z M131,352 a17,17 0 1,0 34,0 a17,17 0 1,0 -34,0 Z" fill="currentColor" fill-rule="evenodd"/>
+    <path d="M119,160 a29,29 0 1,0 58,0 a29,29 0 1,0 -58,0 Z M129,160 a19,19 0 1,0 38,0 a19,19 0 1,0 -38,0 Z" fill="currentColor" fill-rule="evenodd"/>
+    <path d="M225,264 a31,31 0 1,0 62,0 a31,31 0 1,0 -62,0 Z M235,264 a21,21 0 1,0 42,0 a21,21 0 1,0 -42,0 Z" fill="currentColor" fill-rule="evenodd"/>
+    <path d="M335,160 a29,29 0 1,0 58,0 a29,29 0 1,0 -58,0 Z M345,160 a19,19 0 1,0 38,0 a19,19 0 1,0 -38,0 Z" fill="currentColor" fill-rule="evenodd"/>
+    <path d="M337,352 a27,27 0 1,0 54,0 a27,27 0 1,0 -54,0 Z M347,352 a17,17 0 1,0 34,0 a17,17 0 1,0 -34,0 Z" fill="currentColor" fill-rule="evenodd"/>
+    <circle cx="256" cy="264" r="9" fill="currentColor"/>
+  </g>
+</svg>

@@ -48,6 +48,7 @@ compose.desktop {
             }
             macOS {
                 bundleID = providers.gradleProperty("mimir.appId").get()
+                iconFile.set(project.file("src/main/resources/icon.icns"))
                 // jpackage на macOS отвергает версию с мажором 0 (CFBundleVersion). Пока mimir.version = 0.x,
                 // bundle получает 1.x.y; имя dmg в релизе release.yml возвращает к настоящей версии.
                 val macVersion = macBundleVersion(providers.gradleProperty("mimir.version").get())

@@ -7,6 +7,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.unit.DpSize
@@ -28,6 +30,7 @@ import dev.mimir.ui.model.MimirUiModel
 import dev.mimir.ui.screens.StartupScreen
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import javax.imageio.ImageIO
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
@@ -109,12 +112,18 @@ private fun runDesktop(config: DaemonConfig, ipc: SingleInstanceManager) = appli
 
     val folderPicker = remember { defaultFolderPicker() }
     val browserOpener = remember { SystemBrowserOpener() }
+    // Иконка окна для заголовка и панели задач; без неё Windows и Linux показывают значок Java.
+    val windowIcon = remember {
+        SingleInstanceManager::class.java.getResourceAsStream("/icon.png")
+            ?.use { BitmapPainter(ImageIO.read(it).toComposeImageBitmap()) }
+    }
 
     Window(
         // Без трея окно — единственный способ достучаться до приложения, поэтому закрытие завершает его.
         onCloseRequest = { if (tray.available) visible = false else exitApplication() },
         visible = visible,
         title = BuildConfig.APP_NAME,
+        icon = windowIcon,
         state = rememberWindowState(size = DpSize(960.dp, 680.dp)),
     ) {
         LaunchedEffect(window) {
