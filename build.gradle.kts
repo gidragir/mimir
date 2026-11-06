@@ -51,3 +51,16 @@ tasks.matching { it.name == "check" }.configureEach {
 tasks.matching { it.name == "kotlinWasmNpmInstall" }.configureEach {
     mustRunAfter(tasks.matching { it.name == "kotlinWasmToolingSetup" })
 }
+
+plugins.withType<org.jetbrains.kotlin.gradle.targets.js.yarn.YarnPlugin> {
+    the<org.jetbrains.kotlin.gradle.targets.js.yarn.YarnRootExtension>().apply {
+        lockFileDirectoryProperty.set(layout.projectDirectory.dir("gradle/yarn"))
+    }
+}
+
+plugins.withType<org.jetbrains.kotlin.gradle.targets.wasm.yarn.WasmYarnPlugin> {
+    the<org.jetbrains.kotlin.gradle.targets.wasm.yarn.WasmYarnRootExtension>().apply {
+        lockFileDirectoryProperty.set(layout.projectDirectory.dir("gradle/yarn/wasm"))
+    }
+}
+
