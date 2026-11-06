@@ -114,7 +114,7 @@ jobs:
               - 'apps/obsidian-plugin/**'
               - 'apps/browser-extension/**'
               - 'design/**'
-              - 'scripts/**'
+              - 'kotlin-js-store/**'
       - id: matrix
         env:
           HEAD_REF: ${{ github.head_ref }}
