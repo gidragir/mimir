@@ -3,6 +3,7 @@ package dev.mimir.desktop.picker
 import dev.mimir.ui.picker.PlatformFolderPicker
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
+import java.awt.Frame
 import java.io.File
 import java.util.logging.Level
 import java.util.logging.Logger
@@ -77,10 +78,18 @@ internal fun resolveExistingDirectory(initialPath: String?): File? {
     }
 }
 
-/** Системный диалог на Linux (через портал), иначе Swing. Заменяется полной фабрикой в следующей задаче. */
-fun defaultFolderPicker(): dev.mimir.ui.picker.PlatformFolderPicker =
-    if (System.getProperty("os.name").lowercase().contains("linux")) {
-        FallbackFolderPicker(PortalFolderPicker(), AwtFolderPicker())
-    } else {
-        AwtFolderPicker()
+/** Собирает цепочку нативных диалогов выбора папки для ОС; побочные эффекты передаются параметрами. */
+fun defaultFolderPicker(
+    osName: String = System.getProperty("os.name").orEmpty(),
+    executor: ProcessExecutor = ProcessExecutor(::runSystemProcess),
+    parentFrame: () -> Frame? = { null },
+): PlatformFolderPicker {
+    val os = osName.lowercase()
+    val awt = AwtFolderPicker(parentFrame = parentFrame)
+    return when {
+        os.contains("win") -> FallbackFolderPicker(WindowsFolderPicker(executor = executor), awt)
+        os.contains("mac") || os.contains("darwin") -> FallbackFolderPicker(MacFolderPicker(parentFrame = parentFrame), awt)
+        os.contains("linux") -> FallbackFolderPicker(PortalFolderPicker(), ZenityFolderPicker(executor = executor), awt)
+        else -> awt
     }
+}
