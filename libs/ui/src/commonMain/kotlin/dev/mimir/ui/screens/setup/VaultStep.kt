@@ -204,7 +204,7 @@ fun VaultStep(model: MimirUiModel, onNext: () -> Unit) {
                 modifier = Modifier.size(16.dp),
             )
             Text(
-                "✓ Найдено заметок: $it",
+                "Найдено заметок: $it",
                 color = MimirTokens.StatusSuccess,
                 style = MaterialTheme.typography.bodyMedium,
             )

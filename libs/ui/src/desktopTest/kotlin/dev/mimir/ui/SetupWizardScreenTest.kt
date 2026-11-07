@@ -1,6 +1,7 @@
 package dev.mimir.ui
 
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -228,7 +229,9 @@ class SetupWizardScreenTest {
         setContent { CompositionLocalProvider(LocalFolderPicker provides picker) { SetupWizardScreen(model, onComplete = {}) } }
 
         onNodeWithText("Обзор…").performClick()
-        waitUntilExactlyOneExists(hasText("✓ Найдено заметок: 42"))
+        waitUntilExactlyOneExists(hasText("Найдено заметок: 42"))
+        // Галочка — только иконка рядом со статусом, не символ в тексте.
+        onAllNodes(hasText("✓", substring = true)).assertCountEquals(0)
         onNodeWithText("/notes/vault").assertIsDisplayed()
     }
 
@@ -367,7 +370,7 @@ class SetupWizardScreenTest {
 
         waitUntilExactlyOneExists(hasText("Notes (/sdcard/Documents/Notes)"))
         onNodeWithText("Notes (/sdcard/Documents/Notes)").performClick()
-        waitUntilExactlyOneExists(hasText("✓ Найдено заметок: 15"))
+        waitUntilExactlyOneExists(hasText("Найдено заметок: 15"))
         assertEquals("/sdcard/Documents/Notes", configuredPath)
     }
 
@@ -419,6 +422,6 @@ class SetupWizardScreenTest {
         assertEquals(1, picker.callCount)
 
         gate.complete("/notes/vault")
-        waitUntilExactlyOneExists(hasText("✓ Найдено заметок: 7"))
+        waitUntilExactlyOneExists(hasText("Найдено заметок: 7"))
     }
 }
