@@ -34,7 +34,9 @@ class WindowsFolderPickerTest {
             exec.command.take(7),
         )
         val script = String(Base64.getDecoder().decode(exec.command[7]), Charsets.UTF_16LE)
-        assertTrue("AutoUpgradeEnabled = \$true" in script)
+        assertTrue("FolderBrowserDialog" !in script, "legacy SHBrowseForFolder dialog must not be used")
+        assertTrue("FileOpenDialog" in script)
+        assertTrue("0x20" in script, "FOS_PICKFOLDERS must be set")
         assertTrue(FOLDER_PICKER_TITLE in script)
         assertTrue("\$env:MIMIR_INITIAL_PATH" in script)
         assertEquals(1, foreground)
