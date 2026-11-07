@@ -86,10 +86,12 @@ function Stop-InstalledMimir([string]$AppName) {
     Get-Process -Name $AppName -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 }
 
-# Ключи удаления установленного продукта (per-user MSI регистрируется в HKCU).
+# Ключи удаления установленного продукта: MSI Compose регистрируется в HKLM (проверено вживую), per-user — в HKCU.
 function Get-MimirUninstallKeys([string]$AppName) {
-    Get-ChildItem 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall' -ErrorAction SilentlyContinue |
-        Where-Object { (Get-ItemProperty -LiteralPath $_.PSPath).DisplayName -eq $AppName }
+    foreach ($root in 'HKCU:', 'HKLM:') {
+        Get-ChildItem "$root\Software\Microsoft\Windows\CurrentVersion\Uninstall" -ErrorAction SilentlyContinue |
+            Where-Object { (Get-ItemProperty -LiteralPath $_.PSPath).DisplayName -eq $AppName }
+    }
 }
 
 # Отчёт об остатках после удаления: ярлыки, ключ mimir://, каталог установки. report.log (msi.log затирается msiexec /i).

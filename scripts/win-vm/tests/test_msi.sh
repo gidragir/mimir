@@ -35,3 +35,10 @@ test_msi_unknown_flag_exits_64() {
   run cli msi --bogus
   assert_eq "$RC" 64
 }
+
+test_agent_uninstall_looks_in_hklm_too() {
+  # MSI ставится в HKLM (найдено вживую): поиск только в HKCU «не находил» установленное
+  local src
+  src=$(<"$WINVM_TEST_ROOT/scripts/win-vm/guest/agent.ps1")
+  assert_contains "$src" "'HKCU:', 'HKLM:'"
+}
