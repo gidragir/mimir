@@ -23,6 +23,8 @@ dependencies {
     implementation(libs.ktor.serialization.json)
     implementation(libs.ktor.server.core)
     implementation(libs.ktor.server.cio)
+    // Dispatchers.Main = AWT EDT (ServiceLoader): Main.kt переключается на него из трея и IPC-активации
+    runtimeOnly(libs.coroutines.swing)
     runtimeOnly(libs.slf4j.simple)
     testImplementation(kotlin("test"))
     testImplementation(libs.coroutines.test)

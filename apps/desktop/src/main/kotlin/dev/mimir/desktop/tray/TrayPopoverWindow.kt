@@ -10,14 +10,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.type
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.awt.SwingWindow
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.ApplicationScope
-import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.WindowDecoration
 import androidx.compose.ui.window.rememberWindowState
 import dev.mimir.ui.MimirTheme
 import dev.mimir.ui.MimirTokens
@@ -25,10 +23,12 @@ import dev.mimir.ui.model.MimirUiModel
 import dev.mimir.ui.screens.TrayPopoverScreen
 import java.awt.GraphicsConfiguration
 import java.awt.GraphicsEnvironment
+import java.awt.KeyboardFocusManager
 import java.awt.MouseInfo
 import java.awt.Toolkit
 import java.awt.event.WindowAdapter
 import java.awt.event.WindowEvent
+import javax.swing.SwingUtilities
 
 private val POPOVER_SIZE = DpSize(320.dp, 400.dp)
 
@@ -36,6 +36,7 @@ private val POPOVER_SIZE = DpSize(320.dp, 400.dp)
  * Безрамочное окно-поповер у иконки трея (`Window.Type.POPUP`: тайлинг-WM его не раскладывает).
  * Пока [visible] == false, содержимое не композируется — фоновой нагрузки нет.
  */
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun ApplicationScope.TrayPopoverWindow(
     visible: Boolean,
@@ -48,31 +49,34 @@ fun ApplicationScope.TrayPopoverWindow(
     onQuit: () -> Unit,
 ) {
     val focusLost by rememberUpdatedState(onFocusLost)
-    Window(
+    val dismiss by rememberUpdatedState(onDismissRequest)
+    SwingWindow(
         onCloseRequest = onDismissRequest,
         visible = visible,
-        undecorated = true,
+        decoration = WindowDecoration.Undecorated(),
         resizable = false,
         alwaysOnTop = true,
         focusable = true,
         state = rememberWindowState(size = POPOVER_SIZE),
-        onPreviewKeyEvent = {
-            if (it.key == Key.Escape && it.type == KeyEventType.KeyDown) {
-                onDismissRequest()
-                true
-            } else {
-                false
-            }
-        },
+        // Тип окна меняется только до displayable: init вызывается сразу после конструктора ComposeWindow.
+        // Из DisposableEffect присваивание падало (IllegalComponentStateException) и окно оставалось NORMAL.
+        init = { it.type = java.awt.Window.Type.POPUP },
     ) {
         DisposableEffect(window) {
-            // Тип можно менять только пока окно ещё не displayable.
-            runCatching { window.type = java.awt.Window.Type.POPUP }
             val listener = object : WindowAdapter() {
                 override fun windowLostFocus(e: WindowEvent) = focusLost()
             }
             window.addWindowFocusListener(listener)
-            onDispose { window.removeWindowFocusListener(listener) }
+            val escape = PopoverEscapeDispatcher(
+                owns = { it === window || SwingUtilities.getWindowAncestor(it) === window },
+                onEscape = { dismiss() },
+            )
+            val kfm = KeyboardFocusManager.getCurrentKeyboardFocusManager()
+            kfm.addKeyEventDispatcher(escape)
+            onDispose {
+                kfm.removeKeyEventDispatcher(escape)
+                window.removeWindowFocusListener(listener)
+            }
         }
         LaunchedEffect(visible, anchor) {
             if (visible) {
