@@ -52,3 +52,12 @@ test_msi_stops_previous_instance_first() {
   assert_contains "$ERR" "Stopped previous Mimir in VM: pid 4242 (java.exe)"
   assert_contains "$(cat "$FAKE_VIRSH_LOG")" 'stop.ps1'
 }
+
+test_agent_resets_build_log_tolerating_other_handles() {
+  # Set-Content (FileShare.Read) падал «used by another process», пока завершался демон Gradle с унаследованным build.log
+  local src
+  src=$(<"$WINVM_TEST_ROOT/scripts/win-vm/guest/agent.ps1")
+  assert_not_contains "$src" "Set-Content -Path \$log"
+  assert_contains "$src" "function Reset-Log"
+  assert_contains "$src" "'ReadWrite'"
+}

@@ -72,10 +72,26 @@ function Invoke-Logged([string]$CommandLine, [string]$Log) {
     return $p.ExitCode
 }
 
+# Обнуляет лог. Set-Content открывает файл с FileShare.Read и падает «used by another process», пока лог держит
+# другой процесс: так было, когда завершался демон Gradle, унаследовавший build.log от cmd /c ... >> build.log.
+# Открываем с FileShare.ReadWrite и несколько раз повторяем, пока держатель не отпустит файл.
+function Reset-Log([string]$Path) {
+    for ($i = 1; ; $i++) {
+        try {
+            $fs = [IO.File]::Open($Path, 'Create', 'Write', 'ReadWrite')
+            $fs.Close()
+            return
+        } catch {
+            if ($i -ge 20) { throw }
+            Start-Sleep -Milliseconds 500
+        }
+    }
+}
+
 function Invoke-Prepare {
     Set-Status 'running' 'prepare'
     $log = Join-Path $Out 'build.log'
-    Set-Content -Path $log -Value '' -Encoding ASCII
+    Reset-Log $log
     Set-Location $Root
     foreach ($cmd in @("mise trust `"$Root\mise.toml`"", 'mise install java', 'mise exec -- cmd /c gradlew.bat --version')) {
         Add-Content -Path $log -Value "> $cmd"
@@ -130,7 +146,7 @@ function Uninstall-Mimir([string]$AppName) {
 
 function Invoke-Msi($Request) {
     $log = Join-Path $Out 'build.log'
-    Set-Content -Path $log -Value '' -Encoding ASCII
+    Reset-Log $log
     Set-Location $Root
     Set-Status 'running' 'build'
     $code = Invoke-Logged 'mise exec -- cmd /c gradlew.bat :apps:desktop:packageMsi' $log
