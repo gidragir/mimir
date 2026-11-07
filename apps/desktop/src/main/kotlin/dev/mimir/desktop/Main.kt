@@ -19,6 +19,7 @@ import androidx.compose.ui.window.rememberWindowState
 import androidx.compose.ui.window.application
 import dev.mimir.core.BuildConfig
 import dev.mimir.daemon.DaemonConfig
+import dev.mimir.desktop.tray.PopoverSupport
 import dev.mimir.desktop.tray.PopoverVisibilityController
 import dev.mimir.desktop.tray.TrayClickAnchor
 import dev.mimir.desktop.tray.TrayPopoverWindow
@@ -73,6 +74,7 @@ private fun runDesktop(config: DaemonConfig, ipc: SingleInstanceManager) = appli
     var visible by remember { mutableStateOf(true) }
     var startupError by remember { mutableStateOf<String?>(null) }
     val popoverController = remember { PopoverVisibilityController() }
+    val popoverSupported = remember { PopoverSupport.isSupported() }
     var popoverVisible by remember { mutableStateOf(false) }
     var popoverAnchor by remember { mutableStateOf<TrayClickAnchor?>(null) }
     val mainWindowRef = remember { AtomicReference<java.awt.Window?>(null) }
@@ -113,9 +115,14 @@ private fun runDesktop(config: DaemonConfig, ipc: SingleInstanceManager) = appli
                     onSyncNow = { scope.launch { runCatching { ready.triggerSync() } } },
                     onQuit = ::exitApplication,
                     onActivate = { anchor ->
-                        scope.launch(Dispatchers.Main) {
-                            popoverVisible = popoverController.onTrayActivate(anchor)
-                            popoverAnchor = popoverController.lastAnchor
+                        // niri (xwayland-satellite) не показывает самостоятельный поповер: клик открывает главное окно
+                        if (!popoverSupported) {
+                            openMainWindow()
+                        } else {
+                            scope.launch(Dispatchers.Main) {
+                                popoverVisible = popoverController.onTrayActivate(anchor)
+                                popoverAnchor = popoverController.lastAnchor
+                            }
                         }
                     },
                 )
