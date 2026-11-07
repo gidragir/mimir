@@ -93,3 +93,16 @@ test_guest_sync_does_not_exclude_build_by_bare_name() {
   assert_not_contains "$line" " build "
   assert_contains "$line" "@buildDirs"
 }
+
+test_sync_skips_files_ignored_via_info_exclude() {
+  # глобальный/info-exclude gitignore (секреты: .env, *.key) rsync-фильтр по .gitignore не видел
+  local repo src
+  repo=$(make_repo)
+  src="$WINVM_SHARE/mimir/src"
+  echo "*.key" >>"$repo/.git/info/exclude"
+  echo k >"$repo/server.key"
+  run sync_from "$repo"
+  assert_eq "$RC" 0
+  assert_file "$src/new.txt"
+  assert_no_file "$src/server.key"
+}

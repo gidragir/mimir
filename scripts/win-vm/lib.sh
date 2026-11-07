@@ -95,9 +95,21 @@ winvm_sync() {
   root=$(git rev-parse --show-toplevel) || winvm_die 1 "not inside a git working tree"
   mkdir -p "$WINVM_HOST_DIR/src" "$WINVM_HOST_DIR/out" "$WINVM_HOST_DIR/tmp"
   echo "Sync: working tree -> $WINVM_HOST_DIR/src" >&2
-  (cd "$root" && rsync -aq --no-links --delete --delete-excluded --filter=':- .gitignore' \
-    --exclude=/.git --exclude=/mise.local.toml ./ "$WINVM_HOST_DIR/src/") \
-    || winvm_die 1 "rsync failed"
+  # Список файлов берём у git (--exclude-standard учитывает .gitignore, глобальный ignore и info/exclude), а не
+  # фильтром rsync по .gitignore: иначе секреты из глобального ignore (.env, *.key) попали бы в VM.
+  # Удалённые в рабочем дереве, но ещё не закоммиченные файлы пропускаем, чтобы rsync не падал.
+  local list dest="$WINVM_HOST_DIR/src"
+  list=$(mktemp)
+  (cd "$root" && git ls-files -z -co --exclude-standard \
+    | while IFS= read -r -d '' f; do
+        [[ $f == mise.local.toml ]] || { [[ -e $f || -L $f ]] && printf '%s\0' "$f"; }
+      done >"$list") || { rm -f "$list"; winvm_die 1 "git ls-files failed"; }
+  # --files-from отключает --delete rsync, поэтому лишнее в src удаляем сами (строго внутри src)
+  (cd "$dest" && find . -mindepth 1 \( -type f -o -type l \) -print0 | sed -z 's|^\./||' | LC_ALL=C sort -z \
+    | LC_ALL=C comm -z -23 - <(LC_ALL=C sort -z "$list") | xargs -0 -r rm -f --) || { rm -f "$list"; winvm_die 1 "stale cleanup failed"; }
+  find "$dest" -mindepth 1 -type d -empty -delete
+  (cd "$root" && rsync -rptq --no-links --from0 --files-from="$list" ./ "$dest/") || { rm -f "$list"; winvm_die 1 "rsync failed"; }
+  rm -f "$list"
   # rsync не удаляет в приёмнике симлинк, чьё имя совпадает с пропущенным симлинком источника
   find "$WINVM_HOST_DIR/src" -type l -delete
   echo "Sync: robocopy in guest -> C:\\mimir" >&2
