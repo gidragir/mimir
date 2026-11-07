@@ -91,5 +91,5 @@ test_guest_sync_does_not_exclude_build_by_bare_name() {
   local line
   line=$(grep -E '^& robocopy' "$WINVM_TEST_ROOT/scripts/win-vm/guest/sync.ps1")
   assert_not_contains "$line" " build "
-  assert_contains "$line" "libs\\*\\build"
+  assert_contains "$line" "@buildDirs"
 }
