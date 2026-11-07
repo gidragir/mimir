@@ -42,4 +42,10 @@ object ScreenPositionCalculator {
         }
         return Point(rawX.coerceIn(minX, maxX), rawY.coerceIn(minY, maxY))
     }
+
+    /** Высота поповера по содержимому, но не выше рабочей области экрана за вычетом отступов (лишнее прокручивается). */
+    fun fitHeight(contentHeight: Int, screen: ScreenGeometry, margin: Int = 8): Int {
+        val available = screen.bounds.height - screen.insets.top - screen.insets.bottom - 2 * margin
+        return contentHeight.coerceAtMost(available).coerceAtLeast(1)
+    }
 }

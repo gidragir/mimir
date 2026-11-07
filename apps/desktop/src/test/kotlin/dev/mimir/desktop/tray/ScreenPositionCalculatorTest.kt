@@ -66,4 +66,22 @@ class ScreenPositionCalculatorTest {
         val pos = ScreenPositionCalculator.calculate(screen, popoverSize, anchor = null, margin = 8, osName = "Linux")
         assertEquals(Point(8, 8), pos)
     }
+
+    @Test
+    fun `popover height follows content when it fits the work area`() {
+        val screen = ScreenGeometry(Rectangle(0, 0, 1920, 1080), Insets(0, 0, 48, 0))
+        assertEquals(270, ScreenPositionCalculator.fitHeight(contentHeight = 270, screen = screen, margin = 8))
+    }
+
+    @Test
+    fun `popover height is capped by the work area minus margins`() {
+        val screen = ScreenGeometry(Rectangle(0, 0, 1366, 600), Insets(0, 0, 40, 0))
+        assertEquals(600 - 40 - 2 * 8, ScreenPositionCalculator.fitHeight(contentHeight = 900, screen = screen, margin = 8))
+    }
+
+    @Test
+    fun `popover height never collapses below one pixel on a tiny screen`() {
+        val screen = ScreenGeometry(Rectangle(0, 0, 100, 10), Insets(0, 0, 0, 0))
+        assertEquals(1, ScreenPositionCalculator.fitHeight(contentHeight = 270, screen = screen, margin = 8))
+    }
 }
