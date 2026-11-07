@@ -1,6 +1,6 @@
 # 🗺 Карта архитектуры: mimir (L0)
 
-> **Стек:** Kotlin (Gradle) | **Обновлено:** 2026-11-06
+> **Стек:** Kotlin (Gradle) | **Обновлено:** 2026-11-07
 > **Описание:** Один открытый инструмент синхронизации Obsidian-хранилища на всех платформах (Linux, Windows, Android). Он ощущается как Google Drive Desktop: один раз указал папку vault и пароль, дальше всё синхронизируется само.
 
 ## 🚪 Точки входа (Root Entrypoints)
@@ -51,6 +51,7 @@ rtk mise run desktop
 | **Ui CommonMain Kotlin Dev Mimir Ui** | Модуль и компоненты директории `libs/ui/src/commonMain/kotlin/dev/mimir/ui` (15 файлов) | `-` | [subsystems/libs_ui_commonmain_kotlin_dev_mimir_ui.md](subsystems/libs_ui_commonmain_kotlin_dev_mimir_ui.md) |
 | **Ui CommonMain Kotlin Dev Mimir Ui Screens** | Модуль и компоненты директории `libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens` (13 файлов) | `-` | [subsystems/libs_ui_commonmain_kotlin_dev_mimir_ui_screens.md](subsystems/libs_ui_commonmain_kotlin_dev_mimir_ui_screens.md) |
 | **Packaging** | Модуль и компоненты директории `packaging` (2 файлов) | `-` | [subsystems/packaging.md](subsystems/packaging.md) |
+| **Scripts** | Модуль и компоненты директории `scripts` (14 файлов) | `-` | [subsystems/scripts.md](subsystems/scripts.md) |
 
 ## 📋 Инварианты и правила проекта
 - Код форматируется согласно Kotlin Coding Conventions (ktlint).
