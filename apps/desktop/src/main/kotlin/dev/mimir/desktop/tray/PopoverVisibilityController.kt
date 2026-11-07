@@ -10,6 +10,8 @@ data class TrayClickAnchor(val screenX: Int, val screenY: Int)
  */
 class PopoverVisibilityController(
     private val debounceMs: Long = 200L,
+    /** `false` — потеря фокуса не закрывает поповер ([PopoverBehavior.closesOnFocusLoss], niri). */
+    private val closesOnFocusLoss: Boolean = true,
     private val clockMillis: () -> Long = System::currentTimeMillis,
 ) {
     var visible: Boolean = false
@@ -35,6 +37,7 @@ class PopoverVisibilityController(
     }
 
     fun onFocusLost(): Boolean {
+        if (!closesOnFocusLoss) return visible
         if (visible) {
             visible = false
             focusLostAt = clockMillis()

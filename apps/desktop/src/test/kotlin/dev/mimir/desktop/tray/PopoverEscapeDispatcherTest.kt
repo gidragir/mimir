@@ -22,21 +22,32 @@ class PopoverEscapeDispatcherTest {
         KeyEvent(source, id, 0L, 0, code, KeyEvent.CHAR_UNDEFINED)
 
     @Test
-    fun escapePressedInPopoverDismissesAndConsumes() {
+    fun escapeReleasedInPopoverDismissesAndConsumesBothEdges() {
         assertTrue(dispatcher.dispatchKeyEvent(key(popover, KeyEvent.KEY_PRESSED, KeyEvent.VK_ESCAPE)))
+        assertEquals(0, dismissed)
+        assertTrue(dispatcher.dispatchKeyEvent(key(popover, KeyEvent.KEY_RELEASED, KeyEvent.VK_ESCAPE)))
         assertEquals(1, dismissed)
     }
 
     @Test
-    fun otherKeysAndReleaseAreIgnored() {
+    fun replayedEscapePressWithoutReleaseDoesNotDismiss() {
+        // niri/Xwayland: Esc, закрывший прошлый поповер, «залипает» (отпускание ушло другому окну) и повторно
+        // присылается нажатием при получении фокуса — новый поповер закрывался через ~15 мс после показа.
+        assertTrue(dispatcher.dispatchKeyEvent(key(popover, KeyEvent.KEY_PRESSED, KeyEvent.VK_ESCAPE)))
+        assertEquals(0, dismissed)
+    }
+
+    @Test
+    fun otherKeysAreIgnored() {
         assertFalse(dispatcher.dispatchKeyEvent(key(popover, KeyEvent.KEY_PRESSED, KeyEvent.VK_A)))
-        assertFalse(dispatcher.dispatchKeyEvent(key(popover, KeyEvent.KEY_RELEASED, KeyEvent.VK_ESCAPE)))
+        assertFalse(dispatcher.dispatchKeyEvent(key(popover, KeyEvent.KEY_RELEASED, KeyEvent.VK_A)))
         assertEquals(0, dismissed)
     }
 
     @Test
     fun escapeInAnotherWindowIsIgnored() {
         assertFalse(dispatcher.dispatchKeyEvent(key(other, KeyEvent.KEY_PRESSED, KeyEvent.VK_ESCAPE)))
+        assertFalse(dispatcher.dispatchKeyEvent(key(other, KeyEvent.KEY_RELEASED, KeyEvent.VK_ESCAPE)))
         assertEquals(0, dismissed)
     }
 }

@@ -14,10 +14,13 @@ class PopoverEscapeDispatcher(
     private val onEscape: () -> Unit,
 ) : KeyEventDispatcher {
     override fun dispatchKeyEvent(e: KeyEvent): Boolean {
-        if (e.id != KeyEvent.KEY_PRESSED || e.keyCode != KeyEvent.VK_ESCAPE) return false
+        if (e.keyCode != KeyEvent.VK_ESCAPE) return false
+        if (e.id != KeyEvent.KEY_PRESSED && e.id != KeyEvent.KEY_RELEASED) return false
         val source = e.source as? Component ?: return false
         if (!owns(source)) return false
-        onEscape()
+        // Закрываем по отпусканию: на niri (Xwayland) Esc, закрывший прошлый поповер, остаётся «нажатым» — его
+        // отпускание получило другое окно — и повторяется нажатием, когда новый поповер получает фокус.
+        if (e.id == KeyEvent.KEY_RELEASED) onEscape()
         return true
     }
 }

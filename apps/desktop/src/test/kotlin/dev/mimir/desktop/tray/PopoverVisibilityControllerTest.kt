@@ -53,4 +53,14 @@ class PopoverVisibilityControllerTest {
         now = 2_010L
         assertTrue(controller.onTrayActivate(null))
     }
+
+    @Test
+    fun `focus loss keeps the popover open when the platform says so`() {
+        // niri: фокус уходит через ~200 мс после показа и меняется, пока курсор идёт к окну (focus-follows-mouse)
+        val controller = PopoverVisibilityController(debounceMs = 200L, closesOnFocusLoss = false, clockMillis = { 1_000L })
+        assertTrue(controller.onTrayActivate(null))
+        assertTrue(controller.onFocusLost())
+        assertTrue(controller.visible)
+        assertFalse(controller.onTrayActivate(null))
+    }
 }

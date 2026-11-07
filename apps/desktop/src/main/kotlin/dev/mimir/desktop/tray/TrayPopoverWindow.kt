@@ -44,7 +44,8 @@ import kotlin.math.ceil
 private val POPOVER_INITIAL_SIZE = DpSize(320.dp, 300.dp)
 
 /**
- * Безрамочное окно-поповер у иконки трея (`Window.Type.POPUP`: тайлинг-WM его не раскладывает).
+ * Безрамочное окно-поповер у иконки трея. Тип окна — [PopoverBehavior.windowType]: `POPUP` тайлинг-WM не раскладывает,
+ * на niri — обычное окно фиксированного размера, которое niri делает плавающим ([PopoverBehavior]).
  * Пока [visible] == false, содержимое не композируется — фоновой нагрузки нет.
  */
 @OptIn(ExperimentalComposeUiApi::class)
@@ -52,6 +53,7 @@ private val POPOVER_INITIAL_SIZE = DpSize(320.dp, 300.dp)
 fun ApplicationScope.TrayPopoverWindow(
     visible: Boolean,
     anchor: TrayClickAnchor?,
+    behavior: PopoverBehavior,
     model: MimirUiModel?,
     startupError: String?,
     onFocusLost: () -> Unit,
@@ -72,7 +74,7 @@ fun ApplicationScope.TrayPopoverWindow(
         title = BuildConfig.APP_NAME,
         // Тип окна меняется только до displayable: init вызывается сразу после конструктора ComposeWindow.
         // Из DisposableEffect присваивание падало (IllegalComponentStateException) и окно оставалось NORMAL.
-        init = { it.type = java.awt.Window.Type.POPUP },
+        init = { it.type = behavior.windowType },
     ) {
         DisposableEffect(window) {
             val listener = object : WindowAdapter() {
