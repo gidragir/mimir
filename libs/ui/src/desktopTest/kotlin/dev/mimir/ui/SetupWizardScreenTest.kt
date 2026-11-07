@@ -3,6 +3,9 @@ package dev.mimir.ui
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -21,6 +24,7 @@ import dev.mimir.ui.platform.LocalStorageAccess
 import dev.mimir.ui.platform.LocalVaultDiscovery
 import dev.mimir.ui.platform.StorageAccess
 import dev.mimir.ui.platform.VaultDiscovery
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalUriHandler
@@ -233,6 +237,25 @@ class SetupWizardScreenTest {
         // Галочка — только иконка рядом со статусом, не символ в тексте.
         onAllNodes(hasText("✓", substring = true)).assertCountEquals(0)
         onNodeWithText("/notes/vault").assertIsDisplayed()
+    }
+
+    @Test
+    fun `vault step is locked while the external folder dialog is open`() = runComposeUiTest {
+        // Диалог — отдельный процесс (PowerShell, портал, zenity): ОС не блокирует окно Mimir, блокирует экран.
+        val dialogClosed = CompletableDeferred<String?>()
+        val picker = FakeFolderPicker(onPick = { dialogClosed.await() })
+        setContent { CompositionLocalProvider(LocalFolderPicker provides picker) { SetupWizardScreen(FakeMimirUiModel(), onComplete = {}) } }
+
+        onNodeWithText("Обзор…").performClick()
+        waitForIdle()
+        onNodeWithText("Продолжить").assertIsNotEnabled()
+        // отключённое поле Compose лишает действия SetText: редактируемых полей на шаге нет
+        onAllNodes(hasSetTextAction()).assertCountEquals(0)
+
+        dialogClosed.complete(null)
+        waitForIdle()
+        onNodeWithText("Продолжить").assertIsEnabled()
+        onNode(hasSetTextAction()).assertIsEnabled()
     }
 
     @Test

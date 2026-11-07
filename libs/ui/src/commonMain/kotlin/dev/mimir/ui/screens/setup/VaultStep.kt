@@ -49,6 +49,8 @@ fun VaultStep(model: MimirUiModel, onNext: () -> Unit) {
     var error by remember { mutableStateOf<String?>(null) }
     var noteCount by remember { mutableStateOf<Int?>(null) }
     var busy by remember { mutableStateOf(false) }
+    // Внешний диалог выбора папки — отдельный процесс, ОС не делает его модальным для окна Mimir: пока он открыт,
+    // шаг заблокирован целиком, иначе «Продолжить» уходит с недовыбранным путём.
     var picking by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val picker = LocalFolderPicker.current
@@ -124,7 +126,7 @@ fun VaultStep(model: MimirUiModel, onNext: () -> Unit) {
                         error = null
                         scope.launch { configure(vault) }
                     },
-                    enabled = !busy,
+                    enabled = !busy && !picking,
                     variant = MimirButtonVariant.Secondary,
                     modifier = Modifier.fillMaxWidth().height(42.dp),
                 )
@@ -143,6 +145,7 @@ fun VaultStep(model: MimirUiModel, onNext: () -> Unit) {
             placeholder = "Введите путь к папке",
             error = error,
             singleLine = true,
+            enabled = !picking,
             modifier = Modifier.weight(1f).height(56.dp),
         )
         if (picker != null) {
@@ -220,7 +223,7 @@ fun VaultStep(model: MimirUiModel, onNext: () -> Unit) {
             }
             scope.launch { if (configure(path.trim())) onNext() }
         },
-        enabled = !busy,
+        enabled = !busy && !picking,
         loading = busy,
         variant = MimirButtonVariant.Primary,
         modifier = Modifier.fillMaxWidth().height(44.dp),
