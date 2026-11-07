@@ -52,9 +52,18 @@ description: Use when you need to build, test or verify a change in the Mimir re
 - Код 5 «Another win:* request is running» при зависшем агенте: убить `powershell.exe` с `agent.ps1` и `gradlew` в госте (или `win:reset --yes`); код 4 — войти в Windows в virt-manager и повторить.
 - `virsh screenshot win11` даёт чёрный кадр: вид окна смотреть в virt-manager; на хосте проверяется только факт запуска (процесс `dev.mimir.desktop`).
 - MSI регистрируется в HKLM, а `mimir://` и `mimir-ui.sock` остаются после удаления — это известные остатки, отчёт `win:uninstall` их показывает.
+- Состояние гостя без экрана: `bash -c 'source scripts/win-vm/lib.sh; winvm_config; winvm_exec powershell.exe -NoProfile -ExecutionPolicy Bypass -File "Z:\\mimir\\tmp\\x.ps1"'` (скрипт кладётся в `/srv/Shared/mimir/tmp`; `lib.sh` — только из bash, в zsh `status` read-only; без `-ExecutionPolicy Bypass` скрипты запрещены). Так проверяются установленный cfg, процессы `Mimir.exe`, логи демона Gradle (`C:\Users\Admin\.gradle\daemon\*\daemon-*.out.log`).
+- `mise run win:* | tail` скрывает код выхода: `set -o pipefail` или смотреть `out/status.json`.
 - Правки `scripts/win-vm/guest/*.ps1` проверяются только живым прогоном (`win:test` — на фейковом `virsh`); `win:snapshot`/`win:reset` с `sudo` просят пароль только в интерактивном терминале.
 
 Предусловие: войти в Windows в окне virt-manager (иначе код 4: `No user is logged in to Windows`). Первый `win:msi` долгий (Wasm/Node, WiX скачивается плагином Compose). Выключенную VM команды запускают сами. Тесты хостового CLI — `mise run win:test` (входит в `ci:fast`). Подробности: `docs/superpowers/specs/2026-11-07-windows-vm-test-flow-design.md`.
+
+## Проверка трея и поповера на хосте (niri)
+
+- Клик по иконке без мыши: `busctl --user call org.freedesktop.StatusNotifierItem-<pid>-1 /StatusNotifierItem org.kde.StatusNotifierItem Activate ii <x> <y>`; меню — `GetLayout` на `/MenuBar` (`com.canonical.dbusmenu`).
+- Окна и фокус: `niri msg -j windows` (поповер на niri — отдельное плавающее окно), `niri msg -j event-stream`. Поведение фокуса и клавиш — временной трассировкой `System.err` в `TrayPopoverWindow`/`Main` (до коммита убрать): AWT-события на niri расходятся с экраном (`isShowing=true` у невидимого окна).
+- Синтетический `Activate` ≠ реальный клик: noctalia шлёт свои координаты и фокус; итог подтверждает пользователь.
+- Убить dev-экземпляр: `kill $(pgrep -f 'desktop\.MainK[t]')` — `pkill -f <шаблон>` совпадает с собственной командной строкой и убивает шелл.
 
 ## Обязательная базовая линия
 
