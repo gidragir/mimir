@@ -2,8 +2,8 @@
 directory: apps/desktop/src/main/kotlin/dev/mimir/desktop
 source:
   kind: git
-  blob_sha: 445283a1656832bff6881333207a8f5a91c1cb02
-  commit_sha: cac1108a6fe7423a5254dd5c6ec22b7131ca5a22
+  blob_sha: 980d9f15247d6cde42162128d7c9d20af8cd9d6c
+  commit_sha: 570bdf8b131c69da889f78491ee6adaf106b3095
 generated_by:
   component: context-init
   role: update

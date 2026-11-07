@@ -15,33 +15,33 @@
     "test": "rtk mise run test",
     "run": "rtk mise run desktop",
     "custom": {
+      "tokens:check": "rtk mise run tokens:check",
+      "build:extension": "rtk mise run build:extension",
       "win:msi": "rtk mise run win:msi",
-      "tokens:generate": "rtk mise run tokens:generate",
-      "desktop": "rtk mise run desktop",
-      "win:reset": "rtk mise run win:reset",
-      "win:sync": "rtk mise run win:sync",
+      "package:msi": "rtk mise run package:msi",
+      "win:logs": "rtk mise run win:logs",
+      "test:fast": "rtk mise run test:fast",
+      "package:arch": "rtk mise run package:arch",
+      "ci:fast": "rtk mise run ci:fast",
+      "win:test": "rtk mise run win:test",
+      "skills:sync": "rtk mise run skills:sync",
       "win:provision": "rtk mise run win:provision",
       "screenshots": "rtk mise run screenshots",
-      "package:extension": "rtk mise run package:extension",
-      "test:fast": "rtk mise run test:fast",
+      "package:docker": "rtk mise run package:docker",
+      "tokens:generate": "rtk mise run tokens:generate",
+      "desktop": "rtk mise run desktop",
+      "plugin": "rtk mise run plugin",
+      "win:run": "rtk mise run win:run",
+      "win:snapshot": "rtk mise run win:snapshot",
+      "win:uninstall": "rtk mise run win:uninstall",
       "web": "rtk mise run web",
       "android": "rtk mise run android",
-      "skills:check": "rtk mise run skills:check",
-      "win:test": "rtk mise run win:test",
-      "package:arch": "rtk mise run package:arch",
-      "win:uninstall": "rtk mise run win:uninstall",
       "extension": "rtk mise run extension",
-      "build:extension": "rtk mise run build:extension",
-      "win:snapshot": "rtk mise run win:snapshot",
-      "win:logs": "rtk mise run win:logs",
-      "package:docker": "rtk mise run package:docker",
+      "win:reset": "rtk mise run win:reset",
+      "skills:check": "rtk mise run skills:check",
+      "win:sync": "rtk mise run win:sync",
       "daemon": "rtk mise run daemon",
-      "plugin": "rtk mise run plugin",
-      "package:msi": "rtk mise run package:msi",
-      "tokens:check": "rtk mise run tokens:check",
-      "win:run": "rtk mise run win:run",
-      "skills:sync": "rtk mise run skills:sync",
-      "ci:fast": "rtk mise run ci:fast"
+      "package:extension": "rtk mise run package:extension"
     }
   },
   "subsystems": [
@@ -460,6 +460,9 @@
         }
       ],
       "key_symbols": [
+        "abstract class DevAppLogService : BuildService<BuildServiceParameters.None>, AutoCloseable",
+        "fun open(path: String): OutputStream = FileOutputStream(path, true).also",
+        "override fun close()",
         "fun macBundleVersion(version: String): String"
       ],
       "summary_source": "heuristic"
@@ -570,7 +573,7 @@
     {
       "id": "apps_desktop_main_kotlin_dev_mimir_desktop_tray",
       "name": "Desktop Main Kotlin Dev Mimir Desktop Tray",
-      "summary": "Модуль и компоненты директории `apps/desktop/src/main/kotlin/dev/mimir/desktop/tray` (11 файлов)",
+      "summary": "Модуль и компоненты директории `apps/desktop/src/main/kotlin/dev/mimir/desktop/tray` (12 файлов)",
       "l1_path": "subsystems/apps_desktop_main_kotlin_dev_mimir_desktop_tray.md",
       "tags": [
         "Kotlin (Gradle)",
@@ -581,6 +584,7 @@
         "apps/desktop/src/main/kotlin/dev/mimir/desktop/tray/DbusInterfaces.kt",
         "apps/desktop/src/main/kotlin/dev/mimir/desktop/tray/DbusStatusNotifierTray.kt",
         "apps/desktop/src/main/kotlin/dev/mimir/desktop/tray/NoTray.kt",
+        "apps/desktop/src/main/kotlin/dev/mimir/desktop/tray/PopoverBehavior.kt",
         "apps/desktop/src/main/kotlin/dev/mimir/desktop/tray/PopoverEscapeDispatcher.kt",
         "apps/desktop/src/main/kotlin/dev/mimir/desktop/tray/PopoverVisibilityController.kt",
         "apps/desktop/src/main/kotlin/dev/mimir/desktop/tray/ScreenPositionCalculator.kt",
@@ -604,6 +608,10 @@
         },
         {
           "path": "apps/desktop/src/main/kotlin/dev/mimir/desktop/tray/NoTray.kt",
+          "is_entrypoint": false
+        },
+        {
+          "path": "apps/desktop/src/main/kotlin/dev/mimir/desktop/tray/PopoverBehavior.kt",
           "is_entrypoint": false
         },
         {
@@ -1929,6 +1937,117 @@
       "key_symbols": [
         "export WINVM_NAME WINVM_URI WINVM_SHARE WINVM_SHARE_DRIVE WINVM_AGENT_TIMEOUT \\ WINVM_POLL WINVM_EXEC_POLL WINVM_EXEC_TIMEOUT WINVM_MISE_VERSION WINVM_STATUS_TIMEOUT WINVM_STATUS_POLL WINVM_HOST_DIR WINVM_GUEST_DIR } _virsh()"
       ],
+      "summary_source": "heuristic"
+    },
+    {
+      "id": "scripts_win-vm",
+      "name": "Scripts Win Vm",
+      "summary": "Модуль и компоненты директории `scripts/win-vm` (6 файлов)",
+      "l1_path": "subsystems/scripts_win-vm.md",
+      "tags": [
+        "Kotlin (Gradle)",
+        "scripts_win-vm"
+      ],
+      "key_files": [
+        "scripts/win-vm/guest/agent.ps1",
+        "scripts/win-vm/guest/provision.ps1",
+        "scripts/win-vm/guest/stop.ps1",
+        "scripts/win-vm/guest/sync.ps1",
+        "scripts/win-vm/lib.sh",
+        "scripts/win-vm/winvm.sh"
+      ],
+      "files": [
+        {
+          "path": "scripts/win-vm/guest/agent.ps1",
+          "is_entrypoint": false
+        },
+        {
+          "path": "scripts/win-vm/guest/provision.ps1",
+          "is_entrypoint": false
+        },
+        {
+          "path": "scripts/win-vm/guest/stop.ps1",
+          "is_entrypoint": false
+        },
+        {
+          "path": "scripts/win-vm/guest/sync.ps1",
+          "is_entrypoint": false
+        },
+        {
+          "path": "scripts/win-vm/lib.sh",
+          "is_entrypoint": false
+        },
+        {
+          "path": "scripts/win-vm/winvm.sh",
+          "is_entrypoint": false
+        }
+      ],
+      "key_symbols": [
+        "export WINVM_NAME WINVM_URI WINVM_SHARE WINVM_SHARE_DRIVE WINVM_AGENT_TIMEOUT \\ WINVM_POLL WINVM_EXEC_POLL WINVM_EXEC_TIMEOUT WINVM_MISE_VERSION WINVM_STATUS_TIMEOUT WINVM_STATUS_POLL WINVM_HOST_DIR WINVM_GUEST_DIR } _virsh()"
+      ],
+      "parent": "scripts",
+      "summary_source": "heuristic"
+    },
+    {
+      "id": "scripts_win-vm_tests",
+      "name": "Scripts Win Vm Tests",
+      "summary": "Тесты для `scripts_win-vm`",
+      "l1_path": "subsystems/scripts_win-vm_tests.md",
+      "tags": [
+        "Kotlin (Gradle)",
+        "scripts_win-vm_tests",
+        "tests"
+      ],
+      "key_files": [
+        "scripts/win-vm/tests/fakes/guest-agent.sh",
+        "scripts/win-vm/tests/helpers.sh",
+        "scripts/win-vm/tests/run.sh",
+        "scripts/win-vm/tests/test_lib.sh",
+        "scripts/win-vm/tests/test_msi.sh",
+        "scripts/win-vm/tests/test_provision.sh",
+        "scripts/win-vm/tests/test_run.sh",
+        "scripts/win-vm/tests/test_snapshot.sh",
+        "scripts/win-vm/tests/test_sync.sh"
+      ],
+      "files": [
+        {
+          "path": "scripts/win-vm/tests/fakes/guest-agent.sh",
+          "is_entrypoint": false
+        },
+        {
+          "path": "scripts/win-vm/tests/helpers.sh",
+          "is_entrypoint": false
+        },
+        {
+          "path": "scripts/win-vm/tests/run.sh",
+          "is_entrypoint": false
+        },
+        {
+          "path": "scripts/win-vm/tests/test_lib.sh",
+          "is_entrypoint": false
+        },
+        {
+          "path": "scripts/win-vm/tests/test_msi.sh",
+          "is_entrypoint": false
+        },
+        {
+          "path": "scripts/win-vm/tests/test_provision.sh",
+          "is_entrypoint": false
+        },
+        {
+          "path": "scripts/win-vm/tests/test_run.sh",
+          "is_entrypoint": false
+        },
+        {
+          "path": "scripts/win-vm/tests/test_snapshot.sh",
+          "is_entrypoint": false
+        },
+        {
+          "path": "scripts/win-vm/tests/test_sync.sh",
+          "is_entrypoint": false
+        }
+      ],
+      "parent": "scripts_win-vm",
       "summary_source": "heuristic"
     }
   ],

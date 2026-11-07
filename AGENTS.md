@@ -151,7 +151,7 @@ Mimir — клиент синхронизации Obsidian-хранилища с
 - `apps_daemon` (Daemon) — Подсистема `apps/daemon` с ключевыми точками входа: apps/daemon/build.gradle.kts
 - `apps_desktop` (Desktop) — Подсистема `apps/desktop` с ключевыми точками входа: apps/desktop/build.gradle.kts
 - `apps_desktop_main_kotlin_dev_mimir_desktop` (Desktop Main Kotlin Dev Mimir Desktop) — Модуль и компоненты директории `apps/desktop/src/main/kotlin/dev/mimir/desktop` (15 файлов)
-- `apps_desktop_main_kotlin_dev_mimir_desktop_tray` (Desktop Main Kotlin Dev Mimir Desktop Tray) — Модуль и компоненты директории `apps/desktop/src/main/kotlin/dev/mimir/desktop/tray` (11 файлов)
+- `apps_desktop_main_kotlin_dev_mimir_desktop_tray` (Desktop Main Kotlin Dev Mimir Desktop Tray) — Модуль и компоненты директории `apps/desktop/src/main/kotlin/dev/mimir/desktop/tray` (12 файлов)
 - `apps_obsidian-plugin` (Obsidian Plugin) — Подсистема `apps/obsidian-plugin` с ключевыми точками входа: apps/obsidian-plugin/build.gradle.kts
 - `apps_web-ui` (Web Ui) — Подсистема `apps/web-ui` с ключевыми точками входа: apps/web-ui/build.gradle.kts
 - `build-logic` (Build Logic) — Подсистема `build-logic` с ключевыми точками входа: build-logic/build.gradle.kts
@@ -170,3 +170,5 @@ Mimir — клиент синхронизации Obsidian-хранилища с
 - `libs_ui_commonmain_kotlin_dev_mimir_ui_screens` (Ui CommonMain Kotlin Dev Mimir Ui Screens) — Модуль и компоненты директории `libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens` (13 файлов)
 - `packaging` (Packaging) — Модуль и компоненты директории `packaging` (2 файлов)
 - `scripts` (Scripts) — Модуль и компоненты директории `scripts` (15 файлов)
+- `scripts_win-vm` (Scripts Win Vm) — Модуль и компоненты директории `scripts/win-vm` (6 файлов)
+- `scripts_win-vm_tests` (Scripts Win Vm Tests) — Тесты для `scripts_win-vm`

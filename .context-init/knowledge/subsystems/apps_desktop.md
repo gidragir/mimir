@@ -2,8 +2,8 @@
 directory: apps/desktop/build.gradle.kts
 source:
   kind: git
-  blob_sha: 0d5d4b4bb17fe92fc290cc6540186a5367cf0b2e
-  commit_sha: cac1108a6fe7423a5254dd5c6ec22b7131ca5a22
+  blob_sha: fbb6378b3b364e21bfc8c0fcf63dc6354848812e
+  commit_sha: 570bdf8b131c69da889f78491ee6adaf106b3095
 generated_by:
   component: context-init
   role: update
@@ -30,6 +30,9 @@ freshness:
 
 ## 🔑 Ключевой контракт и экспорты
 ```text
+abstract class DevAppLogService : BuildService<BuildServiceParameters.None>, AutoCloseable
+fun open(path: String): OutputStream = FileOutputStream(path, true).also
+override fun close()
 fun macBundleVersion(version: String): String
 ```
 

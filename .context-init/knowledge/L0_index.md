@@ -33,7 +33,7 @@ rtk mise run desktop
 | **Daemon** | Подсистема `apps/daemon` с ключевыми точками входа: apps/daemon/build.gradle.kts | `apps/daemon/build.gradle.kts` | [subsystems/apps_daemon.md](subsystems/apps_daemon.md) |
 | **Desktop** | Подсистема `apps/desktop` с ключевыми точками входа: apps/desktop/build.gradle.kts | `apps/desktop/build.gradle.kts` | [subsystems/apps_desktop.md](subsystems/apps_desktop.md) |
 | **Desktop Main Kotlin Dev Mimir Desktop** | Модуль и компоненты директории `apps/desktop/src/main/kotlin/dev/mimir/desktop` (15 файлов) | `-` | [subsystems/apps_desktop_main_kotlin_dev_mimir_desktop.md](subsystems/apps_desktop_main_kotlin_dev_mimir_desktop.md) |
-| **Desktop Main Kotlin Dev Mimir Desktop Tray** | Модуль и компоненты директории `apps/desktop/src/main/kotlin/dev/mimir/desktop/tray` (11 файлов) | `-` | [subsystems/apps_desktop_main_kotlin_dev_mimir_desktop_tray.md](subsystems/apps_desktop_main_kotlin_dev_mimir_desktop_tray.md) |
+| **Desktop Main Kotlin Dev Mimir Desktop Tray** | Модуль и компоненты директории `apps/desktop/src/main/kotlin/dev/mimir/desktop/tray` (12 файлов) | `-` | [subsystems/apps_desktop_main_kotlin_dev_mimir_desktop_tray.md](subsystems/apps_desktop_main_kotlin_dev_mimir_desktop_tray.md) |
 | **Obsidian Plugin** | Подсистема `apps/obsidian-plugin` с ключевыми точками входа: apps/obsidian-plugin/build.gradle.kts | `apps/obsidian-plugin/build.gradle.kts` | [subsystems/apps_obsidian-plugin.md](subsystems/apps_obsidian-plugin.md) |
 | **Web Ui** | Подсистема `apps/web-ui` с ключевыми точками входа: apps/web-ui/build.gradle.kts | `apps/web-ui/build.gradle.kts` | [subsystems/apps_web-ui.md](subsystems/apps_web-ui.md) |
 | **Build Logic** | Подсистема `build-logic` с ключевыми точками входа: build-logic/build.gradle.kts | `build-logic/build.gradle.kts` | [subsystems/build-logic.md](subsystems/build-logic.md) |
@@ -52,6 +52,8 @@ rtk mise run desktop
 | **Ui CommonMain Kotlin Dev Mimir Ui Screens** | Модуль и компоненты директории `libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens` (13 файлов) | `-` | [subsystems/libs_ui_commonmain_kotlin_dev_mimir_ui_screens.md](subsystems/libs_ui_commonmain_kotlin_dev_mimir_ui_screens.md) |
 | **Packaging** | Модуль и компоненты директории `packaging` (2 файлов) | `-` | [subsystems/packaging.md](subsystems/packaging.md) |
 | **Scripts** | Модуль и компоненты директории `scripts` (15 файлов) | `-` | [subsystems/scripts.md](subsystems/scripts.md) |
+| **Scripts Win Vm** | Модуль и компоненты директории `scripts/win-vm` (6 файлов) | `-` | [subsystems/scripts_win-vm.md](subsystems/scripts_win-vm.md) |
+| **Scripts Win Vm Tests** | Тесты для `scripts_win-vm` | `-` | [subsystems/scripts_win-vm_tests.md](subsystems/scripts_win-vm_tests.md) |
 
 ## 📋 Инварианты и правила проекта
 - Код форматируется согласно Kotlin Coding Conventions (ktlint).
