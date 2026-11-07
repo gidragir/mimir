@@ -85,3 +85,11 @@ test_sync_keeps_nested_source_dir_named_build() {
   assert_file "$src/pkg/build/Keep.kt"
   assert_no_file "$src/build"
 }
+
+test_guest_sync_does_not_exclude_build_by_bare_name() {
+  # /XD build по голому имени вырезает и исходники (build-logic/.../dev/mimir/build)
+  local line
+  line=$(grep -E '^& robocopy' "$WINVM_TEST_ROOT/scripts/win-vm/guest/sync.ps1")
+  assert_not_contains "$line" " build "
+  assert_contains "$line" "libs\\*\\build"
+}

@@ -4,6 +4,6 @@ param(
     [string]$Dest = 'C:\mimir'
 )
 $ErrorActionPreference = 'Stop'
-& robocopy.exe $Source $Dest /MIR /XD build .gradle .kotlin node_modules /XF mise.local.toml /NFL /NDL /NJH /NP
+& robocopy.exe $Source $Dest /MIR /XD "$Dest\build" "$Dest\*\build" "$Dest\libs\*\build" "$Dest\apps\*\build" .gradle .kotlin node_modules /XF mise.local.toml /NFL /NDL /NJH /NP
 if ($LASTEXITCODE -lt 8) { exit 0 }
 exit $LASTEXITCODE
