@@ -44,6 +44,7 @@ env:
 jobs:
   detect-changes:
     name: Detect Changed Modules
+    if: "!startsWith(github.event.head_commit.message, 'chore(main): release ')"
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -129,7 +130,7 @@ jobs:
             if [[ "$HEAD_REF" == release-please--* ]]; then
               echo "is_release_pr=true"
               echo "package_msi=false"
-              echo 'os_matrix=["ubuntu-latest"]'
+              echo 'os_matrix=["ubuntu-latest","windows-latest"]'
             elif [ "$EVENT_NAME" = "schedule" ] || { [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$RUN_MACOS" = "true" ]; }; then
               echo "is_release_pr=false"
               echo "package_msi=true"

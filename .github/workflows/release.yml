@@ -38,16 +38,14 @@ env:
   GIT_CONFIG_VALUE_0: main
 
 jobs:
-  # Gate: тег совпадает с версией, а CI коммита релиза завершён успешно. Ждёт активные check-runs
-  # (release-please.yml стартует одновременно с ci.yml), поэтому build/arch/docker не гонятся с CI.
+  # Gate: тег совпадает с версией. Предварительные проверки пройдены в релизном PR перед слиянием.
   verify:
     name: Verify release gate
     if: ${{ inputs.dry_run != true }}
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 5
     permissions:
       contents: read
-      checks: read
     steps:
       - uses: actions/checkout@v7
         with:
@@ -57,35 +55,6 @@ jobs:
         run: |
           version=$(sed -n 's/^mimir.version=//p' gradle.properties)
           test "v$version" = "$TAG" || { echo "Tag $TAG != mimir.version $version"; exit 1; }
-      - name: Wait for CI check-runs of release commit
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          sha=$(git rev-parse HEAD)
-          for attempt in $(seq 1 60); do
-            runs=$(gh api "repos/${{ github.repository }}/commits/$sha/check-runs?per_page=100" | jq '[.check_runs[] | select((.name | startswith("build (")) or .name == "Detect Changed Modules")] | group_by(.name) | map(max_by(.id))')
-            total=$(jq '[.[] | select(.name | startswith("build ("))] | length' <<<"$runs")
-            in_progress=$(jq '[.[] | select(.status != "completed")] | length' <<<"$runs")
-            failed=$(jq '[.[] | select(.status == "completed" and .conclusion != "success" and .conclusion != "skipped")] | length' <<<"$runs")
-            detect_status=$(jq -r '[.[] | select(.name == "Detect Changed Modules")][0].status // "missing"' <<<"$runs")
-            detect=$(jq -r '[.[] | select(.name == "Detect Changed Modules")][0].conclusion // "missing"' <<<"$runs")
-            if [ "$detect_status" = "completed" ] && [ "$detect" != "success" ]; then
-              echo "Detect Changed Modules finished with '$detect' for commit $sha"
-              exit 1
-            fi
-            if [ "$failed" -gt 0 ]; then
-              echo "CI check-runs failed for commit $sha"
-              exit 1
-            fi
-            if [ "$detect" = "success" ] && [ "$total" -gt 0 ] && [ "$in_progress" -eq 0 ]; then
-              echo "CI check-runs succeeded for commit $sha"
-              exit 0
-            fi
-            echo "Attempt $attempt/60: detect=$detect_status/$detect total=$total in_progress=$in_progress; waiting 15s"
-            sleep 15
-          done
-          echo "Timed out waiting for CI check-runs of commit $sha"
-          exit 1
 
   # Параллельная сборка файловых артефактов на нужных платформах.
   build:

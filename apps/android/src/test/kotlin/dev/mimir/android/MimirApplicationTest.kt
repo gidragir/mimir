@@ -160,7 +160,14 @@ class MimirApplicationTest {
                 }
             }
 
-            val expeditedWorks = workManager.getWorkInfosForUniqueWork(SyncWorkScheduler.EXPEDITED).get()
+            var expeditedWorks = emptyList<androidx.work.WorkInfo>()
+            kotlinx.coroutines.withTimeout(5_000) {
+                while (true) {
+                    expeditedWorks = workManager.getWorkInfosForUniqueWork(SyncWorkScheduler.EXPEDITED).get()
+                    if (expeditedWorks.isNotEmpty()) break
+                    kotlinx.coroutines.delay(20)
+                }
+            }
             assertEquals(1, expeditedWorks.size, "interrupted sync on onStop must hand off to WorkManager")
         } finally {
             rt.close()
