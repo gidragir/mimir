@@ -13,8 +13,8 @@ CI Mimir живёт в ~15 файлах ниже. Код приложения (`
 
 | Что | Файл |
 |---|---|
-| PR/push-матрица: `detect-changes`, `paths-filter`, `os_matrix`, `package_msi`, `build` | `.github/workflows/ci.yml` |
-| Релиз: gate `verify`, msi/apk/zip, arch, docker | `.github/workflows/release.yml`, `release-please.yml`, `.github/release-please-config.json` |
+| PR/push-матрица: `detect-changes`, `paths-filter`, `os_matrix`, `package_msi`, `build`, пропуск релизного слияния | `.github/workflows/ci.yml` |
+| Релиз: gate `verify` (быстрая проверка тега), msi/apk/zip, arch, docker | `.github/workflows/release.yml`, `release-please.yml`, `.github/release-please-config.json` |
 | Таски и тулчейн | `mise.toml` |
 | `ciJvmTests`, `mustRunAfter` для `kotlinWasmNpmInstall`, dependency-analysis | корневой `build.gradle.kts` |
 | JVM-таргет, KMP/Karma (`useConfigDirectory`), Android | `build-logic/src/main/kotlin/mimir.*.gradle.kts`, `gradle/karma.config.d/` |
