@@ -1,6 +1,6 @@
 ---
 name: mimir-build-verify
-description: Use when you need to build, test or verify a change in the Mimir repo, or when a Gradle/mise command is about to be run — covers the Arch-only rule, the right commands per module, and the no-Android-SDK / no-secrets baseline.
+description: Use when you need to build, test or verify a change in the Mimir repo, or when a Gradle/mise command is about to be run — covers the Arch-only rule, the right commands per module, the no-Android-SDK / no-secrets baseline, and local Windows testing in the win11 VM (win:run, win:msi, MSI, tray, window styler, mimir://, "проверить на Windows").
 ---
 
 # Сборка и проверка Mimir
@@ -43,6 +43,16 @@ description: Use when you need to build, test or verify a change in the Mimir re
 | Логи (`build`, `run`, `msi`) | `mise run win:logs [build\|run\|msi]` |
 | Чистая система | `mise run win:reset --yes` (стирает всё после снапшота `provisioned`) |
 | Разовая подготовка / снапшот | `mise run win:provision --with-secrets`, затем `mise run win:snapshot` |
+
+Порядок: Windows-специфичную правку сначала `mise run win:run`, MSI/лаунчер/ярлыки — `mise run win:msi`, и только потом CI. Рабочее дерево уходит в VM как есть (файлы из `git ls-files -co --exclude-standard`: коммитить и `git add` не нужно, игнорируемое и секреты не копируются).
+
+Как читать поведение:
+- `win:run` после запуска приложения остаётся в `tail -F` логов — это норма; для скриптов `WINVM_NO_TAIL=1`. Время: холодный (после `win:reset`) ≈ 8 мин, повторный без правок ≈ 6 с, после правки Kotlin ≈ 10 с.
+- Новый `win:run` вытесняет старый: старое приложение убивается, шум `FAILED exit -1` в логах от прежнего запуска — не ошибка нового.
+- Код 5 «Another win:* request is running» при зависшем агенте: убить `powershell.exe` с `agent.ps1` и `gradlew` в госте (или `win:reset --yes`); код 4 — войти в Windows в virt-manager и повторить.
+- `virsh screenshot win11` даёт чёрный кадр: вид окна смотреть в virt-manager; на хосте проверяется только факт запуска (процесс `dev.mimir.desktop`).
+- MSI регистрируется в HKLM, а `mimir://` и `mimir-ui.sock` остаются после удаления — это известные остатки, отчёт `win:uninstall` их показывает.
+- Правки `scripts/win-vm/guest/*.ps1` проверяются только живым прогоном (`win:test` — на фейковом `virsh`); `win:snapshot`/`win:reset` с `sudo` просят пароль только в интерактивном терминале.
 
 Предусловие: войти в Windows в окне virt-manager (иначе код 4: `No user is logged in to Windows`). Первый `win:msi` долгий (Wasm/Node, WiX скачивается плагином Compose). Выключенную VM команды запускают сами. Тесты хостового CLI — `mise run win:test` (входит в `ci:fast`). Подробности: `docs/superpowers/specs/2026-11-07-windows-vm-test-flow-design.md`.
 

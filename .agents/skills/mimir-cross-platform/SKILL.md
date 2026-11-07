@@ -40,11 +40,13 @@ Arch + niri — машина разработчика, а не продукт. �
 
 - Хост не доказывает кросс-платформенность. Собрать все цели модуля (`allTests`, `compileKotlinWasmJs`, Android при SDK) — см. `mimir-build-verify`.
 - Windows/macOS проверяет CI-матрица (`ci.yml`): логика ветвления по ОС покрывается юнит-тестом с подставленным `osName`/`env`.
+- Windows локально: окно, трей, фокус, выбор папки, `mimir://`, MSI — до CI прогнать `mise run win:run` / `win:msi` в VM `win11` (см. `mimir-build-verify`, «Проверка на Windows-VM»). Результат записать в отчёт: что увидено в VM, что только в CI.
 - В отчёте явно перечислить, что на каких платформах не проверено руками.
 
 ## Красные флаги
 
 - «Под niri работает» без строк про Windows/Android/Docker.
+- Правка Windows-ветки, не прогнанная в VM `win11`, но заявленная как проверенная.
 - `os.name`, `System.getenv`, `ProcessBuilder`, `java.awt` в `libs/core` или `libs/ui/commonMain`.
 - Linux-only библиотека в `commonMain` или без запасного пути.
 - Захардкоженные `/home`, `~/.config`, `\n` в путях, `File.separator` в относительных путях vault.

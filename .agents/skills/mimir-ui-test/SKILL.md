@@ -82,6 +82,10 @@ class MyScreenScreenshotTest {
    - Внутри `OutlinedTextField` использовать `placeholder`, а не `label`.
    - Иконки — векторные `MimirIcons`, никаких emoji (`📁`, `👁`).
 
+## Windows
+
+Compose-скриншоты headless и не показывают нативную рамку, DWM и трей. Для них — `mise run win:run` в VM `win11` (`mimir-build-verify`, «Проверка на Windows-VM»); вид окна смотреть в virt-manager, `virsh screenshot` даёт чёрный кадр.
+
 ## Красные флаги
 
 - Ручная проверка «на глаз» через запуск всего приложения (`mise run desktop`) вместо запуска автоматических тестов.
