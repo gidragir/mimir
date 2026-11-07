@@ -46,7 +46,8 @@ function Invoke-Run {
     while (-not $p.HasExited) {
         if (-not $launched) {
             try {
-                if (Select-String -Path $log -SimpleMatch -Quiet -Pattern '> Task :apps:desktop:run') {
+                # Заголовок задачи Gradle не печатает, пока JavaExec молчит, поэтому ждём сам процесс приложения.
+                if (Get-CimInstance Win32_Process -Filter "Name='java.exe'" | Where-Object { $_.CommandLine -like '*dev.mimir.desktop*' }) {
                     $launched = $true
                     Set-Status 'launched' 'run'
                 }

@@ -59,3 +59,11 @@ test_stale_running_status_is_overwritten() {
   [[ $(jq -r .id "$out/request.json") != old ]] || fail "request was not overwritten"
   assert_no_file "$out/status.json"
 }
+
+test_agent_detects_launch_by_app_process_not_gradle_header() {
+  # Gradle не печатает заголовок JavaExec-задачи, пока приложение молчит и работает
+  local src
+  src=$(<"$WINVM_TEST_ROOT/scripts/win-vm/guest/agent.ps1")
+  assert_not_contains "$src" "> Task :apps:desktop:run"
+  assert_contains "$src" "dev.mimir.desktop"
+}
