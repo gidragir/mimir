@@ -92,29 +92,34 @@ tasks.withType<Test>().configureEach { jvmArgs("--enable-native-access=ALL-UNNAM
 
 // Отключаем перезапуск Windows-лаунчера jpackage (win.norestart=true), чтобы в Диспетчере задач
 // не создавался родительский процесс-обёртка и отображался ровно один процесс Mimir.exe.
+// Патч кладётся в образ createDistributable; MSI обязан собираться из этого образа: без appImage плагин
+// Compose на Windows зовёт jpackage с --input, и тот генерирует свой cfg без патча (так было до 0.4.0).
 // Логика патча намеренно не вынесена в функцию скрипта: ссылка на объект скрипта в действии
-// задачи ломает configuration cache. Захватываются только значения (каталог сборки, имя).
-val patchCfgBuildDir = layout.buildDirectory.asFile
+// задачи ломает configuration cache. Захватываются только значения (каталог образа, имя).
 val patchCfgAppName = providers.gradleProperty("mimir.appName")
-tasks.configureEach {
-    val isDistributable = name.startsWith("createDistributable") || name.startsWith("createReleaseDistributable")
-    val isMsi = name.contains("packageMsi", ignoreCase = true) || name.contains("packageReleaseMsi", ignoreCase = true)
-    if (isDistributable || isMsi) {
-        val buildDirFile = patchCfgBuildDir.get()
-        val appName = patchCfgAppName.get()
-        val patch = Action<Task> {
-            if (buildDirFile.exists()) {
-                buildDirFile.walkTopDown()
-                    .filter { it.isFile && it.name.equals("$appName.cfg", ignoreCase = true) }
-                    .forEach { cfg ->
-                        val content = cfg.readText()
-                        if (!content.contains("win.norestart")) {
-                            cfg.writeText(content.replace("[Application]", "[Application]\r\nwin.norestart=true"))
-                        }
+tasks.withType<org.jetbrains.compose.desktop.application.tasks.AbstractJPackageTask>().configureEach {
+    if (name == "createDistributable" || name == "createReleaseDistributable") {
+        val imageDir = destinationDir
+        val appName = patchCfgAppName
+        doLast {
+            imageDir.get().asFile.walkTopDown()
+                .filter { it.isFile && it.name.equals("${appName.get()}.cfg", ignoreCase = true) }
+                .forEach { cfg ->
+                    val content = cfg.readText()
+                    if (!content.contains("win.norestart")) {
+                        cfg.writeText(content.replace("[Application]", "[Application]\r\nwin.norestart=true"))
                     }
-            }
+                }
         }
-        if (isDistributable) doLast(patch) else doFirst(patch)
+    }
+}
+listOf("packageMsi" to "createDistributable", "packageReleaseMsi" to "createReleaseDistributable").forEach { (pkg, image) ->
+    tasks.matching { it.name == pkg }.configureEach {
+        this as org.jetbrains.compose.desktop.application.tasks.AbstractJPackageTask
+        val imageTask = tasks.named<org.jetbrains.compose.desktop.application.tasks.AbstractJPackageTask>(image)
+        dependsOn(imageTask)
+        // destinationDir — каталог образов (binaries/main/app), сам образ — <имя>/ внутри него (как .app на macOS)
+        appImage.set(imageTask.flatMap { it.destinationDir.dir(patchCfgAppName) })
     }
 }
 
