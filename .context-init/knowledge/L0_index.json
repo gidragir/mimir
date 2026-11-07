@@ -3,7 +3,7 @@
   "schema_version": 4,
   "project": "mimir",
   "description": "Один открытый инструмент синхронизации Obsidian-хранилища на всех платформах (Linux, Windows, Android). Он ощущается как Google Drive Desktop: один раз указал папку vault и пароль, дальше всё синхронизируется само.",
-  "updated_at": "2026-11-06",
+  "updated_at": "2026-11-07",
   "project_type": "Kotlin (Gradle)",
   "entrypoints": [
     "mise.toml",
@@ -15,24 +15,33 @@
     "test": "rtk mise run test",
     "run": "rtk mise run desktop",
     "custom": {
-      "web": "rtk mise run web",
-      "package:extension": "rtk mise run package:extension",
-      "package:docker": "rtk mise run package:docker",
-      "screenshots": "rtk mise run screenshots",
-      "build:extension": "rtk mise run build:extension",
-      "daemon": "rtk mise run daemon",
-      "plugin": "rtk mise run plugin",
-      "android": "rtk mise run android",
-      "tokens:generate": "rtk mise run tokens:generate",
-      "desktop": "rtk mise run desktop",
-      "package:msi": "rtk mise run package:msi",
-      "skills:check": "rtk mise run skills:check",
-      "tokens:check": "rtk mise run tokens:check",
-      "extension": "rtk mise run extension",
       "package:arch": "rtk mise run package:arch",
+      "package:docker": "rtk mise run package:docker",
+      "plugin": "rtk mise run plugin",
+      "win:uninstall": "rtk mise run win:uninstall",
+      "extension": "rtk mise run extension",
+      "tokens:check": "rtk mise run tokens:check",
+      "daemon": "rtk mise run daemon",
+      "win:run": "rtk mise run win:run",
+      "win:provision": "rtk mise run win:provision",
       "test:fast": "rtk mise run test:fast",
+      "win:reset": "rtk mise run win:reset",
+      "package:msi": "rtk mise run package:msi",
+      "skills:sync": "rtk mise run skills:sync",
+      "skills:check": "rtk mise run skills:check",
+      "win:msi": "rtk mise run win:msi",
+      "package:extension": "rtk mise run package:extension",
+      "build:extension": "rtk mise run build:extension",
+      "desktop": "rtk mise run desktop",
+      "win:test": "rtk mise run win:test",
+      "win:snapshot": "rtk mise run win:snapshot",
+      "web": "rtk mise run web",
+      "tokens:generate": "rtk mise run tokens:generate",
+      "screenshots": "rtk mise run screenshots",
+      "win:logs": "rtk mise run win:logs",
       "ci:fast": "rtk mise run ci:fast",
-      "skills:sync": "rtk mise run skills:sync"
+      "win:sync": "rtk mise run win:sync",
+      "android": "rtk mise run android"
     }
   },
   "subsystems": [
@@ -1821,6 +1830,94 @@
       ],
       "key_symbols": [
         "export _JAVA_AWT_WM_NONREPARENTING=1 exec java -jar /usr/share/java/mimir/mimir.jar \"$@\""
+      ],
+      "summary_source": "heuristic"
+    },
+    {
+      "id": "scripts",
+      "name": "Scripts",
+      "summary": "Модуль и компоненты директории `scripts` (14 файлов)",
+      "l1_path": "subsystems/scripts.md",
+      "tags": [
+        "Kotlin (Gradle)",
+        "scripts"
+      ],
+      "key_files": [
+        "scripts/win-vm/guest/agent.ps1",
+        "scripts/win-vm/guest/provision.ps1",
+        "scripts/win-vm/guest/sync.ps1",
+        "scripts/win-vm/lib.sh",
+        "scripts/win-vm/tests/fakes/guest-agent.sh",
+        "scripts/win-vm/tests/helpers.sh",
+        "scripts/win-vm/tests/run.sh",
+        "scripts/win-vm/tests/test_lib.sh",
+        "scripts/win-vm/tests/test_msi.sh",
+        "scripts/win-vm/tests/test_provision.sh",
+        "scripts/win-vm/tests/test_run.sh",
+        "scripts/win-vm/tests/test_snapshot.sh",
+        "scripts/win-vm/tests/test_sync.sh",
+        "scripts/win-vm/winvm.sh"
+      ],
+      "files": [
+        {
+          "path": "scripts/win-vm/guest/agent.ps1",
+          "is_entrypoint": false
+        },
+        {
+          "path": "scripts/win-vm/guest/provision.ps1",
+          "is_entrypoint": false
+        },
+        {
+          "path": "scripts/win-vm/guest/sync.ps1",
+          "is_entrypoint": false
+        },
+        {
+          "path": "scripts/win-vm/lib.sh",
+          "is_entrypoint": false
+        },
+        {
+          "path": "scripts/win-vm/tests/fakes/guest-agent.sh",
+          "is_entrypoint": false
+        },
+        {
+          "path": "scripts/win-vm/tests/helpers.sh",
+          "is_entrypoint": false
+        },
+        {
+          "path": "scripts/win-vm/tests/run.sh",
+          "is_entrypoint": false
+        },
+        {
+          "path": "scripts/win-vm/tests/test_lib.sh",
+          "is_entrypoint": false
+        },
+        {
+          "path": "scripts/win-vm/tests/test_msi.sh",
+          "is_entrypoint": false
+        },
+        {
+          "path": "scripts/win-vm/tests/test_provision.sh",
+          "is_entrypoint": false
+        },
+        {
+          "path": "scripts/win-vm/tests/test_run.sh",
+          "is_entrypoint": false
+        },
+        {
+          "path": "scripts/win-vm/tests/test_snapshot.sh",
+          "is_entrypoint": false
+        },
+        {
+          "path": "scripts/win-vm/tests/test_sync.sh",
+          "is_entrypoint": false
+        },
+        {
+          "path": "scripts/win-vm/winvm.sh",
+          "is_entrypoint": false
+        }
+      ],
+      "key_symbols": [
+        "export WINVM_NAME WINVM_URI WINVM_SHARE WINVM_SHARE_DRIVE WINVM_AGENT_TIMEOUT \\ WINVM_POLL WINVM_EXEC_POLL WINVM_EXEC_TIMEOUT WINVM_MISE_VERSION WINVM_STATUS_TIMEOUT WINVM_STATUS_POLL WINVM_HOST_DIR WINVM_GUEST_DIR } _virsh()"
       ],
       "summary_source": "heuristic"
     }

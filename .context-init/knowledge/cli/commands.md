@@ -14,24 +14,33 @@
 
 | Скрипт | Выполняемая команда |
 | :--- | :--- |
-| `web` | `rtk mise run web` |
-| `package:extension` | `rtk mise run package:extension` |
-| `package:docker` | `rtk mise run package:docker` |
-| `screenshots` | `rtk mise run screenshots` |
-| `build:extension` | `rtk mise run build:extension` |
-| `daemon` | `rtk mise run daemon` |
-| `plugin` | `rtk mise run plugin` |
-| `android` | `rtk mise run android` |
-| `tokens:generate` | `rtk mise run tokens:generate` |
-| `desktop` | `rtk mise run desktop` |
-| `package:msi` | `rtk mise run package:msi` |
-| `skills:check` | `rtk mise run skills:check` |
-| `tokens:check` | `rtk mise run tokens:check` |
-| `extension` | `rtk mise run extension` |
 | `package:arch` | `rtk mise run package:arch` |
+| `package:docker` | `rtk mise run package:docker` |
+| `plugin` | `rtk mise run plugin` |
+| `win:uninstall` | `rtk mise run win:uninstall` |
+| `extension` | `rtk mise run extension` |
+| `tokens:check` | `rtk mise run tokens:check` |
+| `daemon` | `rtk mise run daemon` |
+| `win:run` | `rtk mise run win:run` |
+| `win:provision` | `rtk mise run win:provision` |
 | `test:fast` | `rtk mise run test:fast` |
-| `ci:fast` | `rtk mise run ci:fast` |
+| `win:reset` | `rtk mise run win:reset` |
+| `package:msi` | `rtk mise run package:msi` |
 | `skills:sync` | `rtk mise run skills:sync` |
+| `skills:check` | `rtk mise run skills:check` |
+| `win:msi` | `rtk mise run win:msi` |
+| `package:extension` | `rtk mise run package:extension` |
+| `build:extension` | `rtk mise run build:extension` |
+| `desktop` | `rtk mise run desktop` |
+| `win:test` | `rtk mise run win:test` |
+| `win:snapshot` | `rtk mise run win:snapshot` |
+| `web` | `rtk mise run web` |
+| `tokens:generate` | `rtk mise run tokens:generate` |
+| `screenshots` | `rtk mise run screenshots` |
+| `win:logs` | `rtk mise run win:logs` |
+| `ci:fast` | `rtk mise run ci:fast` |
+| `win:sync` | `rtk mise run win:sync` |
+| `android` | `rtk mise run android` |
 
 ## Быстрый запуск
 ```bash
