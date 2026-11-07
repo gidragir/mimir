@@ -71,3 +71,17 @@ test_sync_skips_symlinks() {
   [[ ! -L $src/linkdir/sub/rel ]] || fail "nested symlink was copied to the share"
   [[ ! -L $src/stale-link ]] || fail "stale symlink from an earlier sync was left in the share"
 }
+
+test_sync_keeps_nested_source_dir_named_build() {
+  local repo src
+  repo=$(make_repo)
+  src="$WINVM_SHARE/mimir/src"
+  echo "/build/" >"$repo/.gitignore"
+  mkdir -p "$repo/pkg/build"
+  echo kt >"$repo/pkg/build/Keep.kt"
+  git -C "$repo" add .gitignore pkg/build/Keep.kt
+  run sync_from "$repo"
+  assert_eq "$RC" 0
+  assert_file "$src/pkg/build/Keep.kt"
+  assert_no_file "$src/build"
+}

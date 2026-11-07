@@ -96,7 +96,7 @@ winvm_sync() {
   mkdir -p "$WINVM_HOST_DIR/src" "$WINVM_HOST_DIR/out" "$WINVM_HOST_DIR/tmp"
   echo "Sync: working tree -> $WINVM_HOST_DIR/src" >&2
   (cd "$root" && rsync -aq --no-links --delete --delete-excluded --filter=':- .gitignore' \
-    --exclude=/.git --exclude=/mise.local.toml --exclude=build/ ./ "$WINVM_HOST_DIR/src/") \
+    --exclude=/.git --exclude=/mise.local.toml ./ "$WINVM_HOST_DIR/src/") \
     || winvm_die 1 "rsync failed"
   # rsync не удаляет в приёмнике симлинк, чьё имя совпадает с пропущенным симлинком источника
   find "$WINVM_HOST_DIR/src" -type l -delete
