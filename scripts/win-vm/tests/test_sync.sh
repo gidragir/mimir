@@ -106,3 +106,41 @@ test_sync_skips_files_ignored_via_info_exclude() {
   assert_file "$src/new.txt"
   assert_no_file "$src/server.key"
 }
+
+test_sync_reports_source_root_branch_and_commit() {
+  local repo sha
+  repo=$(make_repo)
+  git -C "$repo" -c user.email=t@t -c user.name=t commit -qm init
+  sha=$(git -C "$repo" rev-parse --short HEAD)
+  run sync_from "$repo"
+  assert_eq "$RC" 0
+  assert_contains "$ERR" "Sync: $repo (branch main, commit $sha, uncommitted changes) ->"
+}
+
+test_sync_takes_tree_from_mise_original_cwd() {
+  # mise выполняет задачу в каталоге своего mise.toml: из ворктри без задач win:* — в родительском checkout
+  local repo other src
+  repo=$(make_repo)
+  other="$TEST_TMP/other"
+  mkdir -p "$other/scripts/win-vm/guest"
+  git -C "$other" init -q -b feature
+  echo agent >"$other/scripts/win-vm/guest/agent.ps1"
+  echo mine >"$other/only-in-other.txt"
+  src="$WINVM_SHARE/mimir/src"
+  MISE_TASK_NAME=win:run MISE_ORIGINAL_CWD="$other" run sync_from "$repo"
+  assert_eq "$RC" 0
+  assert_file "$src/only-in-other.txt"
+  assert_no_file "$src/a.txt"
+  assert_contains "$ERR" "Sync: $other (branch feature"
+}
+
+test_sync_refuses_tree_without_win_vm_scripts() {
+  # robocopy /MIR стёр бы agent.ps1 в госте, и задача MimirDev перестала бы работать
+  local repo
+  repo=$(make_repo)
+  rm -r "$repo/scripts"
+  run sync_from "$repo"
+  assert_eq "$RC" 1
+  assert_contains "$ERR" "$repo has no scripts/win-vm"
+  assert_no_file "$WINVM_SHARE/mimir/src/a.txt"
+}

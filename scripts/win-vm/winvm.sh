@@ -61,13 +61,20 @@ winvm_cmd_sync() {
   echo "Sync complete" >&2
 }
 winvm_cmd_run() {
-  local id out="$WINVM_HOST_DIR/out"
+  local id state
   winvm_ensure_running
   winvm_sync
+  winvm_take_over
+  winvm_rotate_logs run run.err
   id=$(winvm_request run)
   winvm_wait_status "$id" launched,ok 1800
+  state=$(jq -r '.state' "$WINVM_HOST_DIR/out/status.json")
+  if [[ $state == ok ]]; then
+    echo "Mimir в VM запустился и завершился с кодом 0"
+    return 0
+  fi
   echo "Mimir запущен в VM — смотрите в virt-manager"
-  [[ -n ${WINVM_NO_TAIL:-} ]] || exec tail -F "$out/run.log" "$out/run.err.log"
+  [[ -n ${WINVM_NO_TAIL:-} ]] || winvm_follow_run "$id"
 }
 winvm_cmd_msi() {
   local upgrade=false id
@@ -80,6 +87,8 @@ winvm_cmd_msi() {
   done
   winvm_ensure_running
   winvm_sync
+  # живой dev-экземпляр перехватил бы запуск установленного Mimir через single-instance IPC
+  winvm_take_over
   id=$(winvm_request msi "$upgrade")
   winvm_wait_status "$id" ok 3600
   echo "MSI установлен и запущен — смотрите в virt-manager"

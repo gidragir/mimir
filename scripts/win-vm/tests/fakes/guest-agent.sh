@@ -19,13 +19,37 @@ write_status() { # state step code
 }
 
 case "$path $joined" in
+  *stop.ps1*)
+    # FAKE_STOP_SAW — какой id лежал в request.json в момент остановки прежнего экземпляра
+    [[ -n ${FAKE_STOP_SAW:-} ]] && jq -r '.id // empty' "$out/request.json" >"$FAKE_STOP_SAW" 2>/dev/null
+    # FAKE_PREV_APP=alive — прежний экземпляр жив; его Gradle дописывает ошибку в run.log после остановки
+    if [[ ${FAKE_PREV_APP:-none} == alive ]]; then
+      echo "BUILD FAILED in 12h 54m" >>"$out/run.log"
+      echo "stopped 4242 java.exe"
+    fi
+    exit 0
+    ;;
   *Get-CimInstance*)
     [[ ${FAKE_AGENT_PROCESS:-none} == alive ]] && printf "%s\n" "powershell.exe -File agent.ps1"
     exit 0
     ;;
   schtasks.exe*/run*)
     case "${FAKE_GUEST_SCENARIO:-silent}" in
-      launched) write_status launched run 0 ;;
+      launched)
+        echo "current run" >"$out/run.log"
+        write_status launched run 0
+        # FAKE_GUEST_FINAL: ok | failed | superseded — что происходит с запущенным приложением позже
+        if [[ -n ${FAKE_GUEST_FINAL:-} ]]; then
+          (
+            sleep 0.5
+            case $FAKE_GUEST_FINAL in
+              ok) write_status ok run 0 ;;
+              failed) write_status failed run "${FAKE_GUEST_EXIT:-1}" ;;
+              superseded) jq -c '.id = "newer"' "$out/request.json" >"$out/request.json.tmp" && mv -f "$out/request.json.tmp" "$out/request.json" ;;
+            esac
+          ) >/dev/null 2>&1 &
+        fi
+        ;;
       ok)
         [[ -n ${FAKE_REPORT:-} ]] && printf '%s\n' "$FAKE_REPORT" >"$out/report.log"
         write_status ok "${FAKE_GUEST_STEP:-run}" 0

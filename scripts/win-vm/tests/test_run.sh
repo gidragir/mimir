@@ -74,3 +74,82 @@ test_agent_invoke_logged_does_not_use_call_operator() {
   src=$(<"$WINVM_TEST_ROOT/scripts/win-vm/guest/agent.ps1")
   assert_not_contains "$src" '& cmd.exe /c'
 }
+
+test_run_stops_previous_instance_and_says_so() {
+  export FAKE_GUEST_SCENARIO=launched FAKE_PREV_APP=alive WINVM_NO_TAIL=1
+  run cli run
+  assert_eq "$RC" 0
+  assert_contains "$ERR" "Stopped previous Mimir in VM: pid 4242 (java.exe)"
+  assert_contains "$(cat "$FAKE_VIRSH_LOG")" 'stop.ps1'
+}
+
+test_run_says_when_no_previous_instance() {
+  export FAKE_GUEST_SCENARIO=launched WINVM_NO_TAIL=1
+  run cli run
+  assert_eq "$RC" 0
+  assert_contains "$ERR" "No previous Mimir instance in VM"
+}
+
+test_run_busy_agent_exits_5_before_stopping_app() {
+  local out="$WINVM_HOST_DIR/out"
+  mkdir -p "$out"
+  echo '{"id":"old","action":"msi"}' >"$out/request.json"
+  echo '{"id":"old","state":"running","step":"build","exitCode":0}' >"$out/status.json"
+  export FAKE_AGENT_PROCESS=alive FAKE_PREV_APP=alive WINVM_NO_TAIL=1
+  run cli run
+  assert_eq "$RC" 5
+  assert_not_contains "$(cat "$FAKE_VIRSH_LOG")" 'stop.ps1'
+}
+
+test_run_rotates_logs_after_stopping_previous_instance() {
+  # Gradle прежнего экземпляра дописывает BUILD FAILED уже после остановки приложения (фейк stop.ps1)
+  local out="$WINVM_HOST_DIR/out"
+  mkdir -p "$out"
+  echo "old output" >"$out/run.log"
+  echo "old err" >"$out/run.err.log"
+  export FAKE_GUEST_SCENARIO=launched FAKE_PREV_APP=alive WINVM_NO_TAIL=1
+  run cli run
+  assert_eq "$RC" 0
+  assert_contains "$(cat "$out/run.prev.log")" "BUILD FAILED in 12h 54m"
+  assert_contains "$(cat "$out/run.err.prev.log")" "old err"
+  assert_eq "$(cat "$out/run.log")" "current run"
+}
+
+test_run_tail_shows_only_current_run_and_exit_code() {
+  local out="$WINVM_HOST_DIR/out"
+  mkdir -p "$out"
+  echo "Execution failed for task ':apps:desktop:run'. BUILD FAILED in 12h 54m" >"$out/run.log"
+  export FAKE_GUEST_SCENARIO=launched FAKE_GUEST_FINAL=failed FAKE_GUEST_EXIT=3
+  run cli run
+  assert_eq "$RC" 3
+  assert_contains "$OUT" "current run"
+  assert_not_contains "$OUT$ERR" "BUILD FAILED"
+  assert_contains "$ERR" "Mimir in VM exited with code 3"
+}
+
+test_run_tail_reports_clean_exit() {
+  export FAKE_GUEST_SCENARIO=launched FAKE_GUEST_FINAL=ok
+  run cli run
+  assert_eq "$RC" 0
+  assert_contains "$ERR" "Mimir in VM exited with code 0"
+}
+
+test_run_tail_stops_when_superseded_by_newer_request() {
+  export FAKE_GUEST_SCENARIO=launched FAKE_GUEST_FINAL=superseded
+  run cli run
+  assert_eq "$RC" 0
+  assert_contains "$ERR" "superseded by a newer win:* request"
+}
+
+test_run_supersedes_previous_request_before_stopping_its_app() {
+  # иначе прежний агент видит свой id и пишет failed (Gradle прибитого приложения — код 1),
+  # а прежний win:run принимает это за собственное падение
+  local out="$WINVM_HOST_DIR/out"
+  mkdir -p "$out"
+  echo '{"id":"old","action":"run"}' >"$out/request.json"
+  echo '{"id":"old","state":"launched","step":"run","exitCode":0}' >"$out/status.json"
+  export FAKE_GUEST_SCENARIO=launched FAKE_PREV_APP=alive WINVM_NO_TAIL=1 FAKE_STOP_SAW="$TEST_TMP/stop-saw"
+  run cli run
+  assert_eq "$RC" 0
+  [[ $(cat "$FAKE_STOP_SAW") != old ]] || fail "previous request was not superseded before stop.ps1"
+}

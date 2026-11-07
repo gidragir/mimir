@@ -89,12 +89,41 @@ winvm_ps() {
     -File "C:\\mimir\\scripts\\win-vm\\guest\\$script" "$@"
 }
 
+# Каталог, из которого пользователь вызвал команду. mise выполняет задачу в каталоге того mise.toml, где она
+# объявлена: в ворктри без задач win:* (ветка старше win-vm) mise находит их в родительском checkout
+# (.claude/worktrees вложены в него), и без MISE_ORIGINAL_CWD синхронизировался бы чужой корень.
+_winvm_start_dir() {
+  if [[ ${MISE_TASK_NAME:-} == win:* && -n ${MISE_ORIGINAL_CWD:-} ]]; then
+    printf '%s' "$MISE_ORIGINAL_CWD"
+  else
+    printf '%s' "$PWD"
+  fi
+}
+
+# winvm_source_root — git toplevel дерева, которое уходит в VM.
+winvm_source_root() {
+  git -C "$(_winvm_start_dir)" rev-parse --show-toplevel 2>/dev/null \
+    || winvm_die 1 "not inside a git working tree: $(_winvm_start_dir)"
+}
+
+# Описание дерева для вывода: ветка, коммит, есть ли незакоммиченные правки.
+_winvm_tree_label() {
+  local root=$1 branch commit dirty=""
+  branch=$(git -C "$root" symbolic-ref --short -q HEAD) || branch="detached HEAD"
+  commit=$(git -C "$root" rev-parse --short -q --verify HEAD) || commit="none"
+  [[ -z $(git -C "$root" status --porcelain 2>/dev/null) ]] || dirty=", uncommitted changes"
+  printf 'branch %s, commit %s%s' "$branch" "$commit" "$dirty"
+}
+
 # winvm_sync — рабочее дерево → $WINVM_HOST_DIR/src (rsync, строго внутри src), затем robocopy в госте.
 winvm_sync() {
   local root rc=0
-  root=$(git rev-parse --show-toplevel) || winvm_die 1 "not inside a git working tree"
+  root=$(winvm_source_root) || exit $?
+  # robocopy /MIR стёр бы в госте agent.ps1, и задача MimirDev перестала бы работать
+  [[ -f $root/scripts/win-vm/guest/agent.ps1 ]] \
+    || winvm_die 1 "$root has no scripts/win-vm ($(_winvm_tree_label "$root")) — rebase it onto main or run from a tree that has it"
   mkdir -p "$WINVM_HOST_DIR/src" "$WINVM_HOST_DIR/out" "$WINVM_HOST_DIR/tmp"
-  echo "Sync: working tree -> $WINVM_HOST_DIR/src" >&2
+  echo "Sync: $root ($(_winvm_tree_label "$root")) -> $WINVM_HOST_DIR/src" >&2
   # Список файлов берём у git (--exclude-standard учитывает .gitignore, глобальный ignore и info/exclude), а не
   # фильтром rsync по .gitignore: иначе секреты из глобального ignore (.env, *.key) попали бы в VM.
   # Удалённые в рабочем дереве, но ещё не закоммиченные файлы пропускаем, чтобы rsync не падал.
@@ -158,6 +187,85 @@ winvm_request() {
   printf '%s\n' "$id"
 }
 
+# winvm_stop_previous_app — до нового запуска останавливает прежний Mimir в госте (dev-запуск и установленный MSI)
+# и ждёт, пока прежний агент и его Gradle допишут логи; пишет об этом строкой.
+winvm_stop_previous_app() {
+  local out line stopped=() timeout=0
+  out=$(winvm_ps stop.ps1 -AppName "$(winvm_app_name)") || winvm_die 1 "could not stop the previous Mimir in the guest"
+  while IFS= read -r line; do
+    line=${line%$'\r'}
+    case $line in
+      stopped\ *) read -r _ pid name <<<"$line"; stopped+=("pid $pid ($name)") ;;
+      wait-timeout) timeout=1 ;;
+    esac
+  done <<<"$out"
+  if ((${#stopped[@]} == 0)); then
+    echo "No previous Mimir instance in VM" >&2
+  else
+    local IFS=,
+    echo "Stopped previous Mimir in VM: ${stopped[*]}" >&2
+  fi
+  ((timeout == 0)) || echo "warning: the previous win:* agent is still running; its output may reach the rotated logs" >&2
+}
+
+# winvm_supersede_request — помечает прежний запрос вытесненным до остановки его приложения: прежний агент
+# пишет статус только для своего id, а прежний win:run, увидев новый id, сообщает, что его вытеснили.
+winvm_supersede_request() {
+  local out="$WINVM_HOST_DIR/out"
+  mkdir -p "$out"
+  jq -cn --arg id "$(cat /proc/sys/kernel/random/uuid)" '{id: $id, action: "superseded"}' >"$out/request.json.tmp"
+  mv -f "$out/request.json.tmp" "$out/request.json"
+  rm -f "$out/status.json"
+}
+
+# winvm_take_over — перед новым запуском приложения: занятый агент → код 5 до любых действий,
+# затем прежний запрос вытесняется и прежний Mimir останавливается.
+winvm_take_over() {
+  _winvm_check_busy
+  winvm_supersede_request
+  winvm_stop_previous_app
+}
+
+# winvm_rotate_logs <name...> — <name>.log → <name>.prev.log, чтобы хвост показывал только текущий запуск.
+winvm_rotate_logs() {
+  local out="$WINVM_HOST_DIR/out" name
+  mkdir -p "$out"
+  for name in "$@"; do
+    if [[ -e $out/$name.log ]]; then mv -f "$out/$name.log" "$out/$name.prev.log"; fi
+  done
+}
+
+# winvm_follow_run <id> — хвост логов текущего запуска, пока приложение работает; код — код завершения Gradle.
+winvm_follow_run() {
+  local id=$1 out="$WINVM_HOST_DIR/out" tail_pid state code rc=0
+  touch "$out/run.log" "$out/run.err.log"
+  # stderr tail — шум ротации («has become inaccessible»), когда этот запуск вытесняют
+  tail -F "$out/run.log" "$out/run.err.log" 2>/dev/null &
+  tail_pid=$!
+  # shellcheck disable=SC2064 # pid подставляется сразу
+  trap "kill $tail_pid 2>/dev/null" EXIT
+  while :; do
+    if [[ $(jq -r '.id // empty' "$out/request.json" 2>/dev/null || true) != "$id" ]]; then
+      sleep "$WINVM_STATUS_POLL"
+      echo "This run was superseded by a newer win:* request" >&2
+      break
+    fi
+    state=$(jq -r --arg id "$id" 'select(.id == $id) | .state' "$out/status.json" 2>/dev/null || true)
+    if [[ $state == ok || $state == failed ]]; then
+      code=$(jq -r '.exitCode // 1' "$out/status.json")
+      sleep "$WINVM_STATUS_POLL"   # дать tail дочитать последние строки
+      echo "Mimir in VM exited with code $code" >&2
+      rc=$code
+      break
+    fi
+    sleep "$WINVM_STATUS_POLL"
+  done
+  kill "$tail_pid" 2>/dev/null || true
+  wait "$tail_pid" 2>/dev/null || true
+  trap - EXIT
+  return "$rc"
+}
+
 # Лог(и) шага для отчёта об ошибке.
 _winvm_step_logs() {
   local out="$WINVM_HOST_DIR/out"
@@ -212,12 +320,12 @@ winvm_wait_status() {
 # winvm_secret_source — mise.local.toml из рабочего дерева, а в linked-worktree (секрет не в git) — из основного checkout.
 winvm_secret_source() {
   local root main
-  root=$(git rev-parse --show-toplevel)
+  root=$(winvm_source_root) || exit $?
   if [[ -f $root/mise.local.toml ]]; then
     printf '%s' "$root/mise.local.toml"
     return 0
   fi
-  main=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
+  main=$(dirname "$(git -C "$root" rev-parse --path-format=absolute --git-common-dir)")
   if [[ -f $main/mise.local.toml ]]; then
     printf '%s' "$main/mise.local.toml"
     return 0

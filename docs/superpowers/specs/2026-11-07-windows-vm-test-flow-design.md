@@ -84,13 +84,15 @@ guest-agent работает как SYSTEM в session 0: окно оттуда �
 6. Подсказка: «Подготовка завершена. Создайте снапшот: `mise run win:snapshot`».
 
 ### 5.2 `mise run win:sync`
-`rsync -a --delete` списка файлов из git в `$WINVM_SHARE/mimir/src`, затем `sync.ps1` через guest-agent. Код robocopy ≥ 8 → ошибка.
+Источник — git toplevel каталога вызова: под `mise run` это `MISE_ORIGINAL_CWD` (mise выполняет задачу в каталоге своего `mise.toml`; из ворктри без задач `win:*` задача находится в родительском checkout, и без этого синхронизировался бы он). Дерево без `scripts/win-vm/guest/agent.ps1` отклоняется: `/MIR` стёр бы агента в госте. Вывод называет каталог, ветку, коммит и наличие незакоммиченных правок. Затем `rsync` списка файлов из git в `$WINVM_SHARE/mimir/src` и `sync.ps1` через guest-agent. Код robocopy ≥ 8 → ошибка.
 
 ### 5.3 `mise run win:run`
 1. `sync`.
-2. `request.json {action: run}` → `schtasks /run /tn MimirDev`.
-3. `agent.ps1`: завершает предыдущий процесс приложения Mimir (по командной строке `dev.mimir.desktop`), Gradle-демон не трогает; `mise exec -- gradlew.bat :apps:desktop:run` с выводом в `run.log`; `status.json` = `running` на время сборки, `launched` после старта процесса приложения, `ok` после его штатного выхода, `failed` при ошибке сборки или ненулевом коде.
-4. Хост ждёт перехода `status.json` из `running` в `launched` (или `failed`), затем печатает «Mimir запущен в VM — смотрите в virt-manager» и `tail -F run.log` (Ctrl-C прерывает просмотр, не приложение).
+2. Занятый агент → код 5 до любых действий. Прежний запрос помечается вытесненным (новый id в `request.json`): прежний агент больше не пишет статус, прежний `win:run` печатает «superseded» и выходит с 0.
+3. `stop.ps1` (тот же шаг у `win:msi`: иначе живой dev-экземпляр перехватывает запуск установленного через single-instance IPC) останавливает прежний Mimir (dev `dev.mimir.desktop` и установленный `<appName>.exe`) и ждёт выхода прежнего `agent.ps1` (до 60 с), чтобы его Gradle дописал «BUILD FAILED» в старый лог; хост печатает `Stopped previous Mimir in VM: pid …` или `No previous Mimir instance in VM`.
+4. `run.log`/`run.err.log` → `run.prev.log`/`run.err.prev.log`; `request.json {action: run}` → `schtasks /run /tn MimirDev`.
+5. `agent.ps1`: `mise exec -- gradlew.bat :apps:desktop:run` с выводом в `run.log`; `status.json` = `running` на время сборки, `launched` после старта процесса приложения, `ok` после его штатного выхода, `failed` при ошибке сборки или ненулевом коде.
+6. Хост ждёт `launched` (или `failed`), печатает «Mimir запущен в VM — смотрите в virt-manager» и хвост логов текущего запуска; когда приложение завершается, печатает `Mimir in VM exited with code N` и выходит с этим кодом (Ctrl-C прерывает просмотр, не приложение). Вывод JavaExec Gradle отдаёт в лог порциями, часто только по завершении приложения.
 
 ### 5.4 `mise run win:msi [--upgrade]`
 1. `sync`.

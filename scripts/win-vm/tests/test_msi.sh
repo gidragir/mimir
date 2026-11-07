@@ -42,3 +42,13 @@ test_agent_uninstall_looks_in_hklm_too() {
   src=$(<"$WINVM_TEST_ROOT/scripts/win-vm/guest/agent.ps1")
   assert_contains "$src" "'HKCU:', 'HKLM:'"
 }
+
+test_msi_stops_previous_instance_first() {
+  # живой dev-экземпляр (win:run) перехватывал запуск установленного Mimir через single-instance IPC:
+  # Mimir.exe активировал его и выходил, и проверялся не MSI
+  export FAKE_GUEST_SCENARIO=ok FAKE_GUEST_STEP=install FAKE_PREV_APP=alive
+  run cli msi
+  assert_eq "$RC" 0
+  assert_contains "$ERR" "Stopped previous Mimir in VM: pid 4242 (java.exe)"
+  assert_contains "$(cat "$FAKE_VIRSH_LOG")" 'stop.ps1'
+}

@@ -23,6 +23,8 @@ run_one() {
     export WINVM_AGENT_TIMEOUT=2 WINVM_POLL=0.1 WINVM_EXEC_POLL=0.05
     export FAKE_VIRSH_LOG="$TEST_TMP/virsh.log"
     export FAKE_VM_STATE=running
+    # mise run win:test выставляет их; иначе winvm_sync взял бы корень настоящего репозитория
+    unset MISE_ORIGINAL_CWD MISE_TASK_NAME
     mkdir -p "$WINVM_SHARE"
     : >"$FAKE_VIRSH_LOG"
     # shellcheck source=helpers.sh
