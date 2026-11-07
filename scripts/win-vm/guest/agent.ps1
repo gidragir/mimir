@@ -62,8 +62,11 @@ function Invoke-Run {
 # Запуск команды с выводом в лог через cmd.exe: в PowerShell 5.1 stderr нативных команд при
 # $ErrorActionPreference='Stop' превращается в исключение. Возвращает код процесса.
 function Invoke-Logged([string]$CommandLine, [string]$Log) {
-    & cmd.exe /c "$CommandLine >> `"$Log`" 2>&1"
-    return $LASTEXITCODE
+    # Start-Process + WaitForExit: оператор & ждёт EOF канала, который держит демон Gradle, запущенный сборкой.
+    $p = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', "$CommandLine >> `"$Log`" 2>&1" -WindowStyle Hidden -PassThru
+    $null = $p.Handle
+    $p.WaitForExit()
+    return $p.ExitCode
 }
 
 function Invoke-Prepare {

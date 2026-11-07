@@ -67,3 +67,10 @@ test_agent_detects_launch_by_app_process_not_gradle_header() {
   assert_not_contains "$src" "> Task :apps:desktop:run"
   assert_contains "$src" "dev.mimir.desktop"
 }
+
+test_agent_invoke_logged_does_not_use_call_operator() {
+  # & cmd.exe зависает, пока демон Gradle держит унаследованный канал (найдено на win:msi)
+  local src
+  src=$(<"$WINVM_TEST_ROOT/scripts/win-vm/guest/agent.ps1")
+  assert_not_contains "$src" '& cmd.exe /c'
+}
