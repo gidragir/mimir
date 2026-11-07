@@ -47,7 +47,7 @@ description: Use when you need to build, test or verify a change in the Mimir re
 Порядок: Windows-специфичную правку сначала `mise run win:run`, MSI/лаунчер/ярлыки — `mise run win:msi`, и только потом CI. Рабочее дерево уходит в VM как есть (файлы из `git ls-files -co --exclude-standard`: коммитить и `git add` не нужно, игнорируемое и секреты не копируются).
 
 Как читать поведение:
-- `win:run` после запуска приложения остаётся в `tail -F` логов — это норма; для скриптов `WINVM_NO_TAIL=1`. Время: холодный (после `win:reset`) ≈ 8 мин, повторный без правок ≈ 6 с, после правки Kotlin ≈ 10 с.
+- `win:run` после запуска приложения остаётся в `tail -F` логов — это норма; для скриптов `WINVM_NO_TAIL=1`. Вывод самого приложения — `run.app.log` (задача `run` пишет его напрямую по `MIMIR_DEV_APP_LOG`): клиент Gradle на Windows отдаёт вывод JavaExec в `run.log` только после выхода приложения. Время: холодный (после `win:reset`) ≈ 8 мин, повторный без правок ≈ 6 с, после правки Kotlin ≈ 10 с.
 - Новый `win:run` вытесняет старый: старое приложение убивается, шум `FAILED exit -1` в логах от прежнего запуска — не ошибка нового.
 - Код 5 «Another win:* request is running» при зависшем агенте: убить `powershell.exe` с `agent.ps1` и `gradlew` в госте (или `win:reset --yes`); код 4 — войти в Windows в virt-manager и повторить.
 - `virsh screenshot win11` даёт чёрный кадр: вид окна смотреть в virt-manager; на хосте проверяется только факт запуска (процесс `dev.mimir.desktop`).

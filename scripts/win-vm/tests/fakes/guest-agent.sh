@@ -37,6 +37,8 @@ case "$path $joined" in
     case "${FAKE_GUEST_SCENARIO:-silent}" in
       launched)
         echo "current run" >"$out/run.log"
+        # вывод приложения идёт мимо клиента Gradle (MIMIR_DEV_APP_LOG) — отдельный файл
+        echo "app heartbeat" >"$out/run.app.log"
         write_status launched run 0
         # FAKE_GUEST_FINAL: ok | failed | superseded — что происходит с запущенным приложением позже
         if [[ -n ${FAKE_GUEST_FINAL:-} ]]; then

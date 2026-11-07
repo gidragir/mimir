@@ -153,3 +153,36 @@ test_run_supersedes_previous_request_before_stopping_its_app() {
   assert_eq "$RC" 0
   [[ $(cat "$FAKE_STOP_SAW") != old ]] || fail "previous request was not superseded before stop.ps1"
 }
+
+test_run_tail_shows_app_output_written_past_gradle_client() {
+  # клиент Gradle на Windows отдаёт вывод JavaExec только после выхода приложения
+  export FAKE_GUEST_SCENARIO=launched FAKE_GUEST_FINAL=ok
+  run cli run
+  assert_eq "$RC" 0
+  assert_contains "$OUT" "app heartbeat"
+}
+
+test_run_rotates_app_log() {
+  local out="$WINVM_HOST_DIR/out"
+  mkdir -p "$out"
+  echo "old app" >"$out/run.app.log"
+  export FAKE_GUEST_SCENARIO=launched WINVM_NO_TAIL=1
+  run cli run
+  assert_eq "$RC" 0
+  assert_contains "$(cat "$out/run.app.prev.log")" "old app"
+  assert_eq "$(cat "$out/run.app.log")" "app heartbeat"
+}
+
+test_agent_sends_app_output_to_its_own_log() {
+  local src
+  src=$(<"$WINVM_TEST_ROOT/scripts/win-vm/guest/agent.ps1")
+  assert_contains "$src" "MIMIR_DEV_APP_LOG"
+  assert_contains "$src" "run.app.log"
+}
+
+test_logs_run_includes_app_log() {
+  export WINVM_NO_TAIL=1
+  run cli logs run
+  assert_eq "$RC" 0
+  assert_contains "$OUT" "run.app.log"
+}

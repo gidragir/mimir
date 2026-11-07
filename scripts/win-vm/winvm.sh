@@ -65,7 +65,7 @@ winvm_cmd_run() {
   winvm_ensure_running
   winvm_sync
   winvm_take_over
-  winvm_rotate_logs run run.err
+  winvm_rotate_logs run run.err run.app
   id=$(winvm_request run)
   winvm_wait_status "$id" launched,ok 1800
   state=$(jq -r '.state' "$WINVM_HOST_DIR/out/status.json")
@@ -104,7 +104,7 @@ winvm_cmd_uninstall() {
 winvm_cmd_logs() {
   local out="$WINVM_HOST_DIR/out" files
   case "${1:-run}" in
-    run) files=("$out/run.log" "$out/run.err.log") ;;
+    run) files=("$out/run.log" "$out/run.err.log" "$out/run.app.log") ;;
     build) files=("$out/build.log") ;;
     msi) files=("$out/msi.log") ;;
     *) usage; exit 64 ;;

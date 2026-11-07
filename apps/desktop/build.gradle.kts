@@ -1,4 +1,7 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
+import java.io.FileOutputStream
+import java.io.OutputStream
+import java.util.Collections
 
 plugins {
     id("mimir.jvm")
@@ -76,6 +79,18 @@ compose.desktop {
     }
 }
 
+/** Владеет файлом вывода приложения для MIMIR_DEV_APP_LOG и закрывает его в конце сборки (успешной или нет). */
+abstract class DevAppLogService : BuildService<BuildServiceParameters.None>, AutoCloseable {
+    private val streams = Collections.synchronizedList(mutableListOf<OutputStream>())
+
+    fun open(path: String): OutputStream = FileOutputStream(path, true).also { streams += it }
+
+    override fun close() {
+        synchronized(streams) { streams.forEach { stream -> runCatching { stream.close() } } }
+    }
+}
+val devAppLogService = gradle.sharedServices.registerIfAbsent("mimirDevAppLog", DevAppLogService::class) {}
+
 // Wayland-композиторы без репарентинга (niri): иначе AWT рисует окно неверно
 // задача run регистрируется Compose-плагином позже, поэтому configureEach
 tasks.withType<JavaExec>().configureEach {
@@ -84,6 +99,19 @@ tasks.withType<JavaExec>().configureEach {
         val mimirEnv = providers.environmentVariablesPrefixedBy("MIMIR_").get()
         environment.keys.removeIf { it.startsWith("MIMIR_") }
         environment(mimirEnv)
+        // MIMIR_DEV_APP_LOG (win:run, scripts/win-vm/guest/agent.ps1): stdout/stderr приложения — прямо в файл.
+        // Демон Gradle получает вывод JavaExec сразу, но клиент на Windows отдаёт его только после завершения
+        // задачи, и хвост win:run молчит, пока приложение работает. Файл закрывает DevAppLogService в конце сборки.
+        val appLog = providers.environmentVariable("MIMIR_DEV_APP_LOG")
+        val logService = devAppLogService
+        usesService(logService)
+        doFirst {
+            appLog.orNull?.let { path ->
+                val out = logService.get().open(path)
+                (this as JavaExec).standardOutput = out
+                errorOutput = out
+            }
+        }
     }
 }
 

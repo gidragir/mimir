@@ -37,6 +37,9 @@ function Invoke-Run {
     Stop-MimirApp
     $log = Join-Path $Out 'run.log'
     $err = Join-Path $Out 'run.err.log'
+    # Вывод приложения — отдельным файлом мимо клиента Gradle: тот на Windows отдаёт вывод JavaExec только после
+    # выхода приложения (демон получает его сразу). Файл пишет задача run (apps/desktop/build.gradle.kts).
+    $env:MIMIR_DEV_APP_LOG = Join-Path $Out 'run.app.log'
     # PowerShell 5.1 не пишет оба потока Start-Process в один файл: два лога, win:logs run хвостит оба.
     $p = Start-Process -FilePath 'mise' -ArgumentList 'exec', '--', 'cmd', '/c', 'gradlew.bat', ':apps:desktop:run' `
         -WorkingDirectory $Root -RedirectStandardOutput $log -RedirectStandardError $err `

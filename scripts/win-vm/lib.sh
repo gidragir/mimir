@@ -238,9 +238,9 @@ winvm_rotate_logs() {
 # winvm_follow_run <id> — хвост логов текущего запуска, пока приложение работает; код — код завершения Gradle.
 winvm_follow_run() {
   local id=$1 out="$WINVM_HOST_DIR/out" tail_pid state code rc=0
-  touch "$out/run.log" "$out/run.err.log"
+  touch "$out/run.log" "$out/run.err.log" "$out/run.app.log"
   # stderr tail — шум ротации («has become inaccessible»), когда этот запуск вытесняют
-  tail -F "$out/run.log" "$out/run.err.log" 2>/dev/null &
+  tail -F "$out/run.log" "$out/run.err.log" "$out/run.app.log" 2>/dev/null &
   tail_pid=$!
   # shellcheck disable=SC2064 # pid подставляется сразу
   trap "kill $tail_pid 2>/dev/null" EXIT
@@ -270,7 +270,7 @@ winvm_follow_run() {
 _winvm_step_logs() {
   local out="$WINVM_HOST_DIR/out"
   case "$1" in
-    run) echo "$out/run.log $out/run.err.log" ;;
+    run) echo "$out/run.log $out/run.err.log $out/run.app.log" ;;
     build | prepare) echo "$out/build.log" ;;
     install) echo "$out/msi.log" ;;
     uninstall) echo "$out/msi-uninstall.log" ;;
