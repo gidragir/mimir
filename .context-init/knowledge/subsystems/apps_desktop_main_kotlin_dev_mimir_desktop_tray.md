@@ -2,22 +2,22 @@
 directory: apps/desktop/src/main/kotlin/dev/mimir/desktop/tray
 source:
   kind: git
-  blob_sha: accf10519479cf357b56582056c06c45bce6432c
-  commit_sha: 4afcd4b2c289461cc47f4dc71fea776a420f6dfa
+  blob_sha: f2bbe7deb543456b410914c0ef3a9eb6ebedf542
+  commit_sha: cac1108a6fe7423a5254dd5c6ec22b7131ca5a22
 generated_by:
   component: context-init
   role: update
   model: none
 freshness:
-  total_entries: 10
-  sampled_entries: 10
+  total_entries: 11
+  sampled_entries: 11
   unsampled_entries: 0
   pending_child_changes: 0
 ---
 
 # Подсистема: Desktop Main Kotlin Dev Mimir Desktop Tray (L1)
 
-Модуль и компоненты директории `apps/desktop/src/main/kotlin/dev/mimir/desktop/tray` (10 файлов)
+Модуль и компоненты директории `apps/desktop/src/main/kotlin/dev/mimir/desktop/tray` (11 файлов)
 
 > **Идентификатор:** `apps_desktop_main_kotlin_dev_mimir_desktop_tray`
 > **Теги:** Kotlin (Gradle), apps_desktop_main_kotlin_dev_mimir_desktop_tray
@@ -30,6 +30,7 @@ freshness:
 | `apps/desktop/src/main/kotlin/dev/mimir/desktop/tray/DbusInterfaces.kt` | Исходный код |
 | `apps/desktop/src/main/kotlin/dev/mimir/desktop/tray/DbusStatusNotifierTray.kt` | Исходный код |
 | `apps/desktop/src/main/kotlin/dev/mimir/desktop/tray/NoTray.kt` | Исходный код |
+| `apps/desktop/src/main/kotlin/dev/mimir/desktop/tray/PopoverEscapeDispatcher.kt` | Исходный код |
 | `apps/desktop/src/main/kotlin/dev/mimir/desktop/tray/PopoverVisibilityController.kt` | Исходный код |
 | `apps/desktop/src/main/kotlin/dev/mimir/desktop/tray/ScreenPositionCalculator.kt` | Исходный код |
 | `apps/desktop/src/main/kotlin/dev/mimir/desktop/tray/Tray.kt` | Исходный код |

@@ -2,8 +2,8 @@
 directory: apps/desktop/build.gradle.kts
 source:
   kind: git
-  blob_sha: bfabbfaaf7d6faa0f5296b5e5503f825a48c00ef
-  commit_sha: 4afcd4b2c289461cc47f4dc71fea776a420f6dfa
+  blob_sha: 0d5d4b4bb17fe92fc290cc6540186a5367cf0b2e
+  commit_sha: cac1108a6fe7423a5254dd5c6ec22b7131ca5a22
 generated_by:
   component: context-init
   role: update

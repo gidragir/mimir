@@ -2,22 +2,22 @@
 directory: scripts/win-vm
 source:
   kind: git
-  blob_sha: 59e7dc70d3316c187164d1fc33a3208a78bec2c5
-  commit_sha: 88a9249f07792111e470f14dc3ebfdea7f3e1e39
+  blob_sha: de331bd6efc702822db81c954856c6b205344155
+  commit_sha: cac1108a6fe7423a5254dd5c6ec22b7131ca5a22
 generated_by:
   component: context-init
   role: update
   model: none
 freshness:
-  total_entries: 14
-  sampled_entries: 14
+  total_entries: 15
+  sampled_entries: 15
   unsampled_entries: 0
   pending_child_changes: 0
 ---
 
 # Подсистема: Scripts (L1)
 
-Модуль и компоненты директории `scripts` (14 файлов)
+Модуль и компоненты директории `scripts` (15 файлов)
 
 > **Идентификатор:** `scripts`
 > **Теги:** Kotlin (Gradle), scripts
@@ -28,6 +28,7 @@ freshness:
 | :--- | :--- |
 | `scripts/win-vm/guest/agent.ps1` | Исходный код |
 | `scripts/win-vm/guest/provision.ps1` | Исходный код |
+| `scripts/win-vm/guest/stop.ps1` | Исходный код |
 | `scripts/win-vm/guest/sync.ps1` | Исходный код |
 | `scripts/win-vm/lib.sh` | Исходный код |
 | `scripts/win-vm/tests/fakes/guest-agent.sh` | Исходный код |
