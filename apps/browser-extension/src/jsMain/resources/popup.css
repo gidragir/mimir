@@ -67,7 +67,8 @@ html, body {
 }
 
 .app {
-  min-width: 320px;
+  min-width: 0;
+  width: 100%;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -77,8 +78,8 @@ html, body {
 }
 
 .panel-mode {
-  max-width: 420px;
   width: 100%;
+  min-width: 0;
 }
 
 .tab-mode {
@@ -378,6 +379,8 @@ input::placeholder {
   align-items: flex-start;
   gap: 2px;
   width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   text-align: left;
   background: none;
   border: none;
@@ -415,7 +418,9 @@ input::placeholder {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  width: 100%;
   max-width: 100%;
+  display: block;
 }
 
 .statusbar {
