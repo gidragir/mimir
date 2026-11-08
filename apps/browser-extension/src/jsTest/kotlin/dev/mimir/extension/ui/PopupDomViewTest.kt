@@ -157,4 +157,50 @@ class PopupDomViewTest {
         assertNotNull(activeRow)
         assertTrue(activeRow.textContent?.contains("a.md") == true)
     }
+
+    @Test
+    fun foldersAreCollapsedByDefaultAndRenderChildrenWhenExpanded() = runTest {
+        val childFile = dev.mimir.extension.vault.VaultTreeNode.File("План.md", "Проекты/План.md", RemotePath("enc"), 100L, 1L)
+        val folder = dev.mimir.extension.vault.VaultTreeNode.Folder(
+            name = "Проекты",
+            relativePath = "Проекты",
+            children = listOf(childFile),
+        )
+        val platform = FakeExtensionPlatform()
+        val controller = ExtensionController(
+            platform = platform,
+            remoteStorageFactory = { InMemoryRemoteStorage() },
+            authHandler = FakeExtensionAuthHandler(platform),
+        )
+        val container = document.createElement("div") as HTMLElement
+        val view = PopupDomView(container, controller, platform, isFullTabMode = false)
+
+        val collapsedState = ExtensionUiState.VaultReady(
+            account = Account("user@test.org", null),
+            tree = listOf(folder),
+            flatNotes = listOf(childFile),
+            expandedFolders = emptySet(),
+        )
+        view.render(collapsedState)
+
+        // Папка отрендерена со стрелкой вправо (свернута)
+        val folderRow = container.querySelector(".tree-row.folder") as? HTMLElement
+        assertNotNull(folderRow)
+        assertTrue(folderRow.textContent?.contains("▸") == true)
+        assertTrue(folderRow.textContent?.contains("Проекты") == true)
+        // Дочерний файл не должен рендериться в DOM, когда папка свернута
+        val fileRow = container.querySelector(".tree-row.file") as? HTMLElement
+        assertNull(fileRow)
+
+        // При раскрытии папки дочерний файл появляется в DOM с иконкой ▾
+        val expandedState = collapsedState.copy(expandedFolders = setOf("Проекты"))
+        view.render(expandedState)
+
+        val expandedFolderRow = container.querySelector(".tree-row.folder") as? HTMLElement
+        assertNotNull(expandedFolderRow)
+        assertTrue(expandedFolderRow.textContent?.contains("▾") == true)
+        val expandedFileRow = container.querySelector(".tree-row.file") as? HTMLElement
+        assertNotNull(expandedFileRow)
+        assertTrue(expandedFileRow.textContent?.contains("План.md") == true)
+    }
 }

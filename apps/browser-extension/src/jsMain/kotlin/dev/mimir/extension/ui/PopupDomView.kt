@@ -108,16 +108,18 @@ class PopupDomView(
         for (node in nodes) {
             when (node) {
                 is VaultTreeNode.Folder -> {
-                    val collapsed = node.relativePath in state.collapsedFolders
-                    val row = dom.button("${if (collapsed) "▸" else "▾"} 📁 ${node.name}", "tree-row folder") { controller.toggleFolder(node.relativePath) }
+                    val expanded = node.relativePath in state.expandedFolders
+                    val row = dom.button("", "tree-row folder", title = node.name) { controller.toggleFolder(node.relativePath) }
                     row.style.paddingLeft = "${8 + depth * 14}px"
+                    row.appendChild(dom.el("span", "name", "${if (expanded) "▾" else "▸"} 📁 ${node.name}"))
                     parent.appendChild(row)
-                    if (!collapsed) appendTree(parent, node.children, depth + 1, state)
+                    if (expanded) appendTree(parent, node.children, depth + 1, state)
                 }
                 is VaultTreeNode.File -> {
                     val active = state.activeNote?.file?.relativePath == node.relativePath
-                    val row = dom.button("📄 ${node.name}", if (active) "tree-row file active" else "tree-row file") { scope.launch { controller.openNote(node) } }
+                    val row = dom.button("", if (active) "tree-row file active" else "tree-row file", title = node.name) { scope.launch { controller.openNote(node) } }
                     row.style.paddingLeft = "${8 + depth * 14}px"
+                    row.appendChild(dom.el("span", "name", "📄 ${node.name}"))
                     parent.appendChild(row)
                 }
             }

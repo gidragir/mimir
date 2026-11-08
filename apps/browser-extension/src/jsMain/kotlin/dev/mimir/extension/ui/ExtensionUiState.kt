@@ -37,7 +37,7 @@ sealed interface ExtensionUiState {
         val flatNotes: List<VaultTreeNode.File>,
         val searchQuery: String = "",
         val filteredNotes: List<VaultTreeNode.File> = flatNotes,
-        val collapsedFolders: Set<String> = emptySet(),
+        val expandedFolders: Set<String> = emptySet(),
         val activeNote: ActiveNoteState? = null,
         val isRefreshing: Boolean = false,
         val isOffline: Boolean = false,

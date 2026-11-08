@@ -154,7 +154,7 @@ class ExtensionControllerTest {
     }
 
     @Test
-    fun searchQueryFiltersNotesAndToggleFolderCollapsesIt() = runTest {
+    fun searchQueryFiltersNotesAndToggleFolderExpandsIt() = runTest {
         val platform = FakeExtensionPlatform()
         platform.seedAuthenticatedAccount(Account(email = "u@example.com", displayName = null))
         val controller = ExtensionController(platform, { vaultFixture("pw") }, FakeExtensionAuthHandler(platform))
@@ -166,9 +166,38 @@ class ExtensionControllerTest {
         controller.updateSearchQuery("")
         assertEquals(1, assertIs<ExtensionUiState.VaultReady>(controller.state.value).filteredNotes.size)
 
+        // По умолчанию все папки свернуты (expandedFolders пуст)
+        assertTrue(assertIs<ExtensionUiState.VaultReady>(controller.state.value).expandedFolders.isEmpty())
         controller.toggleFolder("Папка")
-        assertEquals(setOf("Папка"), assertIs<ExtensionUiState.VaultReady>(controller.state.value).collapsedFolders)
+        assertEquals(setOf("Папка"), assertIs<ExtensionUiState.VaultReady>(controller.state.value).expandedFolders)
         controller.toggleFolder("Папка")
-        assertTrue(assertIs<ExtensionUiState.VaultReady>(controller.state.value).collapsedFolders.isEmpty())
+        assertTrue(assertIs<ExtensionUiState.VaultReady>(controller.state.value).expandedFolders.isEmpty())
+    }
+
+    @Test
+    fun openNoteExpandsParentFolders() = runTest {
+        val cipher = RcloneCipher.create("pw")
+        val rawRemote = InMemoryRemoteStorage()
+        rawRemote.write(
+            RemotePath(CanaryVerifier.CANARY_FILENAME),
+            cipher.encrypt(Buffer().apply { writeString("""{"magic":"mimir-vault-canary","version":1}""") }),
+        )
+        val noteEncPath = RemotePath.of(listOf("Работа", "Проекты", "План.md").map(cipher::encryptName))
+        rawRemote.write(
+            noteEncPath,
+            cipher.encrypt(Buffer().apply { writeString("# План") }),
+        )
+        val platform = FakeExtensionPlatform()
+        platform.seedAuthenticatedAccount(Account(email = "u@example.com", displayName = null))
+        val controller = ExtensionController(platform, { rawRemote }, FakeExtensionAuthHandler(platform))
+        controller.initialize()
+        controller.unlock("pw")
+
+        val ready = assertIs<ExtensionUiState.VaultReady>(controller.state.value)
+        assertTrue(ready.expandedFolders.isEmpty())
+
+        controller.openNote(ready.flatNotes.single())
+        val updated = assertIs<ExtensionUiState.VaultReady>(controller.state.value)
+        assertEquals(setOf("Работа", "Работа/Проекты"), updated.expandedFolders)
     }
 }

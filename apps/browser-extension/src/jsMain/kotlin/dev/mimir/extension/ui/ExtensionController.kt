@@ -230,7 +230,14 @@ class ExtensionController(
     suspend fun openNote(file: VaultTreeNode.File) {
         val current = _state.value as? ExtensionUiState.VaultReady ?: return
         val c = cipher ?: return
-        _state.value = current.copy(activeNote = ActiveNoteState.Loading(file))
+        val segments = file.relativePath.split("/")
+        val parentFolders = (1 until segments.size).map { i ->
+            segments.subList(0, i).joinToString("/")
+        }.toSet()
+        _state.value = current.copy(
+            activeNote = ActiveNoteState.Loading(file),
+            expandedFolders = current.expandedFolders + parentFolders,
+        )
         platform.setSessionString(SESSION_SELECTED_PATH, file.relativePath)
         val note = try {
             val source = EncryptedRemoteStorage(raw(), c).read(RemotePath.of(file.relativePath.split("/")))
@@ -278,9 +285,9 @@ class ExtensionController(
 
     fun toggleFolder(folderPath: String) {
         val current = _state.value as? ExtensionUiState.VaultReady ?: return
-        val collapsed = if (folderPath in current.collapsedFolders) current.collapsedFolders - folderPath
-        else current.collapsedFolders + folderPath
-        _state.value = current.copy(collapsedFolders = collapsed)
+        val expanded = if (folderPath in current.expandedFolders) current.expandedFolders - folderPath
+        else current.expandedFolders + folderPath
+        _state.value = current.copy(expandedFolders = expanded)
     }
 
     fun toggleNoteViewMode() {
@@ -325,7 +332,7 @@ class ExtensionController(
             flatNotes = snapshot.flatNotes,
             searchQuery = query,
             filteredNotes = VaultTreeBuilder.filterNotes(snapshot.flatNotes, query),
-            collapsedFolders = previous?.collapsedFolders.orEmpty(),
+            expandedFolders = previous?.expandedFolders.orEmpty(),
             activeNote = previous?.activeNote,
             cachedAtEpochSec = cachedAt,
         )
