@@ -8,6 +8,7 @@ import dev.mimir.core.SyncStatus
 import dev.mimir.ui.model.FakeMimirUiModel
 import dev.mimir.ui.model.UiConflictEntry
 import dev.mimir.ui.screens.ConflictsScreen
+import dev.mimir.ui.screens.ConflictsTexts
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -20,7 +21,7 @@ class ConflictsScreenTest {
     @Test
     fun `shows empty message when no conflicts`() = runComposeUiTest {
         setContent { ConflictsScreen(FakeMimirUiModel(conflicts = emptyList()), onBack = {}) }
-        onNodeWithText("Конфликтов не обнаружено").assertExists()
+        onNodeWithText(ConflictsTexts.NO_CONFLICTS).assertExists()
     }
 
     @Test
@@ -37,12 +38,14 @@ class ConflictsScreenTest {
         setContent { ConflictsScreen(model, onBack = {}) }
 
         onNodeWithText("Notes/Doc.md").assertExists()
-        onNodeWithText("Оставить оригинал").performClick()
+        onNodeWithText(ConflictsTexts.KEEP_CLOUD_HINT).assertExists()
+        onNodeWithText(ConflictsTexts.KEEP_LOCAL_HINT).assertExists()
+        onNodeWithText(ConflictsTexts.KEEP_CLOUD_BUTTON).performClick()
         waitForIdle()
 
         assertEquals("Notes/Doc.md", resolvedOriginal)
         assertEquals(false, resolvedKeepConflict)
-        onNodeWithText("Конфликтов не обнаружено").assertExists()
+        onNodeWithText(ConflictsTexts.NO_CONFLICTS).assertExists()
     }
 
     @Test
@@ -51,7 +54,7 @@ class ConflictsScreenTest {
         val model = FakeMimirUiModel(conflicts = listOf(conflict), onResolveConflict = { _, _, keep -> keepConflict = keep })
         setContent { ConflictsScreen(model, onBack = {}) }
 
-        onNodeWithText("Оставить копию").performClick()
+        onNodeWithText(ConflictsTexts.KEEP_LOCAL_BUTTON).performClick()
         waitForIdle()
         assertEquals(true, keepConflict)
     }
@@ -64,7 +67,7 @@ class ConflictsScreenTest {
         )
         setContent { ConflictsScreen(model, onBack = {}) }
 
-        onNodeWithText("Оставить оригинал").performClick()
+        onNodeWithText(ConflictsTexts.KEEP_CLOUD_BUTTON).performClick()
         waitForIdle()
         onNodeWithText("disk is read-only").assertExists()
         onNodeWithText("Notes/Doc.md").assertExists()
@@ -74,7 +77,7 @@ class ConflictsScreenTest {
     fun `back button returns`() = runComposeUiTest {
         var back = false
         setContent { ConflictsScreen(FakeMimirUiModel(), onBack = { back = true }) }
-        onNodeWithText("Назад").performClick()
+        onNodeWithText(ConflictsTexts.BACK).performClick()
         assertTrue(back)
     }
 
@@ -82,6 +85,6 @@ class ConflictsScreenTest {
     fun `status badge opens the conflicts screen`() = runComposeUiTest {
         setContent { MimirApp(FakeMimirUiModel(status = SyncStatus.Idle, conflicts = listOf(conflict))) }
         onNodeWithText("Конфликты: 1").performClick()
-        onNodeWithText("Оставить копию").assertExists()
+        onNodeWithText(ConflictsTexts.KEEP_LOCAL_BUTTON).assertExists()
     }
 }

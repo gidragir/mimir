@@ -13,6 +13,7 @@ import dev.mimir.core.SyncStatus
 import dev.mimir.ui.model.FakeMimirUiModel
 import dev.mimir.ui.model.UiConflictEntry
 import dev.mimir.ui.screens.ConflictsScreen
+import dev.mimir.ui.screens.ConflictsTexts
 import dev.mimir.ui.screens.SyncTexts
 import kotlin.test.Test
 import kotlin.time.Instant
@@ -40,6 +41,6 @@ class MobileAdaptationTest {
                 ConflictsScreen(FakeMimirUiModel(conflicts = listOf(conflict)), onBack = {})
             }
         }
-        onNode(hasText("Оставить оригинал") and hasClickAction()).assertHeightIsAtLeast(48.dp)
+        onNode(hasText(ConflictsTexts.KEEP_CLOUD_BUTTON) and hasClickAction()).assertHeightIsAtLeast(48.dp)
     }
 }
