@@ -2,22 +2,22 @@
 directory: libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens
 source:
   kind: git
-  blob_sha: a769e4c83b4c49c10732b5e35b9a7eed9f47f43e
-  commit_sha: 570bdf8b131c69da889f78491ee6adaf106b3095
+  blob_sha: abe43afc8273cd4ee37916a2b619257a1bd879e2
+  commit_sha: a201bda1f92294fa9f745f5fbd217a4a92b680c2
 generated_by:
   component: context-init
   role: update
   model: none
 freshness:
-  total_entries: 13
-  sampled_entries: 13
+  total_entries: 14
+  sampled_entries: 14
   unsampled_entries: 0
   pending_child_changes: 0
 ---
 
 # Подсистема: Ui CommonMain Kotlin Dev Mimir Ui Screens (L1)
 
-Модуль и компоненты директории `libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens` (13 файлов)
+Модуль и компоненты директории `libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens` (14 файлов)
 
 > **Идентификатор:** `libs_ui_commonmain_kotlin_dev_mimir_ui_screens`
 > **Теги:** Kotlin (Gradle), libs_ui_commonmain_kotlin_dev_mimir_ui_screens
@@ -29,6 +29,7 @@ freshness:
 | `libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/AboutUpdateCard.kt` | Исходный код |
 | `libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/AndroidBanners.kt` | Исходный код |
 | `libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/ConflictsScreen.kt` | Исходный код |
+| `libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/ConflictsTexts.kt` | Исходный код |
 | `libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/SetupWizardScreen.kt` | Исходный код |
 | `libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/StartupScreen.kt` | Исходный код |
 | `libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/StatusScreen.kt` | Исходный код |
@@ -49,9 +50,9 @@ fun StatusBanners( model: MimirUiModel, onOpenSetup: () -> Unit, modifier: Modif
 fun ConflictsScreen(model: MimirUiModel, onBack: () -> Unit)
 fun resolve(entry: UiConflictEntry, keepConflict: Boolean)
 fun ConflictsScreenPreview()
+object ConflictsTexts
 fun SetupWizardScreen(model: MimirUiModel, onComplete: () -> Unit, pollIntervalMillis: Long = 5_000)
 fun SetupWizardScreenPreview()
-fun StartupScreen(message: String)
 ```
 
 ## 🧪 Запуск и тестирование

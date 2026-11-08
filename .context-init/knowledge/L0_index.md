@@ -1,6 +1,6 @@
 # 🗺 Карта архитектуры: mimir (L0)
 
-> **Стек:** Kotlin (Gradle) | **Обновлено:** 2026-11-07
+> **Стек:** Kotlin (Gradle) | **Обновлено:** 2026-11-08
 > **Описание:** Один открытый инструмент синхронизации Obsidian-хранилища на всех платформах (Linux, Windows, Android). Он ощущается как Google Drive Desktop: один раз указал папку vault и пароль, дальше всё синхронизируется само.
 
 ## 🚪 Точки входа (Root Entrypoints)
@@ -49,7 +49,7 @@ rtk mise run desktop
 | **Runtime CommonMain Kotlin Dev Mimir Runtime Update** | Модуль и компоненты директории `libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/update` (6 файлов) | `-` | [subsystems/libs_runtime_commonmain_kotlin_dev_mimir_runtime_update.md](subsystems/libs_runtime_commonmain_kotlin_dev_mimir_runtime_update.md) |
 | **Ui** | Подсистема `libs/ui` с ключевыми точками входа: libs/ui/build.gradle.kts | `libs/ui/build.gradle.kts` | [subsystems/libs_ui.md](subsystems/libs_ui.md) |
 | **Ui CommonMain Kotlin Dev Mimir Ui** | Модуль и компоненты директории `libs/ui/src/commonMain/kotlin/dev/mimir/ui` (15 файлов) | `-` | [subsystems/libs_ui_commonmain_kotlin_dev_mimir_ui.md](subsystems/libs_ui_commonmain_kotlin_dev_mimir_ui.md) |
-| **Ui CommonMain Kotlin Dev Mimir Ui Screens** | Модуль и компоненты директории `libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens` (13 файлов) | `-` | [subsystems/libs_ui_commonmain_kotlin_dev_mimir_ui_screens.md](subsystems/libs_ui_commonmain_kotlin_dev_mimir_ui_screens.md) |
+| **Ui CommonMain Kotlin Dev Mimir Ui Screens** | Модуль и компоненты директории `libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens` (14 файлов) | `-` | [subsystems/libs_ui_commonmain_kotlin_dev_mimir_ui_screens.md](subsystems/libs_ui_commonmain_kotlin_dev_mimir_ui_screens.md) |
 | **Packaging** | Модуль и компоненты директории `packaging` (2 файлов) | `-` | [subsystems/packaging.md](subsystems/packaging.md) |
 | **Scripts** | Модуль и компоненты директории `scripts` (15 файлов) | `-` | [subsystems/scripts.md](subsystems/scripts.md) |
 | **Scripts Win Vm** | Модуль и компоненты директории `scripts/win-vm` (6 файлов) | `-` | [subsystems/scripts_win-vm.md](subsystems/scripts_win-vm.md) |

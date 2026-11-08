@@ -168,7 +168,7 @@ Mimir — клиент синхронизации Obsidian-хранилища с
 - `libs_runtime_commonmain_kotlin_dev_mimir_runtime_update` (Runtime CommonMain Kotlin Dev Mimir Runtime Update) — Модуль и компоненты директории `libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/update` (6 файлов)
 - `libs_ui` (Ui) — Подсистема `libs/ui` с ключевыми точками входа: libs/ui/build.gradle.kts
 - `libs_ui_commonmain_kotlin_dev_mimir_ui` (Ui CommonMain Kotlin Dev Mimir Ui) — Модуль и компоненты директории `libs/ui/src/commonMain/kotlin/dev/mimir/ui` (15 файлов)
-- `libs_ui_commonmain_kotlin_dev_mimir_ui_screens` (Ui CommonMain Kotlin Dev Mimir Ui Screens) — Модуль и компоненты директории `libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens` (13 файлов)
+- `libs_ui_commonmain_kotlin_dev_mimir_ui_screens` (Ui CommonMain Kotlin Dev Mimir Ui Screens) — Модуль и компоненты директории `libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens` (14 файлов)
 - `packaging` (Packaging) — Модуль и компоненты директории `packaging` (2 файлов)
 - `scripts` (Scripts) — Модуль и компоненты директории `scripts` (15 файлов)
 - `scripts_win-vm` (Scripts Win Vm) — Модуль и компоненты директории `scripts/win-vm` (6 файлов)
