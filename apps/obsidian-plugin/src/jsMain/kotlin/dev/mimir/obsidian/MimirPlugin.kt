@@ -27,12 +27,12 @@ class MimirPlugin(app: App, manifest: PluginManifest) : Plugin(app, manifest) {
                 "name" to "Diagnostics",
                 "callback" to {
                     scope.launch {
-                        val lines = try {
-                            runDiagnostics(app)
+                        Notice("Mimir: diagnostics started", 5000)
+                        try {
+                            runDiagnostics(app) { showDiagnostics(app, it) }
                         } catch (e: Throwable) {
-                            listOf("FAIL ${e.message}")
+                            showDiagnostics(app, listOf("FAIL ${e.message}"))
                         }
-                        showDiagnostics(app, lines)
                     }
                 },
             ),
