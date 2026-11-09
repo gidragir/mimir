@@ -70,7 +70,7 @@ external interface PluginManifest {
 
 external class Notice(message: String, timeout: Number = definedExternally)
 
-external open class Plugin {
+external open class Plugin(app: App, manifest: PluginManifest) {
     val app: App
     val manifest: PluginManifest
 

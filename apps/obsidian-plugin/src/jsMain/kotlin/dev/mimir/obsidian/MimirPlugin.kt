@@ -15,7 +15,7 @@ import kotlin.js.json
 @OptIn(kotlin.js.ExperimentalJsExport::class)
 @JsExport
 @JsName("default")
-class MimirPlugin : Plugin() {
+class MimirPlugin(app: App, manifest: PluginManifest) : Plugin(app, manifest) {
     private val engine = StubSyncEngine()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 

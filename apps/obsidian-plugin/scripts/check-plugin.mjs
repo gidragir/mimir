@@ -77,8 +77,11 @@ const adapter = {
 };
 let savedData = null;
 class Plugin {
-  app = { vault: { configDir: ".obsidian", adapter } };
-  manifest = { id: manifest.id, version: manifest.version, dir: `.obsidian/plugins/${manifest.id}` };
+  // Как в настоящем Obsidian: app и manifest приходят только через конструктор
+  constructor(app, manifest) {
+    this.app = app;
+    this.manifest = manifest;
+  }
   addStatusBarItem() {
     return statusBarItem;
   }
@@ -121,7 +124,10 @@ if (typeof PluginClass !== "function") fail("module.exports.default is not a cla
 const bad = required.filter((n) => n !== "obsidian");
 if (bad.length) fail(`main.js requires non-obsidian modules: ${bad.join(", ")}`);
 
-const plugin = new PluginClass();
+const plugin = new PluginClass(
+  { vault: { configDir: ".obsidian", adapter } },
+  { id: manifest.id, version: manifest.version, dir: `.obsidian/plugins/${manifest.id}` },
+);
 try {
   plugin.onload();
 } catch (e) {
