@@ -29,6 +29,7 @@
 - **Ruling 1:** `DefaultSyncEngine` не потребляет дельту change feed: каждый прогон — полный `listAll`. Как и в `SyncScheduler` (`libs/runtime/.../SyncScheduler.kt:192-220`), `getChanges` — дешёвая проверка перед прогоном: изменений в Drive нет и локальных изменений нет → прогон по таймеру/возврату пропускается. Прогон по событию vault, по команде и первый после загрузки выполняется всегда.
 - **Ruling 2:** статус «нет сети» берётся из `SyncStatus.label()` = `Mimir: waiting for network` (единый текст для всех клиентов), а не `Mimir: offline` из спеки.
 - **Ruling 3:** `EchoFilter` (`libs/core/.../fs/EchoFilter.kt`) становится `public`: плагин отсекает собственные записи тем же классом, без копии.
+- **Ruling 4 (диагностика iPhone, Task 0):** iOS, mobile=true: `appendBinary` OK (4 МиБ), поток 300 МБ через `getResourcePath` OK, `requestUrl` + `Range` → httpbin 206/100 байт и Google 401 OK, `RcloneCipher.create` 277 мс. Ветвления спеки 4.7 не применяются: запись через `appendBinary`, чтение потоком, `Range`-скачивание кусками, лимит 50 МиБ не вводится. `performance.memory` на iOS недоступен (peakHeap=-1) — пик памяти не измерен.
 
 ## Review Focus
 
