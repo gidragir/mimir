@@ -1,9 +1,25 @@
 plugins {
     kotlin("multiplatform")
+    kotlin("plugin.serialization")
+    alias(libs.plugins.buildconfig)
 }
 
 group = providers.gradleProperty("mimir.group").get()
 version = providers.gradleProperty("mimir.version").get()
+
+fun googleSecret(name: String) = providers.environmentVariable("MIMIR_BUILD_GOOGLE_$name")
+    .orElse(providers.environmentVariable("MIMIR_GOOGLE_$name"))
+    .orElse("")
+
+buildConfig {
+    packageName("dev.mimir.obsidian")
+    className("PluginBuildConfig")
+    buildConfigField("PLUGIN_ID", providers.gradleProperty("mimir.obsidianPluginId"))
+    buildConfigField("VERSION", providers.gradleProperty("mimir.version"))
+    buildConfigField("DAEMON_PORT", providers.gradleProperty("mimir.apiDefaultPort").map { it.toInt() })
+    buildConfigField("GOOGLE_DEVICE_CLIENT_ID", googleSecret("DEVICE_CLIENT_ID"))
+    buildConfigField("GOOGLE_DEVICE_CLIENT_SECRET", googleSecret("DEVICE_CLIENT_SECRET"))
+}
 
 kotlin {
     js {
@@ -23,8 +39,16 @@ kotlin {
         compilerOptions { target = "es2015" } // class MimirPlugin : Plugin() должен быть настоящим ES-классом
     }
     sourceSets {
-        jsMain.dependencies { implementation(project(":libs:core")) }
+        jsMain.dependencies {
+            implementation(project(":libs:core"))
+            implementation(project(":libs:drive"))
+            implementation(libs.ktor.client.core)
+            implementation(libs.ktor.client.content.negotiation)
+            implementation(libs.ktor.serialization.json)
+            implementation(libs.serialization.json)
+        }
         jsTest.dependencies {
+            implementation(libs.ktor.client.mock)
             implementation(kotlin("test"))
             implementation(libs.coroutines.test)
         }
