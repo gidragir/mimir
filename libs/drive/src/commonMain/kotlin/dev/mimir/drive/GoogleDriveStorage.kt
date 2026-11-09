@@ -42,6 +42,8 @@ import kotlin.time.Instant
 class GoogleDriveStorage(
     private val client: DriveHttpClient? = null,
     private val pathResolver: DrivePathResolver? = null,
+    /** Если задан, файл качается кусками `Range` такого размера (для окружений без потокового тела). */
+    private val downloadChunkBytes: Long? = null,
 ) : ChangeFeedStorage {
 
     private fun ensureConfigured(): Pair<DriveHttpClient, DrivePathResolver> {
@@ -267,19 +269,24 @@ class GoogleDriveStorage(
         val started = CompletableDeferred<Unit>()
         val pump = streamScope.launch {
             try {
-                client.executeStreaming(
-                    request = { token ->
-                        client.httpClient.prepareGet("https://www.googleapis.com/drive/v3/files/${file.id}") {
-                            header(HttpHeaders.Authorization, "Bearer $token")
-                            parameter("alt", "media")
+                val chunk = downloadChunkBytes
+                if (chunk == null) {
+                    client.executeStreaming(
+                        request = { token ->
+                            client.httpClient.prepareGet("https://www.googleapis.com/drive/v3/files/${file.id}") {
+                                header(HttpHeaders.Authorization, "Bearer $token")
+                                parameter("alt", "media")
+                            }
+                        },
+                    ) { response ->
+                        if (!response.status.isSuccess()) {
+                            throw DriveHttpException(response.status, "Failed to read file ${file.id}")
                         }
-                    },
-                ) { response ->
-                    if (!response.status.isSuccess()) {
-                        throw DriveHttpException(response.status, "Failed to read file ${file.id}")
+                        started.complete(Unit)
+                        response.bodyAsChannel().copyTo(channel)
                     }
-                    started.complete(Unit)
-                    response.bodyAsChannel().copyTo(channel)
+                } else {
+                    pumpRanged(client, file.id, chunk, channel, started)
                 }
                 channel.flushAndClose()
             } catch (e: CancellationException) {
@@ -297,6 +304,55 @@ class GoogleDriveStorage(
             throw e
         }
         return channel.toSource()
+    }
+
+    /** Скачивание кусками `Range`: каждый кусок — отдельный запрос с собственным refresh токена. */
+    private suspend fun pumpRanged(
+        client: DriveHttpClient,
+        fileId: String,
+        chunk: Long,
+        channel: ByteChannel,
+        started: CompletableDeferred<Unit>,
+    ) {
+        var from = 0L
+        while (true) {
+            var done = false
+            var received = 0L
+            var total: Long? = null
+            client.executeStreaming(
+                request = { token ->
+                    client.httpClient.prepareGet("https://www.googleapis.com/drive/v3/files/$fileId") {
+                        header(HttpHeaders.Authorization, "Bearer $token")
+                        header(HttpHeaders.Range, "bytes=$from-${from + chunk - 1}")
+                        parameter("alt", "media")
+                    }
+                },
+            ) { response ->
+                when {
+                    response.status.value == 416 -> {
+                        started.complete(Unit)
+                        done = true
+                    }
+                    !response.status.isSuccess() ->
+                        throw DriveHttpException(response.status, "Failed to read file $fileId")
+                    response.status.value != 206 -> {
+                        // Сервер проигнорировал Range и отдал всё тело.
+                        started.complete(Unit)
+                        response.bodyAsChannel().copyTo(channel, Long.MAX_VALUE)
+                        done = true
+                    }
+                    else -> {
+                        started.complete(Unit)
+                        total = response.headers[HttpHeaders.ContentRange]?.substringAfter('/')?.toLongOrNull()
+                        received = response.bodyAsChannel().copyTo(channel, Long.MAX_VALUE)
+                    }
+                }
+            }
+            if (done) return
+            from += received
+            val t = total
+            if (received == 0L || (t != null && from >= t) || (t == null && received < chunk)) return
+        }
     }
 
     override suspend fun write(path: RemotePath, data: Source): RemoteEntry {
