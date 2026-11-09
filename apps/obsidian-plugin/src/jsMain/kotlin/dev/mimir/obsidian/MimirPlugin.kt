@@ -7,6 +7,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import dev.mimir.obsidian.diag.runDiagnostics
+import dev.mimir.obsidian.diag.showDiagnostics
+import kotlin.js.json
 
 @OptIn(kotlin.js.ExperimentalJsExport::class)
 @JsExport
@@ -17,6 +21,22 @@ class MimirPlugin : Plugin() {
 
     override fun onload() {
         addStatusBarItem().textContent = engine.status.value.label()
+        addCommand(
+            json(
+                "id" to "mimir-diagnostics",
+                "name" to "Diagnostics",
+                "callback" to {
+                    scope.launch {
+                        val lines = try {
+                            runDiagnostics(app)
+                        } catch (e: Throwable) {
+                            listOf("FAIL ${e.message}")
+                        }
+                        showDiagnostics(app, lines)
+                    }
+                },
+            ),
+        )
         // Обновления не должны ломать загрузку плагина ни при каких условиях
         try {
             PluginUpdater(this, scope).start()

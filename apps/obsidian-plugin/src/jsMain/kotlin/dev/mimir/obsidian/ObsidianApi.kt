@@ -12,6 +12,45 @@ external class DataAdapter {
     fun readBinary(path: String): Promise<ArrayBuffer>
 
     fun writeBinary(path: String, data: ArrayBuffer): Promise<Unit>
+
+    fun appendBinary(path: String, data: ArrayBuffer): Promise<Unit>
+
+    fun getResourcePath(path: String): String
+
+    fun rename(from: String, to: String): Promise<Unit>
+
+    fun remove(path: String): Promise<Unit>
+
+    fun stat(path: String): Promise<dynamic>
+
+    fun list(path: String): Promise<dynamic>
+
+    fun write(path: String, data: String): Promise<Unit>
+}
+
+external interface RequestUrlParam {
+    var url: String
+    var method: String?
+    var headers: dynamic
+    var body: dynamic
+    var contentType: String?
+    var `throw`: Boolean?
+}
+
+external interface RequestUrlResponse {
+    val status: Int
+    val headers: dynamic
+    val arrayBuffer: ArrayBuffer
+    val text: String
+}
+
+external fun requestUrl(request: dynamic): Promise<RequestUrlResponse>
+
+external object Platform {
+    val isMobile: Boolean
+    val isIosApp: Boolean
+    val isAndroidApp: Boolean
+    val isDesktopApp: Boolean
 }
 
 external class Vault {

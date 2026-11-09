@@ -68,6 +68,20 @@ description = "Собрать плагин Obsidian"
 run = "./gradlew :apps:obsidian-plugin:assemblePlugin"
 run_windows = "gradlew.bat :apps:obsidian-plugin:assemblePlugin"
 
+[tasks."obsidian:deploy-dir"]
+description = "Собрать плагин Obsidian и скопировать в $MIMIR_OBSIDIAN_DEPLOY_DIR (по умолчанию build/obsidian-deploy)/<pluginId>"
+run = """
+./gradlew :apps:obsidian-plugin:assemblePlugin
+id=$(sed -n 's/^mimir.obsidianPluginId=//p' gradle.properties)
+dest="${MIMIR_OBSIDIAN_DEPLOY_DIR:-build/obsidian-deploy}/$id"
+rm -rf "$dest" && mkdir -p "$dest" && cp -r apps/obsidian-plugin/build/plugin/* "$dest/"
+echo "$(realpath "$dest")"
+"""
+run_windows = """
+gradlew.bat :apps:obsidian-plugin:assemblePlugin
+powershell -NoProfile -Command "$id=(Select-String -Path gradle.properties -Pattern '^mimir.obsidianPluginId=(.*)$').Matches[0].Groups[1].Value; $d=if($env:MIMIR_OBSIDIAN_DEPLOY_DIR){$env:MIMIR_OBSIDIAN_DEPLOY_DIR}else{'build/obsidian-deploy'}; $d=Join-Path $d $id; if(Test-Path $d){Remove-Item -Recurse -Force $d}; New-Item -ItemType Directory -Force $d | Out-Null; Copy-Item apps/obsidian-plugin/build/plugin/* $d -Recurse; Write-Output (Resolve-Path $d)"
+"""
+
 [tasks.extension]
 description = "Собрать расширение браузера"
 run = "./gradlew :apps:browser-extension:assembleExtension"
