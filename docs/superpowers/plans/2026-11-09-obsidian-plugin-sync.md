@@ -358,15 +358,15 @@ apps/obsidian-plugin/src/jsTest/kotlin/dev/mimir/obsidian/
 - Test: `apps/obsidian-plugin/src/jsTest/kotlin/dev/mimir/obsidian/EndToEndSyncTest.kt`
 - Modify: `README.md` (раздел плагина Obsidian: установка через BRAT/вручную, ограничения: только при открытом приложении, localStorage без изоляции от других плагинов, конфликт огромных вложений держит обе версии в памяти, не держать vault в iCloud), `AGENTS.md` (строка про плагин: «не `isDesktopOnly`, синхронизирует сам, уступает демону; Obsidian API — за `VaultFs`/`RequestUrlFn`»), база context-init.
 
-- [ ] **Step 1: тест** `EndToEndSyncTest`: два `ObsidianLocalVault` на двух `FakeVaultFs` + общий `InMemoryRemoteStorage`, реальный `SyncAssembler` и `PluginSyncController` для каждого, один пароль:
+- [x] **Step 1: тест** `EndToEndSyncTest`: два `ObsidianLocalVault` на двух `FakeVaultFs` + общий `InMemoryRemoteStorage`, реальный `SyncAssembler` и `PluginSyncController` для каждого, один пароль:
   - создание на A → появляется на B;
   - изменение на B → на A;
   - одновременное изменение → копия конфликта, `UpToDate.conflicts` не пуст;
   - удаление на A → удаление на B;
   - очистка remote при непустом индексе → `Error(abortedNothingDeleted)`, файлы B на месте.
-- [ ] **Step 2:** PASS; `mise run ci:fast` → PASS; `mise run build` без секретов и без Android SDK → PASS.
-- [ ] **Step 3:** `rtk context-init update`, `rtk context-init check --compact` → без дрейфа.
-- [ ] **Step 4:** коммит `docs(obsidian): document standalone plugin sync and limitations`.
+- [x] **Step 2:** PASS; `mise run ci:fast` → PASS; `mise run build` без секретов и без Android SDK → PASS.
+- [x] **Step 3:** `rtk context-init update`, `rtk context-init check --compact` → без дрейфа.
+- [x] **Step 4:** коммит `docs(obsidian): document standalone plugin sync and limitations`.
 - [ ] **Step 5 (пользователь, устройства):** сценарий спеки §6:
   - демон пишет заметку + вложение 300 МБ → iPhone получает, Obsidian не падает;
   - правка на iPhone → демон получает;

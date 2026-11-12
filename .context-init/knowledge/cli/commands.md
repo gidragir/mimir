@@ -14,33 +14,34 @@
 
 | Скрипт | Выполняемая команда |
 | :--- | :--- |
-| `tokens:check` | `rtk mise run tokens:check` |
-| `tokens:generate` | `rtk mise run tokens:generate` |
-| `package:arch` | `rtk mise run package:arch` |
-| `win:test` | `rtk mise run win:test` |
-| `win:provision` | `rtk mise run win:provision` |
-| `screenshots` | `rtk mise run screenshots` |
-| `skills:sync` | `rtk mise run skills:sync` |
-| `skills:check` | `rtk mise run skills:check` |
-| `test:fast` | `rtk mise run test:fast` |
-| `win:uninstall` | `rtk mise run win:uninstall` |
-| `build:extension` | `rtk mise run build:extension` |
-| `win:reset` | `rtk mise run win:reset` |
-| `package:docker` | `rtk mise run package:docker` |
-| `plugin` | `rtk mise run plugin` |
-| `android` | `rtk mise run android` |
-| `win:msi` | `rtk mise run win:msi` |
-| `win:snapshot` | `rtk mise run win:snapshot` |
 | `win:sync` | `rtk mise run win:sync` |
-| `win:logs` | `rtk mise run win:logs` |
+| `plugin` | `rtk mise run plugin` |
+| `test:fast` | `rtk mise run test:fast` |
+| `tokens:check` | `rtk mise run tokens:check` |
+| `web` | `rtk mise run web` |
+| `win:test` | `rtk mise run win:test` |
 | `desktop` | `rtk mise run desktop` |
+| `win:provision` | `rtk mise run win:provision` |
+| `win:run` | `rtk mise run win:run` |
+| `build:extension` | `rtk mise run build:extension` |
+| `skills:sync` | `rtk mise run skills:sync` |
 | `ci:fast` | `rtk mise run ci:fast` |
 | `package:msi` | `rtk mise run package:msi` |
-| `web` | `rtk mise run web` |
-| `win:run` | `rtk mise run win:run` |
-| `daemon` | `rtk mise run daemon` |
+| `package:arch` | `rtk mise run package:arch` |
 | `package:extension` | `rtk mise run package:extension` |
+| `win:snapshot` | `rtk mise run win:snapshot` |
+| `skills:check` | `rtk mise run skills:check` |
+| `win:msi` | `rtk mise run win:msi` |
+| `package:docker` | `rtk mise run package:docker` |
+| `tokens:generate` | `rtk mise run tokens:generate` |
+| `win:reset` | `rtk mise run win:reset` |
+| `obsidian:deploy-dir` | `rtk mise run obsidian:deploy-dir` |
+| `daemon` | `rtk mise run daemon` |
+| `win:uninstall` | `rtk mise run win:uninstall` |
+| `screenshots` | `rtk mise run screenshots` |
 | `extension` | `rtk mise run extension` |
+| `android` | `rtk mise run android` |
+| `win:logs` | `rtk mise run win:logs` |
 
 ## Быстрый запуск
 ```bash

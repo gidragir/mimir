@@ -2,8 +2,8 @@
 directory: libs/drive
 source:
   kind: git
-  blob_sha: 59203c88c9967271494c25c0b4a5a81821b939ce
-  commit_sha: bca5a71aa25e84ea197c3bf1e2540a4de155de19
+  blob_sha: 565ffc809632d280913e1ec77c477938889c02c4
+  commit_sha: 1a5aa0855a928bbbb5552e63d2859864a61e21ee
 generated_by:
   component: context-init
   role: update
@@ -44,7 +44,7 @@ freshness:
 
 ## 🔑 Ключевой контракт и экспорты
 ```text
-class GoogleDriveStorage( private val client: DriveHttpClient? = null, private val pathResolver: DrivePathResolver? = null, ) : ChangeFeedStorage
+class GoogleDriveStorage(...) : ChangeFeedStorage
 override suspend fun getLatestChangeToken(): String
 override suspend fun getChanges(sinceToken: String): RemoteChangesResult
 override suspend fun list(dir: RemotePath): List<RemoteEntry>

@@ -2,11 +2,11 @@
 directory: apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/ui
 source:
   kind: git
-  blob_sha: 88eaedb720fc231be060d832103ca989d046c268
-  commit_sha: c4d15d5133f882d1b744714b839e702178c89e3c
+  blob_sha: bcadf28c83ec30ab718080ae9d2fa90632490c84
+  commit_sha: 1a5aa0855a928bbbb5552e63d2859864a61e21ee
 generated_by:
   component: context-init
-  role: init
+  role: update
   model: none
 freshness:
   total_entries: 8

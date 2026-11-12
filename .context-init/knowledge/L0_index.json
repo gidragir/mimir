@@ -3,7 +3,7 @@
   "schema_version": 4,
   "project": "mimir",
   "description": "Один открытый инструмент синхронизации Obsidian-хранилища на всех платформах (Linux, Windows, Android). Он ощущается как Google Drive Desktop: один раз указал папку vault и пароль, дальше всё синхронизируется само.",
-  "updated_at": "2026-11-08",
+  "updated_at": "2026-11-12",
   "project_type": "Kotlin (Gradle)",
   "entrypoints": [
     "mise.toml",
@@ -15,33 +15,34 @@
     "test": "rtk mise run test",
     "run": "rtk mise run desktop",
     "custom": {
-      "tokens:check": "rtk mise run tokens:check",
-      "tokens:generate": "rtk mise run tokens:generate",
-      "package:arch": "rtk mise run package:arch",
-      "win:test": "rtk mise run win:test",
-      "win:provision": "rtk mise run win:provision",
-      "screenshots": "rtk mise run screenshots",
-      "skills:sync": "rtk mise run skills:sync",
-      "skills:check": "rtk mise run skills:check",
-      "test:fast": "rtk mise run test:fast",
-      "win:uninstall": "rtk mise run win:uninstall",
-      "build:extension": "rtk mise run build:extension",
-      "win:reset": "rtk mise run win:reset",
-      "package:docker": "rtk mise run package:docker",
-      "plugin": "rtk mise run plugin",
-      "android": "rtk mise run android",
-      "win:msi": "rtk mise run win:msi",
-      "win:snapshot": "rtk mise run win:snapshot",
       "win:sync": "rtk mise run win:sync",
-      "win:logs": "rtk mise run win:logs",
+      "plugin": "rtk mise run plugin",
+      "test:fast": "rtk mise run test:fast",
+      "tokens:check": "rtk mise run tokens:check",
+      "web": "rtk mise run web",
+      "win:test": "rtk mise run win:test",
       "desktop": "rtk mise run desktop",
+      "win:provision": "rtk mise run win:provision",
+      "win:run": "rtk mise run win:run",
+      "build:extension": "rtk mise run build:extension",
+      "skills:sync": "rtk mise run skills:sync",
       "ci:fast": "rtk mise run ci:fast",
       "package:msi": "rtk mise run package:msi",
-      "web": "rtk mise run web",
-      "win:run": "rtk mise run win:run",
-      "daemon": "rtk mise run daemon",
+      "package:arch": "rtk mise run package:arch",
       "package:extension": "rtk mise run package:extension",
-      "extension": "rtk mise run extension"
+      "win:snapshot": "rtk mise run win:snapshot",
+      "skills:check": "rtk mise run skills:check",
+      "win:msi": "rtk mise run win:msi",
+      "package:docker": "rtk mise run package:docker",
+      "tokens:generate": "rtk mise run tokens:generate",
+      "win:reset": "rtk mise run win:reset",
+      "obsidian:deploy-dir": "rtk mise run obsidian:deploy-dir",
+      "daemon": "rtk mise run daemon",
+      "win:uninstall": "rtk mise run win:uninstall",
+      "screenshots": "rtk mise run screenshots",
+      "extension": "rtk mise run extension",
+      "android": "rtk mise run android",
+      "win:logs": "rtk mise run win:logs"
     }
   },
   "subsystems": [
@@ -674,10 +675,6 @@
         "apps/obsidian-plugin/build.gradle.kts",
         "apps/obsidian-plugin/manifest.template.json",
         "apps/obsidian-plugin/scripts/check-plugin.mjs",
-        "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/MimirPlugin.kt",
-        "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/ObsidianApi.kt",
-        "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/update/ObsidianInPlaceApplier.kt",
-        "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/update/PluginUpdater.kt",
         "apps/obsidian-plugin/webpack.config.d/obsidian.js",
         "apps/obsidian-plugin/webpack.config.d/performance.js"
       ],
@@ -695,11 +692,97 @@
           "is_entrypoint": false
         },
         {
+          "path": "apps/obsidian-plugin/webpack.config.d/obsidian.js",
+          "is_entrypoint": false
+        },
+        {
+          "path": "apps/obsidian-plugin/webpack.config.d/performance.js",
+          "is_entrypoint": false
+        }
+      ],
+      "key_symbols": [
+        "fun googleSecret(name: String) = providers.environmentVariable(\"MIMIR_BUILD_GOOGLE_$name\")",
+        "class Plugin",
+        "class Notice",
+        "class Modal",
+        "class Setting",
+        "class PluginSettingTab"
+      ],
+      "summary_source": "heuristic"
+    },
+    {
+      "id": "apps_obsidian-plugin_jsmain_kotlin_dev_mimir_obsidian",
+      "name": "Obsidian Plugin JsMain Kotlin Dev Mimir Obsidian",
+      "summary": "Модуль и компоненты директории `apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian` (15 файлов)",
+      "l1_path": "subsystems/apps_obsidian-plugin_jsmain_kotlin_dev_mimir_obsidian.md",
+      "tags": [
+        "Kotlin (Gradle)",
+        "apps_obsidian-plugin_jsmain_kotlin_dev_mimir_obsidian"
+      ],
+      "key_files": [
+        "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/MimirPlugin.kt",
+        "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/ObsidianApi.kt",
+        "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/daemon/DaemonProbe.kt",
+        "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/diag/DiagnosticsCommand.kt",
+        "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/net/ObsidianHttpEngine.kt",
+        "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/platform/Bridges.kt",
+        "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/state/DeviceSecretStore.kt",
+        "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/state/ObsidianSyncStateStore.kt",
+        "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/state/PluginSettings.kt",
+        "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/sync/PluginSyncController.kt",
+        "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/sync/SignIn.kt",
+        "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/sync/SyncAssembler.kt",
+        "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/update/ObsidianInPlaceApplier.kt",
+        "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/update/PluginUpdater.kt",
+        "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/vault/ObsidianLocalVault.kt"
+      ],
+      "files": [
+        {
           "path": "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/MimirPlugin.kt",
           "is_entrypoint": false
         },
         {
           "path": "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/ObsidianApi.kt",
+          "is_entrypoint": false
+        },
+        {
+          "path": "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/daemon/DaemonProbe.kt",
+          "is_entrypoint": false
+        },
+        {
+          "path": "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/diag/DiagnosticsCommand.kt",
+          "is_entrypoint": false
+        },
+        {
+          "path": "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/net/ObsidianHttpEngine.kt",
+          "is_entrypoint": false
+        },
+        {
+          "path": "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/platform/Bridges.kt",
+          "is_entrypoint": false
+        },
+        {
+          "path": "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/state/DeviceSecretStore.kt",
+          "is_entrypoint": false
+        },
+        {
+          "path": "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/state/ObsidianSyncStateStore.kt",
+          "is_entrypoint": false
+        },
+        {
+          "path": "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/state/PluginSettings.kt",
+          "is_entrypoint": false
+        },
+        {
+          "path": "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/sync/PluginSyncController.kt",
+          "is_entrypoint": false
+        },
+        {
+          "path": "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/sync/SignIn.kt",
+          "is_entrypoint": false
+        },
+        {
+          "path": "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/sync/SyncAssembler.kt",
           "is_entrypoint": false
         },
         {
@@ -711,26 +794,81 @@
           "is_entrypoint": false
         },
         {
-          "path": "apps/obsidian-plugin/webpack.config.d/obsidian.js",
-          "is_entrypoint": false
-        },
-        {
-          "path": "apps/obsidian-plugin/webpack.config.d/performance.js",
+          "path": "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/vault/ObsidianLocalVault.kt",
           "is_entrypoint": false
         }
       ],
       "key_symbols": [
-        "class Plugin",
-        "class Notice",
-        "class MimirPlugin : Plugin()",
+        "class MimirPlugin(app: App, manifest: PluginManifest) : Plugin(app, manifest)",
         "override fun onload()",
         "override fun onunload()",
         "external class DataAdapter",
         "fun exists(path: String): Promise<Boolean>",
         "fun readBinary(path: String): Promise<ArrayBuffer>",
         "fun writeBinary(path: String, data: ArrayBuffer): Promise<Unit>",
-        "external class Vault"
+        "fun appendBinary(path: String, data: ArrayBuffer): Promise<Unit>",
+        "fun getResourcePath(path: String): String",
+        "fun rename(from: String, to: String): Promise<Unit>"
       ],
+      "parent": "apps_obsidian-plugin_jsmain_kotlin_dev_mimir",
+      "summary_source": "heuristic"
+    },
+    {
+      "id": "apps_obsidian-plugin_jsmain_kotlin_dev_mimir_obsidian_ui",
+      "name": "Obsidian Plugin JsMain Kotlin Dev Mimir Obsidian Ui",
+      "summary": "Модуль и компоненты директории `apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/ui` (6 файлов)",
+      "l1_path": "subsystems/apps_obsidian-plugin_jsmain_kotlin_dev_mimir_obsidian_ui.md",
+      "tags": [
+        "Kotlin (Gradle)",
+        "apps_obsidian-plugin_jsmain_kotlin_dev_mimir_obsidian_ui"
+      ],
+      "key_files": [
+        "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/ui/ConflictsModal.kt",
+        "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/ui/DeviceCodeModal.kt",
+        "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/ui/DomExt.kt",
+        "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/ui/MimirSettingTab.kt",
+        "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/ui/PluginTexts.kt",
+        "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/ui/StatusView.kt"
+      ],
+      "files": [
+        {
+          "path": "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/ui/ConflictsModal.kt",
+          "is_entrypoint": false
+        },
+        {
+          "path": "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/ui/DeviceCodeModal.kt",
+          "is_entrypoint": false
+        },
+        {
+          "path": "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/ui/DomExt.kt",
+          "is_entrypoint": false
+        },
+        {
+          "path": "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/ui/MimirSettingTab.kt",
+          "is_entrypoint": false
+        },
+        {
+          "path": "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/ui/PluginTexts.kt",
+          "is_entrypoint": false
+        },
+        {
+          "path": "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/ui/StatusView.kt",
+          "is_entrypoint": false
+        }
+      ],
+      "key_symbols": [
+        "class ConflictsModal( app: App, private val conflicts: List<String>, private val texts: PluginTexts, ) : Modal(app)",
+        "override fun onOpen()",
+        "override fun onClose()",
+        "class DeviceCodeModal( app: App, private val signIn: DeviceSignIn, private val texts: PluginTexts, private val onComplete: (Boolean) -> Unit =",
+        "fun HTMLElement.empty()",
+        "fun HTMLElement.createEl(tag: String, o: dynamic = null): HTMLElement",
+        "fun HTMLElement.createDiv(o: dynamic = null): HTMLElement",
+        "class MimirSettingTab(...) : PluginSettingTab(app, plugin)",
+        "override fun display()",
+        "data class PluginTexts( val locale: String, val statusNotConnected: String, val statusOffline: String, val statusYieldsToDaemon: String, val statusPausedForDaemon: String, val statusNeedsSignIn: String, val statusError: String, val statusUpToDate: String, val abortedNothingDel..."
+      ],
+      "parent": "apps_obsidian-plugin_jsmain_kotlin_dev_mimir_obsidian",
       "summary_source": "heuristic"
     },
     {
@@ -1220,7 +1358,7 @@
     {
       "id": "libs_core_commonmain_kotlin_dev_mimir_core_sync",
       "name": "Core CommonMain Kotlin Dev Mimir Core Sync",
-      "summary": "Модуль и компоненты директории `libs/core/src/commonMain/kotlin/dev/mimir/core/sync` (13 файлов)",
+      "summary": "Модуль и компоненты директории `libs/core/src/commonMain/kotlin/dev/mimir/core/sync` (14 файлов)",
       "l1_path": "subsystems/libs_core_commonmain_kotlin_dev_mimir_core_sync.md",
       "tags": [
         "Kotlin (Gradle)",
@@ -1236,6 +1374,7 @@
         "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/StubSyncEngine.kt",
         "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/SyncEngine.kt",
         "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/SyncIndex.kt",
+        "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/SyncIndexJson.kt",
         "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/SyncPlan.kt",
         "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/SyncPlanBuilder.kt",
         "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/SyncProgress.kt",
@@ -1276,6 +1415,10 @@
         },
         {
           "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/SyncIndex.kt",
+          "is_entrypoint": false
+        },
+        {
+          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/SyncIndexJson.kt",
           "is_entrypoint": false
         },
         {
@@ -1402,7 +1545,7 @@
         }
       ],
       "key_symbols": [
-        "class GoogleDriveStorage( private val client: DriveHttpClient? = null, private val pathResolver: DrivePathResolver? = null, ) : ChangeFeedStorage",
+        "class GoogleDriveStorage(...) : ChangeFeedStorage",
         "override suspend fun getLatestChangeToken(): String",
         "override suspend fun getChanges(sinceToken: String): RemoteChangesResult",
         "override suspend fun list(dir: RemotePath): List<RemoteEntry>",

@@ -2,8 +2,8 @@
 directory: apps/browser-extension/src/jsMain/resources
 source:
   kind: git
-  blob_sha: 0ac93e1fd9603f769419a90565e94e4a89a32c06
-  commit_sha: f221fe644add8159ac86eacc977028d32eedc5d8
+  blob_sha: fc7edcc2f8ad7db11483f3c117a223e856b6bb8c
+  commit_sha: 1a5aa0855a928bbbb5552e63d2859864a61e21ee
 generated_by:
   component: context-init
   role: update

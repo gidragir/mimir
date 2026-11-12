@@ -2,8 +2,8 @@
 directory: apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension
 source:
   kind: git
-  blob_sha: 274a980cb0faaccb542188d9f4eaaf83c5fb341c
-  commit_sha: bca5a71aa25e84ea197c3bf1e2540a4de155de19
+  blob_sha: fda01497e10c504b5ddd0b9040cc193c455ce2a9
+  commit_sha: 1a5aa0855a928bbbb5552e63d2859864a61e21ee
 generated_by:
   component: context-init
   role: update

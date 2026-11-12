@@ -1,6 +1,6 @@
 # 🗺 Карта архитектуры: mimir (L0)
 
-> **Стек:** Kotlin (Gradle) | **Обновлено:** 2026-11-08
+> **Стек:** Kotlin (Gradle) | **Обновлено:** 2026-11-12
 > **Описание:** Один открытый инструмент синхронизации Obsidian-хранилища на всех платформах (Linux, Windows, Android). Он ощущается как Google Drive Desktop: один раз указал папку vault и пароль, дальше всё синхронизируется само.
 
 ## 🚪 Точки входа (Root Entrypoints)
@@ -35,6 +35,8 @@ rtk mise run desktop
 | **Desktop Main Kotlin Dev Mimir Desktop** | Модуль и компоненты директории `apps/desktop/src/main/kotlin/dev/mimir/desktop` (15 файлов) | `-` | [subsystems/apps_desktop_main_kotlin_dev_mimir_desktop.md](subsystems/apps_desktop_main_kotlin_dev_mimir_desktop.md) |
 | **Desktop Main Kotlin Dev Mimir Desktop Tray** | Модуль и компоненты директории `apps/desktop/src/main/kotlin/dev/mimir/desktop/tray` (12 файлов) | `-` | [subsystems/apps_desktop_main_kotlin_dev_mimir_desktop_tray.md](subsystems/apps_desktop_main_kotlin_dev_mimir_desktop_tray.md) |
 | **Obsidian Plugin** | Подсистема `apps/obsidian-plugin` с ключевыми точками входа: apps/obsidian-plugin/build.gradle.kts | `apps/obsidian-plugin/build.gradle.kts` | [subsystems/apps_obsidian-plugin.md](subsystems/apps_obsidian-plugin.md) |
+| **Obsidian Plugin JsMain Kotlin Dev Mimir Obsidian** | Модуль и компоненты директории `apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian` (15 файлов) | `-` | [subsystems/apps_obsidian-plugin_jsmain_kotlin_dev_mimir_obsidian.md](subsystems/apps_obsidian-plugin_jsmain_kotlin_dev_mimir_obsidian.md) |
+| **Obsidian Plugin JsMain Kotlin Dev Mimir Obsidian Ui** | Модуль и компоненты директории `apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/ui` (6 файлов) | `-` | [subsystems/apps_obsidian-plugin_jsmain_kotlin_dev_mimir_obsidian_ui.md](subsystems/apps_obsidian-plugin_jsmain_kotlin_dev_mimir_obsidian_ui.md) |
 | **Web Ui** | Подсистема `apps/web-ui` с ключевыми точками входа: apps/web-ui/build.gradle.kts | `apps/web-ui/build.gradle.kts` | [subsystems/apps_web-ui.md](subsystems/apps_web-ui.md) |
 | **Build Logic** | Подсистема `build-logic` с ключевыми точками входа: build-logic/build.gradle.kts | `build-logic/build.gradle.kts` | [subsystems/build-logic.md](subsystems/build-logic.md) |
 | **Design** | Модуль и компоненты директории `design` (3 файлов) | `-` | [subsystems/design.md](subsystems/design.md) |
@@ -42,7 +44,7 @@ rtk mise run desktop
 | **Core** | Подсистема `libs/core` с ключевыми точками входа: libs/core/build.gradle.kts | `libs/core/build.gradle.kts` | [subsystems/libs_core.md](subsystems/libs_core.md) |
 | **Core CommonMain Kotlin Dev Mimir Core** | Модуль и компоненты директории `libs/core/src/commonMain/kotlin/dev/mimir/core` (15 файлов) | `-` | [subsystems/libs_core_commonmain_kotlin_dev_mimir_core.md](subsystems/libs_core_commonmain_kotlin_dev_mimir_core.md) |
 | **Core CommonMain Kotlin Dev Mimir Core Crypto** | Модуль и компоненты директории `libs/core/src/commonMain/kotlin/dev/mimir/core/crypto` (15 файлов) | `-` | [subsystems/libs_core_commonmain_kotlin_dev_mimir_core_crypto.md](subsystems/libs_core_commonmain_kotlin_dev_mimir_core_crypto.md) |
-| **Core CommonMain Kotlin Dev Mimir Core Sync** | Модуль и компоненты директории `libs/core/src/commonMain/kotlin/dev/mimir/core/sync` (13 файлов) | `-` | [subsystems/libs_core_commonmain_kotlin_dev_mimir_core_sync.md](subsystems/libs_core_commonmain_kotlin_dev_mimir_core_sync.md) |
+| **Core CommonMain Kotlin Dev Mimir Core Sync** | Модуль и компоненты директории `libs/core/src/commonMain/kotlin/dev/mimir/core/sync` (14 файлов) | `-` | [subsystems/libs_core_commonmain_kotlin_dev_mimir_core_sync.md](subsystems/libs_core_commonmain_kotlin_dev_mimir_core_sync.md) |
 | **Drive** | Подсистема `libs/drive` с ключевыми точками входа: libs/drive/build.gradle.kts | `libs/drive/build.gradle.kts` | [subsystems/libs_drive.md](subsystems/libs_drive.md) |
 | **Runtime** | Подсистема `libs/runtime` с ключевыми точками входа: libs/runtime/build.gradle.kts | `libs/runtime/build.gradle.kts` | [subsystems/libs_runtime.md](subsystems/libs_runtime.md) |
 | **Runtime CommonMain Kotlin Dev Mimir Runtime** | Модуль и компоненты директории `libs/runtime/src/commonMain/kotlin/dev/mimir/runtime` (15 файлов) | `-` | [subsystems/libs_runtime_commonmain_kotlin_dev_mimir_runtime.md](subsystems/libs_runtime_commonmain_kotlin_dev_mimir_runtime.md) |
