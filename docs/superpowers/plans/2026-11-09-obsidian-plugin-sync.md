@@ -189,7 +189,7 @@ apps/obsidian-plugin/src/jsTest/kotlin/dev/mimir/obsidian/
   - `class ObsidianLocalVault(fs: VaultFs, resources: ResourceStreamFn, configDir: String, events: Flow<VaultEvent>, echo: EchoFilter, clock: Clock = Clock.System, writeChunkBytes: Int = 1 shl 20) : LocalVault`
   - `VaultFileId` = нормализованный относительный путь (как в `InMemoryLocalVault`).
 
-- [ ] **Step 1: падающие тесты** (на `FakeVaultFs` — in-memory дерево с `mtime`, журналом вызовов и кнопкой «упасть на N-м appendBinary»):
+- [x] **Step 1: падающие тесты** (на `FakeVaultFs` — in-memory дерево с `mtime`, журналом вызовов и кнопкой «упасть на N-м appendBinary»):
   - `listsFilesRecursivelyWithSizeAndMtime`
   - `excludesConfigDirAndTmpFiles`: `.obsidian/app.json`, `a/.b.md.mimir-tmp` отсутствуют в `list()`; `hiddenPaths() == setOf(".obsidian")`.
   - `writeGoesThroughTmpAndRename`: запись 2,5 МиБ → журнал `writeBinary(a/.b.md.mimir-tmp, 1MiB)`, `appendBinary ×2`, `rename(tmp → a/b.md)`; `mkdir("a")`, если папки нет.
@@ -199,9 +199,9 @@ apps/obsidian-plugin/src/jsTest/kotlin/dev/mimir/obsidian/
   - `unicodeAndSpacesRoundTrip` (Review Focus 5): `Заметки/Идея #1.md` записывается, читается, перечисляется под тем же путём.
   - `deleteRemovesFile`; `deleteByPathMissingIsNoop`.
   - `changesMapsEventsAndSkipsEcho`: `Upsert` пути, записанного самим vault ≤ ttl назад, не выдаётся; `Renamed(a,b)` → `Deleted(a)` + `Created/Modified(b)`; события в `.obsidian/` не выдаются.
-- [ ] **Step 2:** FAIL → **Step 3:** реализовать; `write(relativePath, data)` читает `Source` блоками `writeChunkBytes`, перед `rename` делает `echo.mark(path)`; при ошибке/отмене — `remove(tmp)` в `NonCancellable`. Если у цели есть старый файл, `rename` на мобильном адаптере может не перезаписывать — сначала `remove(target)`, затем `rename` (порядок проверен тестом `writeReplacesExisting`).
-- [ ] **Step 4:** `./gradlew :apps:obsidian-plugin:jsBrowserTest :libs:core:allTests` → PASS.
-- [ ] **Step 5:** коммит `feat(obsidian): add LocalVault adapter over Obsidian DataAdapter` (вместе с `refactor(core)`-правкой `EchoFilter` в одном коммите допустимо).
+- [x] **Step 2:** FAIL → **Step 3:** реализовать; `write(relativePath, data)` читает `Source` блоками `writeChunkBytes`, перед `rename` делает `echo.mark(path)`; при ошибке/отмене — `remove(tmp)` в `NonCancellable`. Если у цели есть старый файл, `rename` на мобильном адаптере может не перезаписывать — сначала `remove(target)`, затем `rename` (порядок проверен тестом `writeReplacesExisting`).
+- [x] **Step 4:** `./gradlew :apps:obsidian-plugin:jsBrowserTest :libs:core:allTests` → PASS.
+- [x] **Step 5:** коммит `feat(obsidian): add LocalVault adapter over Obsidian DataAdapter` (вместе с `refactor(core)`-правкой `EchoFilter` в одном коммите допустимо).
 
 ---
 

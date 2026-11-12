@@ -8,7 +8,7 @@ import kotlin.time.Instant
 
 /** Запоминает пути, записанные самим движком синхронизации, чтобы их события не вернулись в облако. */
 @OptIn(ExperimentalAtomicApi::class)
-internal class EchoFilter(private val ttl: Duration, private val clock: Clock) {
+class EchoFilter(private val ttl: Duration, private val clock: Clock) {
     private val marks = AtomicReference<Map<String, Instant>>(emptyMap())
 
     fun mark(relativePath: String) {

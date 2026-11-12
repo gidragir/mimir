@@ -21,6 +21,8 @@ external class DataAdapter {
 
     fun remove(path: String): Promise<Unit>
 
+    fun mkdir(path: String): Promise<Unit>
+
     fun stat(path: String): Promise<dynamic>
 
     fun list(path: String): Promise<dynamic>
