@@ -2,7 +2,6 @@
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { join, resolve } from "node:path";
-import { createRequire } from "node:module";
 import vm from "node:vm";
 
 const dir = resolve(process.argv[2] ?? "build/plugin");
@@ -74,6 +73,7 @@ const adapter = {
   exists: async () => true,
   readBinary: async () => toAb(Buffer.from("old")),
   writeBinary: async (path, data) => void writes.set(path, Buffer.from(data)),
+  getResourcePath: (path) => `app://local/${path}`,
 };
 let savedData = null;
 class Plugin {
@@ -85,8 +85,16 @@ class Plugin {
   addStatusBarItem() {
     return statusBarItem;
   }
+  addRibbonIcon() {
+    return {};
+  }
   addCommand(c) {
     commands.push(c);
+  }
+  addSettingTab() {}
+  registerEvent() {}
+  registerInterval(id) {
+    return id;
   }
   async loadData() {
     return savedData;
@@ -100,18 +108,80 @@ class Notice {
     notices.push(message);
   }
 }
+class Modal {
+  constructor(app) {
+    this.app = app;
+    this.contentEl = { empty() {}, createEl() { return {}; }, createDiv() { return {}; } };
+  }
+  open() {}
+  close() {}
+}
+class Setting {
+  constructor(containerEl) {
+    this.containerEl = containerEl;
+  }
+  setName() { return this; }
+  setDesc() { return this; }
+  setClass() { return this; }
+  addText(cb) { cb({ setPlaceholder() { return this; }, setValue() { return this; }, onChange() { return this; }, inputEl: {} }); return this; }
+  addDropdown(cb) { cb({ addOption() { return this; }, setValue() { return this; }, onChange() { return this; } }); return this; }
+  addToggle(cb) { cb({ setValue() { return this; }, onChange() { return this; } }); return this; }
+  addButton(cb) { cb({ setButtonText() { return this; }, setCta() { return this; }, setWarning() { return this; }, onClick() { return this; } }); return this; }
+}
+class PluginSettingTab {
+  constructor(app, plugin) {
+    this.app = app;
+    this.plugin = plugin;
+    this.containerEl = { empty() {}, createEl() { return {}; }, createDiv() { return {}; } };
+  }
+  display() {}
+  hide() {}
+}
+const Platform = {
+  isMobile: false,
+  isIosApp: false,
+  isAndroidApp: false,
+  isDesktopApp: true,
+};
+const requestUrl = async () => ({ status: 200, headers: {}, arrayBuffer: new ArrayBuffer(0), text: "" });
+
 const required = [];
 const fakeRequire = (name) => {
   required.push(name);
-  if (name === "obsidian") return { Plugin, Notice };
+  if (name === "obsidian") return { Plugin, Notice, Modal, Setting, PluginSettingTab, Platform, requestUrl };
   throw new Error(`forbidden require("${name}")`);
+};
+
+const fakeDocument = {
+  addEventListener() {},
+  removeEventListener() {},
+  hidden: false,
+};
+
+const fakeWindow = {
+  setTimeout,
+  clearTimeout,
+  setInterval: (fn, ms) => setInterval(fn, ms),
+  clearInterval: (id) => clearInterval(id),
+  addEventListener() {},
+  removeEventListener() {},
 };
 
 const module = { exports: {} };
 try {
   vm.runInNewContext(
     source,
-    { module, exports: module.exports, require: fakeRequire, console, setTimeout, clearTimeout, fetch: fakeFetch },
+    {
+      module,
+      exports: module.exports,
+      require: fakeRequire,
+      console,
+      setTimeout,
+      clearTimeout,
+      fetch: fakeFetch,
+      document: fakeDocument,
+      window: fakeWindow,
+    },
     { filename: "main.js" },
   );
 } catch (e) {
@@ -125,7 +195,12 @@ const bad = required.filter((n) => n !== "obsidian");
 if (bad.length) fail(`main.js requires non-obsidian modules: ${bad.join(", ")}`);
 
 const plugin = new PluginClass(
-  { vault: { configDir: ".obsidian", adapter } },
+  {
+    vault: { configDir: ".obsidian", adapter, on() { return {}; } },
+    workspace: { onLayoutReady(cb) { cb(); } },
+    loadLocalStorage() { return null; },
+    saveLocalStorage() {},
+  },
   { id: manifest.id, version: manifest.version, dir: `.obsidian/plugins/${manifest.id}` },
 );
 try {
@@ -137,6 +212,31 @@ const expected = process.argv[3] ?? "Mimir: not connected";
 if (statusBarItem.textContent !== expected) {
   fail(`status bar text is "${statusBarItem.textContent}", expected "${expected}"`);
 }
+
+// Проверка mobile платформы: Platform.isMobile = true, без краша onload
+Platform.isMobile = true;
+Platform.isDesktopApp = false;
+let mobileRibbonCalled = false;
+const mobilePlugin = new PluginClass(
+  {
+    vault: { configDir: ".obsidian", adapter, on() { return {}; } },
+    workspace: { onLayoutReady(cb) { cb(); } },
+    loadLocalStorage() { return null; },
+    saveLocalStorage() {},
+  },
+  { id: manifest.id, version: manifest.version, dir: `.obsidian/plugins/${manifest.id}` },
+);
+mobilePlugin.addRibbonIcon = () => { mobileRibbonCalled = true; return {}; };
+try {
+  mobilePlugin.onload();
+} catch (e) {
+  fail(`mobile onload() threw: ${e.message}`);
+}
+if (!mobileRibbonCalled) {
+  fail("mobile: ribbon icon was not created");
+}
+Platform.isMobile = false;
+Platform.isDesktopApp = true;
 // Обновление: команда регистрируется, а её запуск заменяет оба файла на месте (без демона, через fetch и vault.adapter)
 const update = commands.find((c) => c.id === "update-plugin");
 if (!update) fail("command update-plugin is not registered");

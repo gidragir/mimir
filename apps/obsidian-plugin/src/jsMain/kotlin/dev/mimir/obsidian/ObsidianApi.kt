@@ -55,13 +55,29 @@ external object Platform {
     val isDesktopApp: Boolean
 }
 
+external interface EventRef
+
+external class TAbstractFile {
+    val path: String
+    val name: String
+}
+
 external class Vault {
     val adapter: DataAdapter
     val configDir: String
+
+    fun on(name: String, callback: (dynamic) -> Unit): EventRef
+    fun on(name: String, callback: (dynamic, dynamic) -> Unit): EventRef
+}
+
+external class Workspace {
+    fun onLayoutReady(callback: () -> Unit)
 }
 
 external class App {
     val vault: Vault
+    val workspace: Workspace
+    val setting: dynamic
 
     fun loadLocalStorage(key: String): String?
 
@@ -76,6 +92,35 @@ external interface PluginManifest {
 
 external class Notice(message: String, timeout: Number = definedExternally)
 
+external open class Modal(app: App) {
+    val app: App
+    val contentEl: HTMLElement
+
+    open fun onOpen()
+    open fun onClose()
+    fun open()
+    fun close()
+}
+
+external open class Setting(containerEl: HTMLElement) {
+    fun setName(name: String): Setting
+    fun setDesc(desc: String): Setting
+    fun setClass(cls: String): Setting
+    fun addText(cb: (dynamic) -> Unit): Setting
+    fun addDropdown(cb: (dynamic) -> Unit): Setting
+    fun addToggle(cb: (dynamic) -> Unit): Setting
+    fun addButton(cb: (dynamic) -> Unit): Setting
+}
+
+external open class PluginSettingTab(app: App, plugin: Plugin) {
+    val app: App
+    val plugin: Plugin
+    val containerEl: HTMLElement
+
+    open fun display()
+    open fun hide()
+}
+
 external open class Plugin(app: App, manifest: PluginManifest) {
     val app: App
     val manifest: PluginManifest
@@ -86,7 +131,15 @@ external open class Plugin(app: App, manifest: PluginManifest) {
 
     fun addStatusBarItem(): HTMLElement
 
+    fun addRibbonIcon(icon: String, title: String, callback: (dynamic) -> Unit): HTMLElement
+
     fun addCommand(command: dynamic): dynamic
+
+    fun addSettingTab(tab: PluginSettingTab)
+
+    fun registerEvent(eventRef: EventRef)
+
+    fun registerInterval(id: Number): Number
 
     fun loadData(): Promise<dynamic>
 
