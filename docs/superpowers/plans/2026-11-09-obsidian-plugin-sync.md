@@ -272,14 +272,14 @@ apps/obsidian-plugin/src/jsTest/kotlin/dev/mimir/obsidian/
     - `suspend fun buildEngine(): Pair<SyncEngine, ChangeFeedStorage>?` — `null`, если не готов; `EncryptedRemoteStorage(remote, RcloneCipher.fromKeyBytes(key), reservedRootNames = setOf(CanaryVerifier.CANARY_FILENAME))`; `DefaultSyncEngine(vault, encrypted, stateStore, parallelism = settings.parallelism, dispatcher = Dispatchers.Default)`.
   - Плагинный `GoogleDriveStorage` создаётся через `remoteFactory` — в тестах `InMemoryRemoteStorage`.
 
-- [ ] **Step 1: тесты** (`InMemoryRemoteStorage`, `InMemoryLocalVault`, `FakeLocalStorage`):
+- [x] **Step 1: тесты** (`InMemoryRemoteStorage`, `InMemoryLocalVault`, `FakeLocalStorage`):
   - `emptyFolderCreatesCanaryAndSavesKey`
   - `correctPasswordOnSecondDevice`
   - `wrongPasswordWritesNothing` (Review Focus 3): Drive с канарейкой другого пароля → `WrongPassword`, `loadKey() == null`, в `InMemoryRemoteStorage` и vault ни одной записи/удаления.
   - `notReadyWithoutTokensOrFolder` → `buildEngine() == null`.
   - `engineSyncsRoundTrip`: заметка в vault → `syncNow()` → в remote есть зашифрованный путь из трёх сегментов для `a/b/c.md`.
-- [ ] **Step 2:** FAIL → **Step 3:** реализовать → **Step 4:** PASS (scrypt медленный в JS: при необходимости `mocha-timeout.js` уже даёт 120 с).
-- [ ] **Step 5:** коммит `feat(obsidian): assemble encrypted sync engine and verify vault password`.
+- [x] **Step 2:** FAIL → **Step 3:** реализовать → **Step 4:** PASS (scrypt медленный в JS: при необходимости `mocha-timeout.js` уже даёт 120 с).
+- [x] **Step 5:** коммит `feat(obsidian): assemble encrypted sync engine and verify vault password`.
 
 ---
 
