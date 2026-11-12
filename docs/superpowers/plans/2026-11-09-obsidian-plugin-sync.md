@@ -214,11 +214,11 @@ apps/obsidian-plugin/src/jsTest/kotlin/dev/mimir/obsidian/
 - Consumes: `VaultFs` (задача 4).
 - Produces: `class ObsidianSyncStateStore(fs: VaultFs, pluginDir: String /* "<configDir>/plugins/<PLUGIN_ID>" */) : SyncStateStore`; файл `index.json`, временный `index.json.tmp`.
 
-- [ ] **Step 1: тесты:** `missingFileGivesEmptyIndex`, `saveThenLoadRoundTrip`, `saveIsAtomic` (журнал: `writeBinary(index.json.tmp)` → `remove(index.json)` → `rename`), `corruptJsonGivesEmptyIndexAndKeepsBackup` (битый файл переименован в `index.json.corrupt`).
-- [ ] **Step 2:** FAIL.
-- [ ] **Step 3: общий формат индекса.** `SyncIndex` не `@Serializable`; формат задают приватные `IndexDto`/`RecordDto` в `libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/JsonSyncStateStore.kt:38-60` (модуль jvm/android, недоступен из JS). Перенести их без изменения формата в `libs/core/src/commonMain/kotlin/dev/mimir/core/sync/SyncIndexJson.kt`: `object SyncIndexJson { fun encode(index: SyncIndex): String; fun decode(text: String): SyncIndex }`; в `libs/core/build.gradle.kts` добавить `kotlin("plugin.serialization")`. `JsonSyncStateStore` переходит на `SyncIndexJson` — `JsonSyncStateStoreTest` (jvm) проходит без изменений, это проверка совместимости формата. Тест `SyncIndexJsonTest` в `libs/core/commonTest`: round-trip записи со всеми полями, включая `remoteRevision = null`.
-- [ ] **Step 4:** реализовать `ObsidianSyncStateStore` поверх `SyncIndexJson` → `./gradlew :libs:core:allTests :libs:runtime:jvmTest :apps:obsidian-plugin:jsBrowserTest` → PASS.
-- [ ] **Step 5:** коммиты `refactor(core): share sync index JSON format across platforms` и `feat(obsidian): persist sync index in plugin directory`.
+- [x] **Step 1: тесты:** `missingFileGivesEmptyIndex`, `saveThenLoadRoundTrip`, `saveIsAtomic` (журнал: `writeBinary(index.json.tmp)` → `remove(index.json)` → `rename`), `corruptJsonGivesEmptyIndexAndKeepsBackup` (битый файл переименован в `index.json.corrupt`).
+- [x] **Step 2:** FAIL.
+- [x] **Step 3: общий формат индекса.** `SyncIndex` не `@Serializable`; формат задают приватные `IndexDto`/`RecordDto` в `libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/JsonSyncStateStore.kt:38-60` (модуль jvm/android, недоступен из JS). Перенести их без изменения формата в `libs/core/src/commonMain/kotlin/dev/mimir/core/sync/SyncIndexJson.kt`: `object SyncIndexJson { fun encode(index: SyncIndex): String; fun decode(text: String): SyncIndex }`; в `libs/core/build.gradle.kts` добавить `kotlin("plugin.serialization")`. `JsonSyncStateStore` переходит на `SyncIndexJson` — `JsonSyncStateStoreTest` (jvm) проходит без изменений, это проверка совместимости формата. Тест `SyncIndexJsonTest` в `libs/core/commonTest`: round-trip записи со всеми полями, включая `remoteRevision = null`.
+- [x] **Step 4:** реализовать `ObsidianSyncStateStore` поверх `SyncIndexJson` → `./gradlew :libs:core:allTests :libs:runtime:jvmTest :apps:obsidian-plugin:jsBrowserTest` → PASS.
+- [x] **Step 5:** коммиты `refactor(core): share sync index JSON format across platforms` и `feat(obsidian): persist sync index in plugin directory`.
 
 ---
 
