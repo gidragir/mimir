@@ -303,7 +303,7 @@ apps/obsidian-plugin/src/jsTest/kotlin/dev/mimir/obsidian/
   - `conflicts` = `progress.completed.filter { it.action == SyncItemAction.Conflict }.map { it.path }`.
   - Маппинг ошибок — спека 4.5: `RemoteUnavailableException` → `Offline`; `DriveAuthException` 401 → `NeedsSignIn`; `SyncAbortedException` → `Error(PluginTexts.abortedNothingDeleted)`; прочий `Throwable` → `Error(message)`.
 
-- [ ] **Step 1: тесты** (фейковый `SyncAssembler` через интерфейс `EngineSource { suspend fun buildEngine(): Pair<SyncEngine, ChangeFeedStorage>? }` — выделить его в этой задаче; фейковый `SyncEngine` со счётчиком `syncNow`; `StandardTestDispatcher`, только `advanceTimeBy`, в конце `scope.cancel()`):
+- [x] **Step 1: тесты** (фейковый `SyncAssembler` через интерфейс `EngineSource { suspend fun buildEngine(): Pair<SyncEngine, ChangeFeedStorage>? }` — выделить его в этой задаче; фейковый `SyncEngine` со счётчиком `syncNow`; `StandardTestDispatcher`, только `advanceTimeBy`, в конце `scope.cancel()`):
   - `startupRunsOnce`
   - `burstOfVaultEventsCoalescesIntoOneRun` (Review Focus 2): 100 событий за 3 с → через 5 с ровно 1 `syncNow`.
   - `triggerDuringRunCausesExactlyOneRerun`
@@ -314,8 +314,8 @@ apps/obsidian-plugin/src/jsTest/kotlin/dev/mimir/obsidian/
   - `notReadyIsNotConnectedWithoutNetwork`
   - `daemonServingVaultYields`, `unauthorizedDaemonPausesUnlessForced`
   - `offlineMapsToOffline`, `authErrorMapsToNeedsSignIn`, `abortedMapsToError`
-- [ ] **Step 2:** FAIL → **Step 3:** реализовать → **Step 4:** PASS.
-- [ ] **Step 5:** коммит `feat(obsidian): add sync controller with foreground triggers`.
+- [x] **Step 2:** FAIL → **Step 3:** реализовать → **Step 4:** PASS.
+- [x] **Step 5:** коммит `feat(obsidian): add sync controller with foreground triggers`.
 
 ---
 
