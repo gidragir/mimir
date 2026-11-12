@@ -235,9 +235,9 @@ apps/obsidian-plugin/src/jsTest/kotlin/dev/mimir/obsidian/
   - `class DeviceSignIn(client: GoogleAuthClient, tokens: DeviceSecretStore, clock: Clock = Clock.System) { val state: StateFlow<SignInState>; suspend fun run(); fun cancel() }`
   - `suspend fun signOut(client: GoogleAuthClient?, tokens: DeviceSecretStore, state: ObsidianSyncStateStore)` — отзыв токена (ошибка отзыва не мешает очистке), `clearAll()`, пустой индекс.
 
-- [ ] **Step 1: тесты** (`MockEngine` на `oauth2.googleapis.com`, как в `GoogleAuthClientTest`): `happyPathSavesTokensAndEmail`, `pollsWithServerInterval` (`interval = 7` → опросы через 7 с, `advanceTimeBy`), `expiredCodeGivesExpired`, `accessDeniedGivesFailed`, `networkErrorGivesOffline`, `noClientConfiguredReturnsNull`, `signOutClearsEvenIfRevokeFails`.
-- [ ] **Step 2:** FAIL → **Step 3:** реализовать поверх существующего Device Code API `GoogleAuthClient` (не дублировать HTTP) → **Step 4:** PASS.
-- [ ] **Step 5:** коммит `feat(obsidian): add device code sign-in flow`.
+- [x] **Step 1: тесты** (`MockEngine` на `oauth2.googleapis.com`, как в `GoogleAuthClientTest`): `happyPathSavesTokensAndEmail`, `pollsWithServerInterval` (`interval = 7` → опросы через 7 с, `advanceTimeBy`), `expiredCodeGivesExpired`, `accessDeniedGivesFailed`, `networkErrorGivesOffline`, `noClientConfiguredReturnsNull`, `signOutClearsEvenIfRevokeFails`.
+- [x] **Step 2:** FAIL → **Step 3:** реализовать поверх существующего Device Code API `GoogleAuthClient` (не дублировать HTTP) → **Step 4:** PASS.
+- [x] **Step 5:** коммит `feat(obsidian): add device code sign-in flow`.
 
 ---
 

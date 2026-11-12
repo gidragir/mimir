@@ -118,6 +118,20 @@ class GoogleAuthClient(
         return Account(email = info.email ?: "", displayName = info.name)
     }
 
+    suspend fun revokeToken(token: String) {
+        val form = parameters {
+            append("token", token)
+        }
+        val response = httpClient.submitForm(
+            url = "https://oauth2.googleapis.com/revoke",
+            formParameters = form,
+        )
+        if (!response.status.isSuccess()) {
+            val text = response.bodyAsText()
+            throw DriveAuthException(response.status, "Token revocation failed with status ${response.status}: $text")
+        }
+    }
+
     private suspend fun HttpResponse.ensureTokenSuccess(): GoogleTokenResponse {
         if (!status.isSuccess()) {
             val text = bodyAsText()
