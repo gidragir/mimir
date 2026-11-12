@@ -83,17 +83,17 @@ apps/obsidian-plugin/src/jsTest/kotlin/dev/mimir/obsidian/
 **Interfaces:**
 - Produces: externals в `ObsidianApi.kt`, которые используют задачи 2–10.
 
-- [ ] **Step 1:** `suspend fun runDiagnostics(app: App): List<String>` — четыре проверки, по строке результата `OK`/`FAIL <причина>` на каждую:
+- [x] **Step 1:** `suspend fun runDiagnostics(app: App): List<String>` — четыре проверки, по строке результата `OK`/`FAIL <причина>` на каждую:
   1. `appendBinary`: создать `mimir-diag.bin` (`writeBinary` 1 МиБ) → дописать 3 МиБ (`appendBinary`) → `stat.size == 4 MiB`, удалить.
   2. Поток: файл 300 МБ (создать `appendBinary`-кусками по 8 МиБ), прочитать `fetch(getResourcePath)` через `body.getReader()`, посчитать байты, отметить пик `performance.memory` (если есть).
   3. `requestUrl({url: "https://www.googleapis.com/drive/v3/about?fields=kind", headers: {Range: "bytes=0-9"}, throw: false})` — допустим ответ 401 (без токена): проверяется, что заголовок ушёл и статус пришёл; отдельно `https://httpbin.org/range/1024` с `Range: bytes=0-99` → 206 и 100 байт.
   4. `RcloneCipher.create("diagnostics")` — время в мс.
   Команда показывает результат в `Notice` (0 = без авто-скрытия) и пишет в `mimir-diagnostics.md` в корне vault.
-- [ ] **Step 2:** задача `obsidian:deploy-dir` в `mise.toml`: `assemblePlugin`, затем копия `apps/obsidian-plugin/build/plugin/*` в `${MIMIR_OBSIDIAN_DEPLOY_DIR:-build/obsidian-deploy}/<pluginId>/`; есть `run_windows`.
-- [ ] **Step 3:** `mise run obsidian:deploy-dir` → в каталоге есть `main.js` и `manifest.json`.
-- [ ] **Step 4:** коммит `feat(obsidian): add platform diagnostics command`.
-- [ ] **Step 5 (пользователь, iPhone):** положить каталог в `<vault>/.obsidian/plugins/` через «Файлы»/iCloud, включить плагин, выполнить «Mimir: diagnostics», прислать `mimir-diagnostics.md`.
-- [ ] **Step 6:** записать результат как `Ruling 4` в этот план и в `.superpowers/sdd/2026-11-09-obsidian-plugin-sync/progress.md`. Ветвление по спеке 4.7:
+- [x] **Step 2:** задача `obsidian:deploy-dir` в `mise.toml`: `assemblePlugin`, затем копия `apps/obsidian-plugin/build/plugin/*` в `${MIMIR_OBSIDIAN_DEPLOY_DIR:-build/obsidian-deploy}/<pluginId>/`; есть `run_windows`.
+- [x] **Step 3:** `mise run obsidian:deploy-dir` → в каталоге есть `main.js` и `manifest.json`.
+- [x] **Step 4:** коммит `feat(obsidian): add platform diagnostics command`.
+- [x] **Step 5 (пользователь, iPhone):** положить каталог в `<vault>/.obsidian/plugins/` через «Файлы»/iCloud, включить плагин, выполнить «Mimir: diagnostics», прислать `mimir-diagnostics.md`.
+- [x] **Step 6:** записать результат как `Ruling 4` в этот план и в `.superpowers/sdd/2026-11-09-obsidian-plugin-sync/progress.md`. Ветвление по спеке 4.7:
   - `appendBinary` FAIL → в задаче 4 запись через `writeBinary` целиком, лимит 50 МиБ на мобильных с `SyncProblemKind.WriteFailed` «too large for this Obsidian version»;
   - поток FAIL → `readBinary` с тем же лимитом;
   - `Range` FAIL → задача 1 остаётся, но плагин передаёт `downloadChunkBytes = null`, лимит 50 МиБ.
@@ -110,7 +110,7 @@ apps/obsidian-plugin/src/jsTest/kotlin/dev/mimir/obsidian/
 **Interfaces:**
 - Produces: `GoogleDriveStorage(client: DriveHttpClient? = null, pathResolver: DrivePathResolver? = null, downloadChunkBytes: Long? = null)`.
 
-- [ ] **Step 1: падающие тесты** (`MockEngine`, по образцу `GoogleDriveStorageStreamedTest`):
+- [x] **Step 1: падающие тесты** (`MockEngine`, по образцу `GoogleDriveStorageStreamedTest`):
   - `rangedReadConcatenatesChunksInOrder`: файл 20 байт, `downloadChunkBytes = 8` → запросы `bytes=0-7`, `bytes=8-15`, `bytes=16-23`; ответы 206 с `Content-Range: bytes 0-7/20` и т.д.; `read().readByteArray()` равен исходным 20 байтам; ровно 3 GET `alt=media`.
   - `rangedReadStopsAtTotalFromContentRange`: файл ровно 16 байт → 2 запроса, не 3.
   - `rangedReadEmptyFile`: первый ответ `416` с `Content-Range: bytes */0` → пустой `Source`, 1 запрос.
@@ -118,10 +118,10 @@ apps/obsidian-plugin/src/jsTest/kotlin/dev/mimir/obsidian/
   - `rangedReadRefreshesTokenMidFile`: второй кусок → 401, затем 206 → данные целы; второй кусок запрошен повторно с тем же `bytes=8-15` и новым токеном.
   - `rangedReadCancellationClosesChannel`: отмена потребителя после первого куска → больше запросов нет.
   - `nullChunkKeepsSingleStreamingGet`: `downloadChunkBytes = null` → 1 GET без заголовка `Range`.
-- [ ] **Step 2:** `mise run test:fast` → новые тесты падают (нет параметра).
-- [ ] **Step 3:** реализовать. При `downloadChunkBytes != null` насос в `streamScope` выполняет цикл: `from = 0`; GET с `Range: bytes=$from-${from + chunk - 1}` через `client.executeStreaming` → тело в `channel`; `total` из `Content-Range` (`bytes a-b/total`); `from += полученные байты`; стоп при `from >= total`, при 200 (сервер проигнорировал Range) или при 416. Ошибки и отмена — как в текущей ветке (`channel.cancel(e)`, `started.completeExceptionally`).
-- [ ] **Step 4:** `./gradlew :libs:drive:allTests` → PASS (jvm, js, wasmJs).
-- [ ] **Step 5:** коммит `feat(drive): add ranged chunked download to GoogleDriveStorage`.
+- [x] **Step 2:** `mise run test:fast` → новые тесты падают (нет параметра).
+- [x] **Step 3:** реализовать. При `downloadChunkBytes != null` насос в `streamScope` выполняет цикл: `from = 0`; GET с `Range: bytes=$from-${from + chunk - 1}` через `client.executeStreaming` → тело в `channel`; `total` из `Content-Range` (`bytes a-b/total`); `from += полученные байты`; стоп при `from >= total`, при 200 (сервер проигнорировал Range) или при 416. Ошибки и отмена — как в текущей ветке (`channel.cancel(e)`, `started.completeExceptionally`).
+- [x] **Step 4:** `./gradlew :libs:drive:allTests` → PASS (jvm, js, wasmJs).
+- [x] **Step 5:** коммит `feat(drive): add ranged chunked download to GoogleDriveStorage`.
 
 ---
 
@@ -141,17 +141,17 @@ apps/obsidian-plugin/src/jsTest/kotlin/dev/mimir/obsidian/
   - `class NetworkUnavailableException(cause: Throwable) : IOException` — бросается, когда `requestUrl` отклонён без статуса
   - `class ObsidianHttpEngine(request: RequestUrlFn) : HttpClientEngineBase("obsidian")`; `fun obsidianHttpClient(request: RequestUrlFn = obsidianRequestUrl): HttpClient` (с `ContentNegotiation` + `Json { ignoreUnknownKeys = true }`)
 
-- [ ] **Step 1: падающие тесты:**
+- [x] **Step 1: падающие тесты:**
   - `forwardsMethodHeadersAndBody`: POST с JSON-телом и `Authorization` → `FakeRequestUrl.lastRequest` содержит метод, заголовки и байты тела.
   - `mapsStatusHeadersAndBody`: фейк вернул 206, `content-range`, 3 байта → `response.status.value == 206`, заголовок читается `headers["Content-Range"]`, `bodyAsBytes()` — те же 3 байта.
   - `errorStatusIsNotThrownByEngine`: 404 → ответ со статусом 404, без исключения.
   - `rejectionWithoutStatusBecomesNetworkUnavailable`: фейк бросает `Throwable("net::ERR")` → `NetworkUnavailableException`.
   - `cancellationPropagates`: отмена вызывающей корутины → `CancellationException`, не `NetworkUnavailableException`.
-- [ ] **Step 2:** `./gradlew :apps:obsidian-plugin:jsBrowserTest` → FAIL.
-- [ ] **Step 3:** реализовать; тело запроса — `OutgoingContent` → `ByteArray` (`ByteArrayContent`, `ReadChannelContent`, `WriteChannelContent`, `NoContent`).
-- [ ] **Step 4:** проверить, что `DriveHttpClient` превращает `NetworkUnavailableException` в `RemoteUnavailableException` (тест `networkUnavailableMapsToRemoteUnavailable` здесь же, через `DriveHttpClient(obsidianHttpClient(fake), …)`). Если нет — маппинг добавить в `ObsidianHttpEngine` (бросать `RemoteUnavailableException` напрямую), не в `libs/drive`.
-- [ ] **Step 5:** тесты PASS; `mise run build` без секретов проходит.
-- [ ] **Step 6:** коммит `feat(obsidian): add Ktor engine over Obsidian requestUrl`.
+- [x] **Step 2:** `./gradlew :apps:obsidian-plugin:jsBrowserTest` → FAIL.
+- [x] **Step 3:** реализовать; тело запроса — `OutgoingContent` → `ByteArray` (`ByteArrayContent`, `ReadChannelContent`, `WriteChannelContent`, `NoContent`).
+- [x] **Step 4:** проверить, что `DriveHttpClient` превращает `NetworkUnavailableException` в `RemoteUnavailableException` (тест `networkUnavailableMapsToRemoteUnavailable` здесь же, через `DriveHttpClient(obsidianHttpClient(fake), …)`). Если нет — маппинг добавить в `ObsidianHttpEngine` (бросать `RemoteUnavailableException` напрямую), не в `libs/drive`.
+- [x] **Step 5:** тесты PASS; `mise run build` без секретов проходит.
+- [x] **Step 6:** коммит `feat(obsidian): add Ktor engine over Obsidian requestUrl`.
 
 ---
 
@@ -167,9 +167,9 @@ apps/obsidian-plugin/src/jsTest/kotlin/dev/mimir/obsidian/
   - `class DeviceSecretStore(storage: LocalStorageFn) : TokenStorage` + `suspend fun loadKey(): ByteArray?`, `suspend fun saveKey(key: ByteArray)`, `suspend fun clearAll()`. Ключи: `mimir.tokens` (JSON `OAuthTokens`), `mimir.key` (base64 80 байт), `mimir.canaryHash`, `mimir.changeToken`, плюс `suspend fun loadCanaryHash()/saveCanaryHash(String)`, `loadChangeToken()/saveChangeToken(String?)`.
   - `@Serializable data class PluginSettings(val rootFolder: String = "", val parallelism: Int = 2, val forceSyncWithDaemon: Boolean = false, val customClientId: String = "", val customClientSecret: String = "")`; `class PluginSettingsStore(load: suspend () -> dynamic, save: suspend (dynamic) -> Unit)` с `suspend fun get(): PluginSettings`, `suspend fun update(f: (PluginSettings) -> PluginSettings)`. `parallelism` обрезается до 1..4.
 
-- [ ] **Step 1: тесты:** `tokensRoundTrip`, `keyRoundTripIs80Bytes`, `clearAllRemovesEverything` (после — `load()`, `loadKey()`, `loadCanaryHash()`, `loadChangeToken()` все `null`), `corruptTokensJsonReturnsNull`, `settingsDefaults`, `parallelismClampedTo1to4` (`0 → 1`, `9 → 4`), `unknownFieldsIgnored`.
-- [ ] **Step 2:** FAIL → **Step 3:** реализовать → **Step 4:** PASS.
-- [ ] **Step 5:** коммит `feat(obsidian): store tokens and cipher key in device local storage`.
+- [x] **Step 1: тесты:** `tokensRoundTrip`, `keyRoundTripIs80Bytes`, `clearAllRemovesEverything` (после — `load()`, `loadKey()`, `loadCanaryHash()`, `loadChangeToken()` все `null`), `corruptTokensJsonReturnsNull`, `settingsDefaults`, `parallelismClampedTo1to4` (`0 → 1`, `9 → 4`), `unknownFieldsIgnored`.
+- [x] **Step 2:** FAIL → **Step 3:** реализовать → **Step 4:** PASS.
+- [x] **Step 5:** коммит `feat(obsidian): store tokens and cipher key in device local storage`.
 
 ---
 

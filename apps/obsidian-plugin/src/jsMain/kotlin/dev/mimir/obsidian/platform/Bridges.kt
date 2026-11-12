@@ -49,3 +49,22 @@ val obsidianRequestUrl: RequestUrlFn = RequestUrlFn { request ->
     for (key in keys) outHeaders[key.lowercase()] = raw[key].toString()
     UrlResponse(response.status, outHeaders, response.arrayBuffer.toByteArray())
 }
+
+/** Хранилище на устройстве (вне файлов vault). В тестах подменяется фейком. */
+interface LocalStorageFn {
+    fun load(key: String): String?
+    fun save(key: String, value: String?)
+}
+
+/** Реализация [LocalStorageFn] поверх API приложения Obsidian. */
+class AppLocalStorage(private val app: dev.mimir.obsidian.App) : LocalStorageFn {
+    override fun load(key: String): String? {
+        val value = app.loadLocalStorage(key)
+        return if (value == null || value == "null" || value == "undefined") null else value
+    }
+
+    override fun save(key: String, value: String?) {
+        app.saveLocalStorage(key, value)
+    }
+}
+

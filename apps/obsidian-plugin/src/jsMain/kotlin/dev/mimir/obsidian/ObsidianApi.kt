@@ -60,6 +60,10 @@ external class Vault {
 
 external class App {
     val vault: Vault
+
+    fun loadLocalStorage(key: String): String?
+
+    fun saveLocalStorage(key: String, value: String?)
 }
 
 external interface PluginManifest {
