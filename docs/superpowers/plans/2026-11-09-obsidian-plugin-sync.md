@@ -251,9 +251,9 @@ apps/obsidian-plugin/src/jsTest/kotlin/dev/mimir/obsidian/
 - Produces: `sealed interface DaemonPresence { data object Absent; data object ServesThisVault; data object ServesOtherVault; data object Unauthorized }`; `class DaemonProbe(request: RequestUrlFn, port: Int, isDesktop: Boolean, vaultBasePath: String?, timeout: Duration = 1.seconds) { suspend fun check(): DaemonPresence }`.
 - Правило «уступать» (в контроллере, задача 9): `ServesThisVault` → всегда; `Unauthorized` → если `!settings.forceSyncWithDaemon`.
 
-- [ ] **Step 1: тесты:** `notDesktopIsAbsentWithoutRequest`, `noResponseIsAbsent`, `timeoutIsAbsent` (фейк висит > 1 с), `matchingVaultPath` (нормализация: `/home/u/Vault/` == `/home/u/Vault`; на Windows `C:\U\Vault` == `c:/U/Vault`), `otherVaultPath`, `unauthorizedDaemonYields` (401 → `Unauthorized`; Review Focus 4), URL = `http://127.0.0.1:$port/api/v1/status`.
-- [ ] **Step 2:** FAIL → **Step 3:** реализовать (`withTimeoutOrNull`; `vaultPath` из JSON `/status`) → **Step 4:** PASS.
-- [ ] **Step 5:** коммит `feat(obsidian): detect Mimir daemon serving the same vault`.
+- [x] **Step 1: тесты:** `notDesktopIsAbsentWithoutRequest`, `noResponseIsAbsent`, `timeoutIsAbsent` (фейк висит > 1 с), `matchingVaultPath` (нормализация: `/home/u/Vault/` == `/home/u/Vault`; на Windows `C:\U\Vault` == `c:/U/Vault`), `otherVaultPath`, `unauthorizedDaemonYields` (401 → `Unauthorized`; Review Focus 4), URL = `http://127.0.0.1:$port/api/v1/status`.
+- [x] **Step 2:** FAIL → **Step 3:** реализовать (`withTimeoutOrNull`; `vaultPath` из JSON `/status`) → **Step 4:** PASS.
+- [x] **Step 5:** коммит `feat(obsidian): detect Mimir daemon serving the same vault`.
 
 ---
 
