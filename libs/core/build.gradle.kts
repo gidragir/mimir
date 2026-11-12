@@ -1,5 +1,6 @@
 plugins {
     id("mimir.kmp-library")
+    kotlin("plugin.serialization")
     alias(libs.plugins.buildconfig)
 }
 
