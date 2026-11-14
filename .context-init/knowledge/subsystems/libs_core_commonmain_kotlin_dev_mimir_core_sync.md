@@ -3,7 +3,7 @@ directory: libs/core/src/commonMain/kotlin/dev/mimir/core/sync
 source:
   kind: git
   blob_sha: 23e2fa64b7adb115c6246a8170d4ee816ff4f004
-  commit_sha: 99aeceb1c6113743f7e25f5d18773752aae3ab95
+  commit_sha: 98076efaaebe3ac2f8c73f43d4ed088e48d2006a
 generated_by:
   component: context-init
   role: update

@@ -63,7 +63,9 @@ object CanaryVerifier {
             return CanaryVerifyResult.Invalid(WRONG_PASSWORD)
         }
         val body = Buffer().apply { writeString(CANARY_BODY) }
-        remote.write(canaryPath, cipher.encrypt(body))
+        cipher.encrypt(body).use { encrypted ->
+            remote.write(canaryPath, encrypted)
+        }
         return CanaryVerifyResult.Valid(candidateHash)
     }
 

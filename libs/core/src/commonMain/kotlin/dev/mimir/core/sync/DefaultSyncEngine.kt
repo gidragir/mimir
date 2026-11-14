@@ -60,6 +60,7 @@ class DefaultSyncEngine(
     private val syncMutex = Mutex()
     private val planBuilder = SyncPlanBuilder(rules)
     private val executor = ActionExecutor(localVault, remoteStorage, conflictResolver, dispatcher)
+    private var hasListedAllInSession = false
 
     override suspend fun syncNow() {
         syncMutex.withLock {
@@ -139,7 +140,13 @@ class DefaultSyncEngine(
         localCount: Int,
     ): Pair<List<RemoteEntry>, String?> {
         val token = index.remoteChangeToken
-        if (remoteStorage is ChangeFeedStorage && remoteStorage.isChangeFeedSupported && token != null && index.records.isNotEmpty()) {
+        if (
+            hasListedAllInSession &&
+            remoteStorage is ChangeFeedStorage &&
+            remoteStorage.isChangeFeedSupported &&
+            token != null &&
+            index.records.isNotEmpty()
+        ) {
             val feed = remoteStorage.getChanges(token)
             val remoteMap = HashMap<String, RemoteEntry>(index.records.size)
             for (r in index.records.values) {
@@ -155,7 +162,8 @@ class DefaultSyncEngine(
                 val key = change.path.value
                 val entry = change.entry
                 if (change.isDeleted || entry == null) {
-                    remoteMap.remove(key)
+                    val prefix = "$key/"
+                    remoteMap.keys.removeAll { it == key || it.startsWith(prefix) }
                 } else if (!entry.isDirectory) {
                     remoteMap[key] = entry
                 }
@@ -170,6 +178,7 @@ class DefaultSyncEngine(
         val remoteFiles = remoteStorage.listAll(RemotePath("")) { folders, files ->
             _progress.update { it?.copy(foldersScanned = folders, scanned = localCount + files) }
         }
+        hasListedAllInSession = true
         return remoteFiles to tokenBeforeList
     }
 

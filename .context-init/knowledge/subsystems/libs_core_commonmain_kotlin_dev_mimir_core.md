@@ -3,7 +3,7 @@ directory: libs/core/src/commonMain/kotlin/dev/mimir/core
 source:
   kind: git
   blob_sha: cbab0bfc1f0bba14cb5b9cf277b0f978ed77cb8d
-  commit_sha: 99aeceb1c6113743f7e25f5d18773752aae3ab95
+  commit_sha: 98076efaaebe3ac2f8c73f43d4ed088e48d2006a
 generated_by:
   component: context-init
   role: update

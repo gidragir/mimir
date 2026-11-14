@@ -1,5 +1,6 @@
 package dev.mimir.core
 
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.io.Source
 
 /** Шифрует каждый сегмент пути и содержимое; больше никакой логики. */
@@ -21,11 +22,17 @@ class EncryptedRemoteStorage(
         val feed = inner as? ChangeFeedStorage
             ?: throw UnsupportedOperationException("Inner storage does not support ChangeFeedStorage")
         val raw = feed.getChanges(sinceToken)
-        val decryptedChanges = raw.changes.filterNot { it.path.isReserved() }.map { change ->
-            change.copy(
-                path = decrypt(change.path),
-                entry = change.entry?.decrypted(),
-            )
+        val decryptedChanges = raw.changes.filterNot { it.path.isReserved() }.mapNotNull { change ->
+            try {
+                change.copy(
+                    path = decrypt(change.path),
+                    entry = change.entry?.decrypted(),
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: CryptException) {
+                null
+            }
         }
         return RemoteChangesResult(decryptedChanges, raw.nextToken)
     }

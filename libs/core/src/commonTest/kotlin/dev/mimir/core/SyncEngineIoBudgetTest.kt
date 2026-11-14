@@ -246,6 +246,58 @@ class SyncEngineIoBudgetTest {
         assertEquals(1, getChangesCalls)
         assertEquals("B2", vault.text("b.md"))
         assertNotEquals(firstToken, store.load().remoteChangeToken)
+
+        // После перезапуска процесса (новый экземпляр DefaultSyncEngine с тем же store)
+        // первый прогон обязан выполнить полный listAll для прогрева кэша путей, а следующий — снова getChanges
+        val restartedEngine = DefaultSyncEngine(vault, feedStorage, store)
+        restartedEngine.syncNow()
+        assertEquals(1, listAllCalls)
+        assertEquals(1, getChangesCalls)
+
+        listAllCalls = 0
+        val updatedA = raw.write(RemotePath("a.md"), bufferOf("A2"))
+        pendingChanges += RemoteChange(path = RemotePath("a.md"), entry = updatedA, isDeleted = false)
+        restartedEngine.syncNow()
+        assertEquals(0, listAllCalls)
+        assertEquals(2, getChangesCalls)
+        assertEquals("A2", vault.text("a.md"))
+    }
+
+    @Test
+    fun incrementalChangeFeedHandlesDeletedFolderAndEncryptedStorageSkipsForeignPaths() = runTest {
+        val raw = InMemoryRemoteStorage()
+        val pendingChanges = mutableListOf<RemoteChange>()
+        var tokenSeq = 1
+        val feedInner = object : ChangeFeedStorage, RemoteStorage by raw {
+            override suspend fun getLatestChangeToken(): String = "tok-${tokenSeq++}"
+            override suspend fun getChanges(sinceToken: String): RemoteChangesResult {
+                val batch = pendingChanges.toList()
+                pendingChanges.clear()
+                return RemoteChangesResult(batch, "tok-${tokenSeq++}")
+            }
+        }
+        val cipher = dev.mimir.core.testing.TestCiphers.forPassword("change-feed-secret")
+        val encrypted = EncryptedRemoteStorage(feedInner, cipher)
+
+        val vault = CountingLocalVault()
+        val store = InMemorySyncStateStore()
+        val engine = DefaultSyncEngine(vault, encrypted, store)
+
+        vault.write("notes/sub/n1.md", bufferOf("N1"))
+        vault.write("keep.md", bufferOf("KEEP"))
+        engine.syncNow()
+
+        // В облаке удалена вся папка notes, а также пришло событие от чужого незашифрованного файла/ID Drive
+        encrypted.delete(RemotePath("notes/sub/n1.md"))
+        val encNotesFolder = RemotePath(cipher.encryptName("notes"))
+        pendingChanges += RemoteChange(path = RemotePath("unencrypted-drive-file-id-123"), isDeleted = true, entry = null)
+        pendingChanges += RemoteChange(path = RemotePath("My Foreign Doc.pdf"), isDeleted = false, entry = null)
+        pendingChanges += RemoteChange(path = encNotesFolder, isDeleted = true, entry = null)
+
+        engine.syncNow()
+
+        assertEquals(null, vault.getEntry("notes/sub/n1.md"))
+        assertEquals("KEEP", vault.text("keep.md"))
     }
 
     private companion object {

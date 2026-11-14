@@ -46,6 +46,7 @@ class FileSystemLocalVault(
         lastHiddenPaths?.let { return@withContext it }
         val links = LinkedHashSet<String>()
         walk(rootPath, "", out = null, symbolicLinks = links)
+        lastHiddenPaths = links
         links
     }
 
