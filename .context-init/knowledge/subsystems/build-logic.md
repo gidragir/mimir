@@ -2,8 +2,8 @@
 directory: build-logic
 source:
   kind: git
-  blob_sha: 85436bb40bda93a34bc1ad6094a5a4eacbe5828c
-  commit_sha: f221fe644add8159ac86eacc977028d32eedc5d8
+  blob_sha: 8081b260aacd7ace57f7f7c3c5e9c5f5be0ce3eb
+  commit_sha: 94f3e89990c2a15554a9aeedde2c911da5828074
 generated_by:
   component: context-init
   role: update
@@ -32,6 +32,11 @@ freshness:
 | `build-logic/src/main/kotlin/mimir.jvm.gradle.kts` | Исходный код |
 | `build-logic/src/main/kotlin/mimir.kmp-library.gradle.kts` | Исходный код |
 | `build-logic/src/main/kotlin/mimir.settings.settings.gradle.kts` | Исходный код |
+
+## 🔑 Ключевой контракт и экспорты
+```text
+fun sdk(alias: String) = catalog.findVersion(alias).get().requiredVersion.toInt()
+```
 
 ## 🧪 Запуск и тестирование
 ```bash

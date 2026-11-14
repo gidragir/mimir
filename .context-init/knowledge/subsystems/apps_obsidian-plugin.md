@@ -2,8 +2,8 @@
 directory: apps/obsidian-plugin
 source:
   kind: git
-  blob_sha: dbe7aacc0a5126ac4418b5d457ec36dbdc6a6979
-  commit_sha: 1a5aa0855a928bbbb5552e63d2859864a61e21ee
+  blob_sha: 1fdc4a7230ccd22c304bb198bc2f2d0f119475d0
+  commit_sha: 94f3e89990c2a15554a9aeedde2c911da5828074
 generated_by:
   component: context-init
   role: update
@@ -34,7 +34,6 @@ freshness:
 
 ## 🔑 Ключевой контракт и экспорты
 ```text
-fun googleSecret(name: String) = providers.environmentVariable("MIMIR_BUILD_GOOGLE_$name")
 class Plugin
 class Notice
 class Modal

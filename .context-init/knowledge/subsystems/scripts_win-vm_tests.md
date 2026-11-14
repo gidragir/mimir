@@ -2,8 +2,8 @@
 directory: scripts/win-vm/tests
 source:
   kind: git
-  blob_sha: b2c3d9b13b7d1e89cae9140c757b4cfec67d4a6b
-  commit_sha: 570bdf8b131c69da889f78491ee6adaf106b3095
+  blob_sha: 18241648e6702988127073b2ce8ca5b2ce121f77
+  commit_sha: 94f3e89990c2a15554a9aeedde2c911da5828074
 generated_by:
   component: context-init
   role: update

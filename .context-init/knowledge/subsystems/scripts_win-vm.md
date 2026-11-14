@@ -2,8 +2,8 @@
 directory: scripts/win-vm
 source:
   kind: git
-  blob_sha: 6bb4e92bbda0bb78c843ad7cd9442c91d48ab3a4
-  commit_sha: 570bdf8b131c69da889f78491ee6adaf106b3095
+  blob_sha: 2832da9667254c14822e43c2465c9a9097107055
+  commit_sha: 94f3e89990c2a15554a9aeedde2c911da5828074
 generated_by:
   component: context-init
   role: update
