@@ -2,13 +2,18 @@ package dev.mimir.core.fs
 
 import dev.mimir.core.VaultChange
 import dev.mimir.core.testing.InMemoryLocalVault
+import dev.mimir.core.testing.TestClock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.io.Buffer
@@ -21,6 +26,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
 
 class VaultWatcherTest {
@@ -135,28 +141,44 @@ class VaultWatcherTest {
         w.stop()
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun `polling watcher diffs snapshots and honours sync marks`() = runBlocking {
+    fun `polling watcher diffs snapshots and honours sync marks`() = runTest {
         val vault = InMemoryLocalVault()
-        val poller = PollingVaultWatcher(scan = vault::list, interval = 50.milliseconds, echoTtl = 300.milliseconds)
-        scope.launch { poller.start().collect { events.send(it) } }
-        delay(150)
+        val clock = TestClock()
+        val polled = Channel<VaultChange>(Channel.UNLIMITED)
+        val poller = PollingVaultWatcher(
+            scan = vault::list,
+            interval = 50.milliseconds,
+            echoTtl = 300.milliseconds,
+            clock = clock,
+        )
+        backgroundScope.launch { poller.start().collect { polled.send(it) } }
+        runCurrent()
 
         vault.write("a.md", Buffer().also { it.write("1".encodeToByteArray()) })
-        assertIs<VaultChange.Created>(next())
+        advanceTimeBy(50.milliseconds)
+        runCurrent()
+        assertIs<VaultChange.Created>(polled.receive())
 
-        delay(5)
+        clock.advanceBy(5.milliseconds)
         vault.write("a.md", Buffer().also { it.write("22".encodeToByteArray()) })
-        assertIs<VaultChange.Modified>(next())
+        advanceTimeBy(50.milliseconds)
+        runCurrent()
+        assertIs<VaultChange.Modified>(polled.receive())
 
         poller.markWrittenBySync("a.md")
-        delay(5)
+        clock.advanceBy(5.milliseconds)
         vault.write("a.md", Buffer().also { it.write("333".encodeToByteArray()) })
-        assertQuiet(400)
+        advanceTimeBy(200.milliseconds)
+        runCurrent()
+        assertTrue(polled.tryReceive().isFailure, "expected no event during echoTtl")
 
-        delay(400)
+        clock.advanceBy(400.milliseconds)
         vault.deleteByPath("a.md")
-        assertIs<VaultChange.Deleted>(next())
+        advanceTimeBy(50.milliseconds)
+        runCurrent()
+        assertIs<VaultChange.Deleted>(polled.receive())
         poller.stop()
     }
 }

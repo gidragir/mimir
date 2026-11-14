@@ -16,6 +16,7 @@ import kotlinx.io.Source
 import kotlinx.io.buffered
 import kotlinx.io.files.Path
 import kotlinx.io.files.SystemFileSystem
+import kotlin.concurrent.Volatile
 import kotlin.time.Instant
 
 class FileSystemLocalVault(
@@ -30,15 +31,21 @@ class FileSystemLocalVault(
 ) : LocalVault {
     private val filter = VaultPathFilter(rules)
 
+    @Volatile
+    private var lastHiddenPaths: Set<String>? = null
+
     override suspend fun list(): List<LocalEntry> = withContext(ioDispatcher) {
         val result = ArrayList<LocalEntry>()
-        walk("", result, symbolicLinks = null)
+        val links = LinkedHashSet<String>()
+        walk(rootPath, "", result, links)
+        lastHiddenPaths = links
         result
     }
 
     override suspend fun hiddenPaths(): Set<String> = withContext(ioDispatcher) {
+        lastHiddenPaths?.let { return@withContext it }
         val links = LinkedHashSet<String>()
-        walk("", out = null, symbolicLinks = links)
+        walk(rootPath, "", out = null, symbolicLinks = links)
         links
     }
 
@@ -46,9 +53,12 @@ class FileSystemLocalVault(
         val normalized = normalize(relativePath)
         when {
             isExcluded(normalized) || hasSymbolicLink(normalized) -> null
-            else -> SystemFileSystem.metadataOrNull(absolute(normalized))
-                ?.takeIf { it.isRegularFile }
-                ?.let { entryOf(normalized, it.size) }
+            else -> {
+                val file = absolute(normalized)
+                SystemFileSystem.metadataOrNull(file)
+                    ?.takeIf { it.isRegularFile }
+                    ?.let { entryOf(normalized, file, it.size) }
+            }
         }
     }
 
@@ -82,7 +92,7 @@ class FileSystemLocalVault(
             runCatching { SystemFileSystem.delete(temp, mustExist = false) }
             throw e
         }
-        entryOf(normalized, SystemFileSystem.metadataOrNull(target)?.size ?: 0L)
+        entryOf(normalized, target, SystemFileSystem.metadataOrNull(target)?.size ?: 0L)
     }
 
     override suspend fun delete(id: VaultFileId) {
@@ -98,8 +108,7 @@ class FileSystemLocalVault(
     override fun changes(): Flow<VaultChange> = watcher?.start() ?: emptyFlow()
 
     /** Обходит vault, не заходя в исключённые пути и символьные ссылки; ссылки складываются в [symbolicLinks]. */
-    private fun walk(relativeDir: String, out: MutableList<LocalEntry>?, symbolicLinks: MutableSet<String>?) {
-        val dir = if (relativeDir.isEmpty()) rootPath else absolute(relativeDir)
+    private fun walk(dir: Path, relativeDir: String, out: MutableList<LocalEntry>?, symbolicLinks: MutableSet<String>?) {
         if (SystemFileSystem.metadataOrNull(dir)?.isDirectory != true) return
         for (child in SystemFileSystem.list(dir).sortedBy { it.name }) {
             val relative = if (relativeDir.isEmpty()) child.name else "$relativeDir/${child.name}"
@@ -110,25 +119,30 @@ class FileSystemLocalVault(
             }
             val metadata = SystemFileSystem.metadataOrNull(child) ?: continue
             when {
-                metadata.isDirectory -> walk(relative, out, symbolicLinks)
-                metadata.isRegularFile -> out?.add(entryOf(relative, metadata.size))
+                metadata.isDirectory -> walk(child, relative, out, symbolicLinks)
+                metadata.isRegularFile -> out?.add(entryOf(relative, child, metadata.size))
             }
         }
     }
 
-    private fun entryOf(relativePath: String, size: Long) = LocalEntry(
+    private fun entryOf(relativePath: String, file: Path, size: Long) = LocalEntry(
         id = VaultFileId(VAULT_ID_PREFIX + relativePath),
         relativePath = relativePath,
         size = size,
-        modifiedAt = Instant.fromEpochMilliseconds(lastModifiedMillis(absolute(relativePath))),
+        modifiedAt = Instant.fromEpochMilliseconds(lastModifiedMillis(file)),
     )
 
     private fun isExcluded(relativePath: String): Boolean = filter.isExcluded(relativePath)
 
     /** Симлинк на любом уровне пути: vault не разворачивает ссылки (иначе в него попадают чужие каталоги, например `node_modules`). */
     private fun hasSymbolicLink(relativePath: String): Boolean {
-        val segments = relativePath.split('/')
-        return segments.indices.any { isSymbolicLink(absolute(segments.take(it + 1).joinToString("/"))) }
+        var cur = rootPath
+        for (seg in relativePath.split('/')) {
+            if (seg.isEmpty()) continue
+            cur = Path(cur, seg)
+            if (isSymbolicLink(cur)) return true
+        }
+        return false
     }
 
     private fun requireNoSymbolicLink(relativePath: String): String {
