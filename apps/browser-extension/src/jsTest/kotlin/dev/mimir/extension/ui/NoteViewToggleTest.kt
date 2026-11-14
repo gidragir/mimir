@@ -3,8 +3,8 @@ package dev.mimir.extension.ui
 import dev.mimir.core.Account
 import dev.mimir.core.CanaryVerifier
 import dev.mimir.core.InMemoryRemoteStorage
-import dev.mimir.core.RcloneCipher
 import dev.mimir.core.RemotePath
+import dev.mimir.core.testing.TestCiphers
 import dev.mimir.extension.platform.ChromeExtensionPlatform
 import dev.mimir.extension.platform.FakeExtensionPlatform
 import kotlinx.browser.document
@@ -26,7 +26,7 @@ import kotlin.test.assertNull
 class NoteViewToggleTest {
     @Test
     fun noteViewToggleSwitchesBetweenRenderedAndRawMarkdownAndResetsOnSwitch() = runTest {
-        val cipher = RcloneCipher.create("pw")
+        val cipher = TestCiphers.forPassword("pw")
         val remote = InMemoryRemoteStorage()
         remote.write(
             RemotePath(CanaryVerifier.CANARY_FILENAME),
@@ -43,7 +43,12 @@ class NoteViewToggleTest {
 
         val platform = FakeExtensionPlatform()
         platform.seedAuthenticatedAccount(Account("u@e.c", null))
-        val controller = ExtensionController(platform, { remote }, FakeExtensionAuthHandler(platform), plainTextOf = { "PLAIN" })
+        val controller = ExtensionController(
+            platform = platform,
+            remoteStorageFactory = { remote },
+            authHandler = FakeExtensionAuthHandler(platform),
+            cipherFactory = TestCiphers::forPassword,
+        )
         controller.initialize()
         controller.unlock("pw")
 

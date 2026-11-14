@@ -1,5 +1,6 @@
 package dev.mimir.extension.update
 
+import dev.mimir.core.testing.TestClock
 import dev.mimir.core.update.AssetKind
 import dev.mimir.core.update.DefaultUpdateManager
 import dev.mimir.core.update.SemVer
@@ -14,7 +15,6 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
-import kotlin.time.Clock
 import kotlin.time.Instant
 
 class ExtensionUpdateControllerTest {
@@ -33,7 +33,7 @@ class ExtensionUpdateControllerTest {
 
     private fun controller(platform: FakeExtensionPlatform, channel: CountingChannel, now: Instant, current: String = "1.0.0"): ExtensionUpdateController {
         val manager = DefaultUpdateManager(SemVer.parse(current), TargetPlatform.BROWSER_EXTENSION_ANY, channel, WebExtensionNotifyApplier(platform))
-        val clock = object : Clock { override fun now() = now }
+        val clock = TestClock(now)
         return ExtensionUpdateController(manager, platform, SemVer.parse(current), clock)
     }
 

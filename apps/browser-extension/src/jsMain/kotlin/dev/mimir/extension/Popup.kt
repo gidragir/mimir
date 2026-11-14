@@ -20,18 +20,19 @@ import dev.mimir.drive.auth.GoogleClientCredentials
 import dev.mimir.drive.auth.GoogleClientKind
 import dev.mimir.drive.client.DriveHttpClient
 import dev.mimir.drive.path.DrivePathResolver
-import dev.mimir.extension.markdown.SafeMarkdownRenderer
 import dev.mimir.extension.platform.ChromeExtensionPlatform
+import dev.mimir.extension.platform.ExtensionPlatform
 import dev.mimir.extension.platform.ExtensionTokenStorage
-import dev.mimir.extension.platform.FakeExtensionPlatform
+import dev.mimir.extension.ui.DeviceCodeUiPrompt
+import dev.mimir.extension.ui.ExtensionAuthHandler
 import dev.mimir.extension.ui.ExtensionController
-import dev.mimir.extension.ui.FakeExtensionAuthHandler
 import dev.mimir.extension.ui.GoogleExtensionAuthHandler
 import dev.mimir.extension.ui.PopupDomView
 import dev.mimir.extension.ui.UpdateBannerView
 import dev.mimir.extension.update.ExtensionUpdateController
 import dev.mimir.extension.update.WebExtensionNotifyApplier
 import dev.mimir.extension.update.bindUpdateBadge
+import dev.mimir.extension.vault.AccountCodec
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.js.Js
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -79,7 +80,6 @@ fun main() {
             platform = platform,
             remoteStorageFactory = remoteStorageFactory,
             authHandler = GoogleExtensionAuthHandler(platform, clients, tokenStorage),
-            plainTextOf = SafeMarkdownRenderer::stripMarkdownToPlainText,
         )
 
         val root = document.getElementById("app") as HTMLElement
@@ -117,14 +117,14 @@ private fun startUpdateChecks(platform: ChromeExtensionPlatform, scope: Coroutin
 }
 
 private fun runMockPreview(isTab: Boolean, initialPath: String?, mockMode: String?) {
-    val platform = FakeExtensionPlatform()
+    val platform = PreviewExtensionPlatform()
     val scope = MainScope()
 
     if (mockMode == "auth") {
         val controller = ExtensionController(
             platform = platform,
             remoteStorageFactory = { InMemoryRemoteStorage() },
-            authHandler = FakeExtensionAuthHandler(platform),
+            authHandler = PreviewExtensionAuthHandler(platform),
         )
         val root = document.getElementById("app") as HTMLElement
         val view = PopupDomView(root, controller, platform, isFullTabMode = isTab)
@@ -134,13 +134,13 @@ private fun runMockPreview(isTab: Boolean, initialPath: String?, mockMode: Strin
     }
 
     val account = Account(email = "user@mimir.io", displayName = "Obsidian User")
-    platform.seedAuthenticatedAccount(account)
+    platform.seedAccount(account)
 
     if (mockMode == "unlock") {
         val controller = ExtensionController(
             platform = platform,
             remoteStorageFactory = { InMemoryRemoteStorage() },
-            authHandler = FakeExtensionAuthHandler(platform),
+            authHandler = PreviewExtensionAuthHandler(platform),
         )
         val root = document.getElementById("app") as HTMLElement
         val view = PopupDomView(root, controller, platform, isFullTabMode = isTab)
@@ -154,7 +154,7 @@ private fun runMockPreview(isTab: Boolean, initialPath: String?, mockMode: Strin
         val remote = InMemoryRemoteStorage()
         remote.write(
             RemotePath(CanaryVerifier.CANARY_FILENAME),
-            cipher.encrypt(Buffer().apply { writeString("""{"magic":"mimir-vault-canary","version":1}""") }),
+            cipher.encrypt(Buffer().apply { writeString(CanaryVerifier.CANARY_BODY) }),
         )
         remote.write(
             RemotePath.of(listOf("Добро пожаловать.md").map(cipher::encryptName)),
@@ -186,8 +186,7 @@ private fun runMockPreview(isTab: Boolean, initialPath: String?, mockMode: Strin
         val controller = ExtensionController(
             platform = platform,
             remoteStorageFactory = { remote },
-            authHandler = FakeExtensionAuthHandler(platform),
-            plainTextOf = SafeMarkdownRenderer::stripMarkdownToPlainText,
+            authHandler = PreviewExtensionAuthHandler(platform),
         )
 
         val root = document.getElementById("app") as HTMLElement
@@ -195,6 +194,51 @@ private fun runMockPreview(isTab: Boolean, initialPath: String?, mockMode: Strin
         launch { controller.state.collect { view.render(it) } }
         controller.initialize(initialPath ?: if (isTab) "Добро пожаловать.md" else null)
         controller.unlock("preview-password")
+    }
+}
+
+private class PreviewExtensionPlatform : ExtensionPlatform {
+    private val session = mutableMapOf<String, String>()
+    private val local = mutableMapOf<String, String>()
+
+    fun seedAccount(account: Account) {
+        local[AccountCodec.KEY] = AccountCodec.encode(account)
+    }
+
+    override fun observeSessionKey(key: String, onChanged: (String?) -> Unit) {}
+    override suspend fun getSessionString(key: String): String? = session[key]
+    override suspend fun setSessionString(key: String, value: String) { session[key] = value }
+    override suspend fun removeSessionKey(key: String) { session.remove(key) }
+    override suspend fun clearSession() = session.clear()
+    override suspend fun getLocalString(key: String): String? = local[key]
+    override suspend fun setLocalString(key: String, value: String) { local[key] = value }
+    override suspend fun removeLocalKey(key: String) { local.remove(key) }
+    override suspend fun clearLocal() = local.clear()
+    override fun getRedirectUrl(path: String): String = "https://preview.local/$path"
+    override suspend fun launchWebAuthFlow(authUrl: String, interactive: Boolean): String = ""
+    override suspend fun launchLoopbackAuthFlow(authUrl: String, redirectPrefix: String): String = ""
+    override fun openFullTab(relativePath: String?) {}
+    override fun openExternalUrl(url: String) {}
+    override suspend fun copyToClipboard(text: String) {}
+    override fun setBadge(text: String) {}
+}
+
+private class PreviewExtensionAuthHandler(
+    private val platform: ExtensionPlatform,
+) : ExtensionAuthHandler {
+    private val previewAccount = Account(email = "user@mimir.io", displayName = "Obsidian User")
+
+    override suspend fun currentAccount(): Account? = AccountCodec.load(platform)
+
+    override suspend fun signInWithWebAuthFlow(): Account = previewAccount.also { AccountCodec.save(platform, it) }
+
+    override suspend fun startDeviceCode(onPrompt: (DeviceCodeUiPrompt) -> Unit): Account {
+        onPrompt(DeviceCodeUiPrompt(userCode = "ABCD-EFGH", verificationUrl = "https://www.google.com/device"))
+        return previewAccount.also { AccountCodec.save(platform, it) }
+    }
+
+    override suspend fun signOut() {
+        platform.removeLocalKey(AccountCodec.KEY)
     }
 }
 

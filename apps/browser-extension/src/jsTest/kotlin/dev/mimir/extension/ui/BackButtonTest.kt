@@ -5,6 +5,7 @@ import dev.mimir.core.CanaryVerifier
 import dev.mimir.core.InMemoryRemoteStorage
 import dev.mimir.core.RcloneCipher
 import dev.mimir.core.RemotePath
+import dev.mimir.core.testing.TestCiphers
 import dev.mimir.extension.platform.FakeExtensionPlatform
 import kotlinx.browser.document
 import kotlinx.coroutines.cancelChildren
@@ -27,13 +28,13 @@ import kotlin.test.assertNull
 class BackButtonTest {
     @Test
     fun clickingBackReturnsFromNoteToList() = runTest {
-        val cipher = RcloneCipher.create("pw")
+        val cipher = TestCiphers.forPassword("pw")
         val remote = InMemoryRemoteStorage()
         remote.write(RemotePath(CanaryVerifier.CANARY_FILENAME), cipher.encrypt(Buffer().apply { writeString("""{"magic":"mimir-vault-canary","version":1}""") }))
         remote.write(RemotePath.of(listOf("A.md").map(cipher::encryptName)), cipher.encrypt(Buffer().apply { writeString("# A") }))
         val platform = FakeExtensionPlatform()
         platform.seedAuthenticatedAccount(Account("u@e.c", null))
-        val controller = ExtensionController(platform, { remote }, FakeExtensionAuthHandler(platform))
+        val controller = ExtensionController(platform, { remote }, FakeExtensionAuthHandler(platform), cipherFactory = TestCiphers::forPassword)
         controller.initialize()
         controller.unlock("pw")
 
@@ -64,21 +65,21 @@ class BackButtonTest {
 
     @Test
     fun backPressedWhileNoteIsStillLoadingIsNotUndoneWhenTheNoteArrives() = runTest {
-        val cipher = RcloneCipher.create("pw")
+        val cipher = TestCiphers.forPassword("pw")
         val remote = InMemoryRemoteStorage()
         remote.write(RemotePath(CanaryVerifier.CANARY_FILENAME), cipher.encrypt(Buffer().apply { writeString("""{"magic":"mimir-vault-canary","version":1}""") }))
         remote.write(RemotePath.of(listOf("A.md").map(cipher::encryptName)), cipher.encrypt(Buffer().apply { writeString("# A") }))
         val slow = SlowRead(remote)
         val platform = FakeExtensionPlatform()
         platform.seedAuthenticatedAccount(Account("u@e.c", null))
-        val controller = ExtensionController(platform, { slow }, FakeExtensionAuthHandler(platform))
+        val controller = ExtensionController(platform, { slow }, FakeExtensionAuthHandler(platform), cipherFactory = TestCiphers::forPassword)
         controller.initialize()
         slow.gate.complete(Unit) // канарейку проверяем без задержки; ниже подменим гейт чтением
         controller.unlock("pw")
         val file = (controller.state.value as ExtensionUiState.VaultReady).flatNotes.single()
 
         val slowNote = SlowRead(remote)
-        val controller2 = ExtensionController(platform, { slowNote }, FakeExtensionAuthHandler(platform))
+        val controller2 = ExtensionController(platform, { slowNote }, FakeExtensionAuthHandler(platform), cipherFactory = TestCiphers::forPassword)
         controller2.initialize()
         val opening = launch { controller2.openNote(file) }
         runCurrent()

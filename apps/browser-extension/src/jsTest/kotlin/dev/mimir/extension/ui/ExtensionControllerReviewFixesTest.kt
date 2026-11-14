@@ -7,6 +7,7 @@ import dev.mimir.core.RcloneCipher
 import dev.mimir.core.RemoteEntry
 import dev.mimir.core.RemotePath
 import dev.mimir.core.RemoteStorage
+import dev.mimir.core.testing.TestCiphers
 import dev.mimir.drive.client.AuthRevokedException
 import dev.mimir.extension.platform.FakeExtensionPlatform
 import dev.mimir.extension.platform.fullTabPageUrl
@@ -38,7 +39,7 @@ class ExtensionControllerReviewFixesTest {
     }
 
     private suspend fun populate(remote: InMemoryRemoteStorage, password: String) {
-        val cipher = RcloneCipher.create(password)
+        val cipher = TestCiphers.forPassword(password)
         remote.write(
             RemotePath(CanaryVerifier.CANARY_FILENAME),
             cipher.encrypt(Buffer().apply { writeString("""{"magic":"mimir-vault-canary","version":1}""") }),
@@ -58,7 +59,7 @@ class ExtensionControllerReviewFixesTest {
         val remote = InMemoryRemoteStorage().also { populate(it, "pw") }
         val storage = ControllableStorage(remote)
         val platform = newPlatform()
-        val controller = ExtensionController(platform, { storage }, FakeExtensionAuthHandler(platform))
+        val controller = ExtensionController(platform, { storage }, FakeExtensionAuthHandler(platform), cipherFactory = TestCiphers::forPassword)
         controller.initialize()
         controller.unlock("pw")
         assertIs<ExtensionUiState.VaultReady>(controller.state.value)
@@ -77,10 +78,10 @@ class ExtensionControllerReviewFixesTest {
     fun lockInOneContextLocksTheOtherOpenContext() = runTest {
         val remote = InMemoryRemoteStorage().also { populate(it, "pw") }
         val platform = newPlatform()
-        val panel = ExtensionController(platform, { remote }, FakeExtensionAuthHandler(platform))
+        val panel = ExtensionController(platform, { remote }, FakeExtensionAuthHandler(platform), cipherFactory = TestCiphers::forPassword)
         panel.initialize()
         panel.unlock("pw")
-        val tab = ExtensionController(platform, { remote }, FakeExtensionAuthHandler(platform))
+        val tab = ExtensionController(platform, { remote }, FakeExtensionAuthHandler(platform), cipherFactory = TestCiphers::forPassword)
         tab.initialize()
         assertIs<ExtensionUiState.VaultReady>(tab.state.value)
 
@@ -93,7 +94,7 @@ class ExtensionControllerReviewFixesTest {
     fun emptyVaultDoesNotPinTheTypedPasswordHash() = runTest {
         val remote = InMemoryRemoteStorage()
         val platform = newPlatform()
-        val controller = ExtensionController(platform, { remote }, FakeExtensionAuthHandler(platform))
+        val controller = ExtensionController(platform, { remote }, FakeExtensionAuthHandler(platform), cipherFactory = TestCiphers::forPassword)
         controller.initialize()
         controller.unlock("typo-pass")
         assertEquals(0, assertIs<ExtensionUiState.VaultReady>(controller.state.value).flatNotes.size)
@@ -113,7 +114,7 @@ class ExtensionControllerReviewFixesTest {
         val remote = InMemoryRemoteStorage().also { populate(it, "pw") }
         val storage = ControllableStorage(remote)
         val platform = newPlatform()
-        val controller = ExtensionController(platform, { storage }, FakeExtensionAuthHandler(platform))
+        val controller = ExtensionController(platform, { storage }, FakeExtensionAuthHandler(platform), cipherFactory = TestCiphers::forPassword)
         controller.initialize()
         controller.unlock("pw")
 

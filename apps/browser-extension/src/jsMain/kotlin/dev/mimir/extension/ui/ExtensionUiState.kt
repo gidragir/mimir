@@ -1,6 +1,10 @@
 package dev.mimir.extension.ui
 
 import dev.mimir.core.Account
+import dev.mimir.core.RcloneCipher
+import dev.mimir.core.RemoteEntry
+import dev.mimir.extension.vault.CachedVaultSnapshot
+import dev.mimir.extension.vault.VaultTreeBuilder
 import dev.mimir.extension.vault.VaultTreeNode
 
 data class DeviceCodeUiPrompt(val userCode: String, val verificationUrl: String)
@@ -58,8 +62,44 @@ sealed interface ActiveNoteState {
     data class Loaded(
         override val file: VaultTreeNode.File,
         val rawMarkdown: String,
-        val plainText: String,
         val viewMode: NoteViewMode = NoteViewMode.RENDERED,
     ) : ActiveNoteState
     data class Error(override val file: VaultTreeNode.File, val message: String) : ActiveNoteState
+}
+
+internal fun buildVaultReady(
+    account: Account,
+    cipher: RcloneCipher,
+    entries: List<RemoteEntry>,
+    cachedAtEpochSec: Long,
+    previous: ExtensionUiState.VaultReady?,
+): ExtensionUiState.VaultReady {
+    val snapshot = VaultTreeBuilder.build(entries, cipher)
+    val query = previous?.searchQuery.orEmpty()
+    return ExtensionUiState.VaultReady(
+        account = account,
+        tree = snapshot.tree,
+        flatNotes = snapshot.flatNotes,
+        searchQuery = query,
+        filteredNotes = VaultTreeBuilder.filterNotes(snapshot.flatNotes, query),
+        expandedFolders = previous?.expandedFolders.orEmpty(),
+        activeNote = previous?.activeNote,
+        cachedAtEpochSec = cachedAtEpochSec,
+    )
+}
+
+internal fun buildRefreshFailureState(
+    account: Account,
+    cipher: RcloneCipher,
+    previous: ExtensionUiState.VaultReady?,
+    cached: CachedVaultSnapshot?,
+    errorMessage: String?,
+): ExtensionUiState {
+    val message = errorMessage ?: "Нет связи с Google Drive"
+    return when {
+        previous != null -> previous.copy(isRefreshing = false, isOffline = true, statusError = message)
+        cached != null -> buildVaultReady(account, cipher, cached.entries, cached.cachedAtEpochSec, previous = null)
+            .copy(isOffline = true, statusError = message)
+        else -> ExtensionUiState.UnlockRequired(account, error = "Не удалось загрузить хранилище: $message")
+    }
 }

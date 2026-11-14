@@ -2,6 +2,7 @@ package dev.mimir.extension.ui
 
 import dev.mimir.core.Account
 import dev.mimir.extension.platform.ExtensionPlatform
+import dev.mimir.extension.vault.AccountCodec
 
 /** Двойник [ExtensionAuthHandler]: аккаунт берётся из `auth.account` платформы, сетевых вызовов нет. */
 class FakeExtensionAuthHandler(

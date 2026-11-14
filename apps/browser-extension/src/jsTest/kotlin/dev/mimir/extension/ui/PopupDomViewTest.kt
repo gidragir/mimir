@@ -2,9 +2,9 @@ package dev.mimir.extension.ui
 
 import dev.mimir.core.Account
 import dev.mimir.core.CanaryVerifier
-import dev.mimir.core.RcloneCipher
-import dev.mimir.core.RemotePath
 import dev.mimir.core.InMemoryRemoteStorage
+import dev.mimir.core.RemotePath
+import dev.mimir.core.testing.TestCiphers
 import dev.mimir.extension.platform.FakeExtensionPlatform
 import kotlinx.browser.document
 import kotlinx.coroutines.test.runTest
@@ -16,12 +16,13 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 class PopupDomViewTest {
     @Test
     fun sidePanelModeSwitchesMasterDetailWhileTabModeRendersTwoColumns() = runTest {
-        val cipher = RcloneCipher.create("pass")
+        val cipher = TestCiphers.forPassword("pass")
         val remote = InMemoryRemoteStorage()
         remote.write(
             RemotePath(CanaryVerifier.CANARY_FILENAME),
@@ -38,6 +39,7 @@ class PopupDomViewTest {
             platform = platform,
             remoteStorageFactory = { remote },
             authHandler = FakeExtensionAuthHandler(platform),
+            cipherFactory = TestCiphers::forPassword,
         )
         controller.initialize()
         controller.unlock("pass")
@@ -149,7 +151,7 @@ class PopupDomViewTest {
             account = Account("user@test.org", null),
             tree = listOf(fileA, fileB),
             flatNotes = listOf(fileA, fileB),
-            activeNote = ActiveNoteState.Loaded(fileA, "# A", "A"),
+            activeNote = ActiveNoteState.Loaded(fileA, "# A"),
         )
         view.render(state)
 
@@ -202,5 +204,43 @@ class PopupDomViewTest {
         val expandedFileRow = container.querySelector(".tree-row.file") as? HTMLElement
         assertNotNull(expandedFileRow)
         assertTrue(expandedFileRow.textContent?.contains("План.md") == true)
+    }
+
+    @Test
+    fun updatingSearchQueryPreservesExistingReaderDomNodeWhenActiveNoteHasNotChanged() = runTest {
+        val fileA = dev.mimir.extension.vault.VaultTreeNode.File("a.md", "a.md", RemotePath("encA"), 100L, 1L)
+        val fileB = dev.mimir.extension.vault.VaultTreeNode.File("b.md", "b.md", RemotePath("encB"), 200L, 2L)
+        val platform = FakeExtensionPlatform()
+        val controller = ExtensionController(
+            platform = platform,
+            remoteStorageFactory = { InMemoryRemoteStorage() },
+            authHandler = FakeExtensionAuthHandler(platform),
+        )
+        val container = document.createElement("div") as HTMLElement
+        val view = PopupDomView(container, controller, platform, isFullTabMode = true)
+
+        val initialState = ExtensionUiState.VaultReady(
+            account = Account("user@test.org", null),
+            tree = listOf(fileA, fileB),
+            flatNotes = listOf(fileA, fileB),
+            activeNote = ActiveNoteState.Loaded(fileA, "# Заголовок\n\nТекст"),
+        )
+        view.render(initialState)
+
+        val readerBefore = container.querySelector("[data-testid='note-reader-pane']")
+        val markdownBefore = container.querySelector(".markdown-body")
+        assertNotNull(readerBefore)
+        assertNotNull(markdownBefore)
+
+        view.render(
+            initialState.copy(
+                searchQuery = "a",
+                filteredNotes = listOf(fileA),
+            ),
+        )
+
+        assertSame(readerBefore, container.querySelector("[data-testid='note-reader-pane']"))
+        assertSame(markdownBefore, container.querySelector(".markdown-body"))
+        assertEquals(1, container.querySelectorAll(".tree-row.file.result").length)
     }
 }

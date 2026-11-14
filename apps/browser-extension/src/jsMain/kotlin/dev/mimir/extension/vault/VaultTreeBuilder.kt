@@ -22,6 +22,7 @@ sealed interface VaultTreeNode {
         val encryptedPath: RemotePath,
         val size: Long,
         val modifiedEpochSec: Long,
+        val lowerPath: String = relativePath.lowercase(),
     ) : VaultTreeNode
 }
 
@@ -67,7 +68,7 @@ object VaultTreeBuilder {
     fun filterNotes(notes: List<VaultTreeNode.File>, query: String): List<VaultTreeNode.File> {
         val q = query.trim().lowercase()
         if (q.isEmpty()) return notes
-        return notes.filter { it.relativePath.lowercase().contains(q) }
+        return notes.filter { q in it.lowerPath }
     }
 
     /** `[[Папка/Заметка|Алиас]]`, `[[Заметка#Заголовок]]`, `[[Заметка.md]]`: сначала точный путь, затем имя файла. */
