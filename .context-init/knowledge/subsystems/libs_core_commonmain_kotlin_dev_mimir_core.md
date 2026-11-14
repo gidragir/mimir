@@ -2,8 +2,8 @@
 directory: libs/core/src/commonMain/kotlin/dev/mimir/core
 source:
   kind: git
-  blob_sha: d49678a18feb5025cd798c50977ead8a22f7851f
-  commit_sha: 1a5aa0855a928bbbb5552e63d2859864a61e21ee
+  blob_sha: cbab0bfc1f0bba14cb5b9cf277b0f978ed77cb8d
+  commit_sha: 99aeceb1c6113743f7e25f5d18773752aae3ab95
 generated_by:
   component: context-init
   role: update
@@ -31,10 +31,10 @@ freshness:
 | `libs/core/src/commonMain/kotlin/dev/mimir/core/fs/FileSystemLocalVault.kt` | Исходный код |
 | `libs/core/src/commonMain/kotlin/dev/mimir/core/fs/PollingVaultWatcher.kt` | Исходный код |
 | `libs/core/src/commonMain/kotlin/dev/mimir/core/rules/GlobMatcher.kt` | Исходный код |
+| `libs/core/src/commonMain/kotlin/dev/mimir/core/testing/CountingLocalVault.kt` | Исходный код |
 | `libs/core/src/commonMain/kotlin/dev/mimir/core/testing/CountingRemoteStorage.kt` | Исходный код |
 | `libs/core/src/commonMain/kotlin/dev/mimir/core/testing/InMemoryLocalVault.kt` | Исходный код |
 | `libs/core/src/commonMain/kotlin/dev/mimir/core/testing/InMemoryRemoteStorage.kt` | Исходный код |
-| `libs/core/src/commonMain/kotlin/dev/mimir/core/update/DailyUpdateChecker.kt` | Исходный код |
 | `libs/core/src/commonMain/kotlin/dev/mimir/core/update/DefaultUpdateManager.kt` | Исходный код |
 | `libs/core/src/commonMain/kotlin/dev/mimir/core/update/GitHubReleasesChannel.kt` | Исходный код |
 | `libs/core/src/commonMain/kotlin/dev/mimir/core/update/InPlaceBundleApplier.kt` | Исходный код |
