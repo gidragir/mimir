@@ -12,7 +12,7 @@ import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runTest
-import kotlin.time.Clock
+import dev.mimir.core.testing.TestClock
 import kotlin.time.Instant
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
@@ -23,9 +23,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
 class GoogleAuthClientTest {
-    private val fixedClock = object : Clock {
-        override fun now(): Instant = Instant.fromEpochSeconds(1700000000)
-    }
+    private val fixedClock = TestClock(Instant.fromEpochSeconds(1700000000))
 
     @Test
     fun testRefreshTokensSuccess() = runTest {

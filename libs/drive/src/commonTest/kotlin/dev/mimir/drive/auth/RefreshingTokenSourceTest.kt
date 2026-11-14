@@ -10,16 +10,14 @@ import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
+import dev.mimir.core.testing.TestClock
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.time.Clock
 import kotlin.time.Instant
 
 class RefreshingTokenSourceTest : AccessTokenSourceContract() {
     private val now = Instant.parse("2026-10-24T12:00:00Z")
-    private val clock = object : Clock {
-        override fun now(): Instant = now
-    }
+    private val clock = TestClock(now)
     private var tokenPosts = 0
 
     private fun clients(): GoogleAuthClients {

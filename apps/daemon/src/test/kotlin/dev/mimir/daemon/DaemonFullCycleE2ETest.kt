@@ -4,9 +4,11 @@ import dev.mimir.runtime.FileTokenStorage
 
 import dev.mimir.core.EncryptedRemoteStorage
 import dev.mimir.core.InMemoryRemoteStorage
-import dev.mimir.core.RcloneCipher
 import dev.mimir.core.RemotePath
+import dev.mimir.core.fs.NioWatchServiceVaultWatcher
+import dev.mimir.core.testing.TestCiphers
 import dev.mimir.drive.auth.OAuthTokens
+import dev.mimir.runtime.VaultWatcherFactory
 import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.statement.bodyAsText
@@ -21,6 +23,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.nio.file.Files
+import java.nio.file.Paths
 import kotlin.io.path.createDirectories
 import kotlin.io.path.exists
 import kotlin.io.path.readText
@@ -29,12 +32,13 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.time.Duration.Companion.milliseconds
 
 class DaemonFullCycleE2ETest {
     private val configDir = Files.createTempDirectory("mimir-e2e-cfg")
     private val vaultDir = Files.createTempDirectory("mimir-e2e-vault")
     private val remote = InMemoryRemoteStorage()
-    private val cleartextRemote = EncryptedRemoteStorage(remote, kotlinx.coroutines.runBlocking { RcloneCipher.create("secret") })
+    private val cleartextRemote = EncryptedRemoteStorage(remote, kotlinx.coroutines.runBlocking { TestCiphers.forPassword("secret") })
     private var runtime: dev.mimir.runtime.MimirRuntime? = null
 
     @AfterTest
@@ -66,7 +70,19 @@ class DaemonFullCycleE2ETest {
             updateCheck = false, // тест не ходит в GitHub
             configDir = configDir.toString(),
         )
-        val runtime = createRuntime(config, cloudFactory = { _, _, _ -> remote }).also { runtime = it }
+        val runtime = createRuntime(
+            config,
+            cloudFactory = { _, _, _ -> remote },
+            watcherFactory = VaultWatcherFactory { root, rules, _ ->
+                NioWatchServiceVaultWatcher(
+                    Paths.get(root.toString()),
+                    rules,
+                    debounce = 50.milliseconds,
+                    echoTtl = 150.milliseconds,
+                )
+            },
+            cipherFactory = { TestCiphers.forPassword(it) },
+        ).also { runtime = it }
         runtime.initialize()
         application { mimirRoutes(runtime, config) }
         eventually("initial sync") { runtime.lastSyncTime != null }
@@ -86,7 +102,7 @@ class DaemonFullCycleE2ETest {
 
         // 3. загруженный из облака файл не возвращается обратно (echo suppression)
         val revisionAfterDownload = assertNotNull(cleartextRemote.stat(RemotePath("Remote/Hello.md"))).revision
-        delay(4_000)
+        delay(350)
         assertEquals(revisionAfterDownload, cleartextRemote.stat(RemotePath("Remote/Hello.md"))?.revision)
         assertEquals("from cloud", vaultDir.resolve("Remote/Hello.md").readText())
 
@@ -94,7 +110,7 @@ class DaemonFullCycleE2ETest {
         fun lastSyncAt(body: String) = Json.parseToJsonElement(body).jsonObject["lastSyncAt"]?.jsonPrimitive?.content
         val before = lastSyncAt(client.get("/api/v1/status").bodyAsText())
         assertNotNull(before)
-        delay(1_100)
+        delay(50)
         var accepted = client.post("/api/v1/sync")
         while (accepted.status == HttpStatusCode.Conflict) { // идёт плановый прогон
             delay(100)

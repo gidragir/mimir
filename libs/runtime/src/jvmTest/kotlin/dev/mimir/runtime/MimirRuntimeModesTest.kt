@@ -4,8 +4,8 @@ import dev.mimir.client.DaemonLoginMethod
 import dev.mimir.client.wireName
 import dev.mimir.core.EncryptedRemoteStorage
 import dev.mimir.core.InMemoryRemoteStorage
-import dev.mimir.core.RcloneCipher
 import dev.mimir.core.RemotePath
+import dev.mimir.core.testing.TestCiphers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
@@ -182,7 +182,7 @@ class MimirRuntimeModesTest {
         val rt = runtime()
         rt.setInteractive(false)
         rt.initialize()
-        EncryptedRemoteStorage(remote, RcloneCipher.create("secret"))
+        EncryptedRemoteStorage(remote, TestCiphers.forPassword("secret"))
             .write(RemotePath("Notes/r.md"), Buffer().also { it.write("remote".encodeToByteArray()) })
 
         assertTrue(rt.syncOnce())

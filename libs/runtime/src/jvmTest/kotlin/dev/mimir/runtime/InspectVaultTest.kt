@@ -4,7 +4,7 @@ import dev.mimir.client.DaemonVaultInspectionDto as VaultInspectionDto
 import dev.mimir.core.EncryptedRemoteStorage
 import dev.mimir.core.InMemoryRemoteStorage
 import dev.mimir.core.RemotePath
-import dev.mimir.core.RcloneCipher
+import dev.mimir.core.testing.TestCiphers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -46,7 +46,7 @@ class InspectVaultTest {
 
         assertEquals(2, runtime.configureVault(vaultDir.toString()))
         // облако получает файл от другого устройства уже после проверки пароля (канарейка записана)
-        EncryptedRemoteStorage(remote, RcloneCipher.create("secret")).write(RemotePath("r.md"), Buffer().also { it.write("r".encodeToByteArray()) })
+        EncryptedRemoteStorage(remote, TestCiphers.forPassword("secret")).write(RemotePath("r.md"), Buffer().also { it.write("r".encodeToByteArray()) })
         assertEquals(VaultInspectionDto(2, 1, true), runtime.inspectVault())
     }
 

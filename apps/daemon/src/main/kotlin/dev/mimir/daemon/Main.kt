@@ -1,6 +1,7 @@
 package dev.mimir.daemon
 
 import dev.mimir.core.LocalVault
+import dev.mimir.core.RcloneCipher
 import dev.mimir.core.fs.FileSystemLocalVault
 import dev.mimir.core.fs.NioWatchServiceVaultWatcher
 import dev.mimir.core.update.TargetPlatform
@@ -79,6 +80,8 @@ fun createRuntime(
     targetPlatform: TargetPlatform = TargetPlatform.DOCKER_ANY,
     updateManager: UpdateManager? = createDaemonUpdateManager(config, httpClient, targetPlatform, updateApplier),
     updateSchedulerFactory: ((UpdateManager, () -> Boolean) -> UpdateScheduler)? = null,
+    watcherFactory: VaultWatcherFactory = nioVaultWatchers,
+    cipherFactory: suspend (String) -> RcloneCipher = { RcloneCipher.create(it) },
 ): MimirRuntime {
     val settings = DaemonSettingsStore(config)
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -94,7 +97,7 @@ fun createRuntime(
     return MimirRuntime(
         settings = settings,
         logins = logins,
-        watcherFactory = nioVaultWatchers,
+        watcherFactory = watcherFactory,
         passwordProvider = { settings.config.resolvePassword() },
         ioDispatcher = Dispatchers.IO,
         httpClient = httpClient,
@@ -104,6 +107,7 @@ fun createRuntime(
         localVaultFactory = localVaultFactory,
         updateManager = updateManager,
         updateSchedulerFactory = updateSchedulerFactory,
+        cipherFactory = cipherFactory,
     )
 }
 
