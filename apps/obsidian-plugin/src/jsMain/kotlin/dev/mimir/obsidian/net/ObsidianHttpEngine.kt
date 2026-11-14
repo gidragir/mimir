@@ -1,5 +1,6 @@
 package dev.mimir.obsidian.net
 
+import dev.mimir.core.RemoteUnavailableException
 import dev.mimir.obsidian.platform.RequestUrlFn
 import dev.mimir.obsidian.platform.UrlRequest
 import dev.mimir.obsidian.platform.obsidianRequestUrl
@@ -96,3 +97,9 @@ fun obsidianHttpClient(request: RequestUrlFn = obsidianRequestUrl): HttpClient =
     HttpClient(ObsidianHttpEngine(request)) {
         install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
     }
+
+internal fun Throwable.isNetworkError(): Boolean {
+    if (this is NetworkUnavailableException || this is RemoteUnavailableException || this is IOException) return true
+    val msg = message.orEmpty()
+    return "Network is down" in msg || "net::" in msg || "Failed to fetch" in msg
+}

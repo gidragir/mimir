@@ -5,7 +5,9 @@ import dev.mimir.core.CanaryVerifier
 import dev.mimir.core.InMemoryRemoteStorage
 import dev.mimir.core.RcloneCipher
 import dev.mimir.core.RemotePath
+import dev.mimir.core.testing.TestCiphers
 import dev.mimir.extension.platform.ChromeExtensionPlatform
+import dev.mimir.extension.vault.AccountCodec
 import kotlinx.browser.document
 import kotlinx.browser.window
 import kotlinx.coroutines.MainScope
@@ -76,13 +78,13 @@ class RealChromePlatformFlowTest {
     @Test
     fun backAndToolbarButtonsWorkThroughRealPlatformAdapter() = runTest {
         installChromeStub()
-        val cipher = RcloneCipher.create("pw")
+        val cipher = TestCiphers.forPassword("pw")
         val remote = InMemoryRemoteStorage()
         remote.write(RemotePath(CanaryVerifier.CANARY_FILENAME), cipher.encrypt(Buffer().apply { writeString("""{"magic":"mimir-vault-canary","version":1}""") }))
         remote.write(RemotePath.of(listOf("A.md").map(cipher::encryptName)), cipher.encrypt(Buffer().apply { writeString("# A\ntext") }))
         val platform = ChromeExtensionPlatform()
         platform.setLocalString("auth.account", AccountCodec.encode(Account("u@e.c", null)))
-        val controller = ExtensionController(platform, { remote }, FakeExtensionAuthHandler(platform))
+        val controller = ExtensionController(platform, { remote }, FakeExtensionAuthHandler(platform), cipherFactory = TestCiphers::forPassword)
         val container = document.createElement("div") as HTMLElement
         document.body!!.appendChild(container)
         val view = PopupDomView(container, controller, platform, isFullTabMode = false, scope = MainScope())

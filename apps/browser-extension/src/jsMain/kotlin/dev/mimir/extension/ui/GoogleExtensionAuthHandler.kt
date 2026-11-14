@@ -9,12 +9,21 @@ import dev.mimir.drive.auth.TokenStorage
 import dev.mimir.drive.auth.parseLoginCallback
 import dev.mimir.drive.client.DriveAuthException
 import dev.mimir.extension.platform.ExtensionPlatform
+import dev.mimir.extension.vault.AccountCodec
 import io.ktor.http.decodeURLQueryComponent
 import kotlinx.coroutines.delay
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.seconds
 import kotlin.uuid.Uuid
 
 private const val LOOPBACK_PORT = 47999
+
+interface ExtensionAuthHandler {
+    suspend fun currentAccount(): Account?
+    suspend fun signInWithWebAuthFlow(): Account
+    suspend fun startDeviceCode(onPrompt: (DeviceCodeUiPrompt) -> Unit): Account
+    suspend fun signOut()
+}
 
 /** Вход в Google: PKCE через loopback-redirect во вкладке или резервный Device Code Flow. */
 class GoogleExtensionAuthHandler(
@@ -56,13 +65,18 @@ class GoogleExtensionAuthHandler(
         val response = client.requestDeviceCode()
         onPrompt(DeviceCodeUiPrompt(response.user_code, response.verification_url))
         val deadline = clock.now().epochSeconds + response.expires_in
+        var pollInterval = response.interval.seconds
         while (clock.now().epochSeconds < deadline) {
-            delay(response.interval * 1000)
+            delay(pollInterval)
             val tokens = try {
                 client.pollDeviceToken(response.device_code)
             } catch (e: DriveAuthException) {
                 val message = e.message.orEmpty()
-                if ("authorization_pending" in message || "slow_down" in message) continue
+                if ("authorization_pending" in message) continue
+                if ("slow_down" in message) {
+                    pollInterval += 5.seconds
+                    continue
+                }
                 throw e
             }
             tokenStorage.save(tokens)

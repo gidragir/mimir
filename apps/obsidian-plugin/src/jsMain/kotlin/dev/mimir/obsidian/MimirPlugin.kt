@@ -58,27 +58,7 @@ class MimirPlugin(app: App, manifest: PluginManifest) : Plugin(app, manifest) {
         val vaultFs = AdapterVaultFs(app.vault.adapter)
         val streamFn = FetchResourceStream(app.vault.adapter)
         val vaultEventsFlow = MutableSharedFlow<VaultEvent>(extraBufferCapacity = 100)
-
-        // Регистрация слушателей событий хранилища
-        try {
-            registerEvent(app.vault.on("create") { file: dynamic ->
-                val path = file?.path as? String ?: return@on
-                vaultEventsFlow.tryEmit(VaultEvent.Upsert(path))
-            })
-            registerEvent(app.vault.on("modify") { file: dynamic ->
-                val path = file?.path as? String ?: return@on
-                vaultEventsFlow.tryEmit(VaultEvent.Upsert(path))
-            })
-            registerEvent(app.vault.on("delete") { file: dynamic ->
-                val path = file?.path as? String ?: return@on
-                vaultEventsFlow.tryEmit(VaultEvent.Removed(path))
-            })
-            registerEvent(app.vault.on("rename") { file: dynamic, oldPath: dynamic ->
-                val newPath = file?.path as? String ?: return@on
-                val old = oldPath as? String ?: return@on
-                vaultEventsFlow.tryEmit(VaultEvent.Renamed(old, newPath))
-            })
-        } catch (_: Throwable) {}
+        registerVaultListeners(vaultEventsFlow)
 
         val configDir = app.vault.configDir
         val localVault = ObsidianLocalVault(
@@ -105,7 +85,7 @@ class MimirPlugin(app: App, manifest: PluginManifest) : Plugin(app, manifest) {
 
         val probe = DaemonProbe(
             request = obsidianRequestUrl,
-            port = 47821,
+            port = PluginBuildConfig.DAEMON_PORT,
             isDesktop = Platform.isDesktopApp,
             vaultBasePath = vaultBasePath,
         )
@@ -120,29 +100,8 @@ class MimirPlugin(app: App, manifest: PluginManifest) : Plugin(app, manifest) {
         )
         controller = syncController
 
-        // Статус-бар (на desktop)
-        val statusBarItem = try {
-            addStatusBarItem()
-        } catch (_: Throwable) {
-            null
-        }
+        registerStatusBar(syncController, texts)
 
-        if (statusBarItem != null) {
-            statusBarItem.textContent = statusLabel(PluginState.NotConnected, texts, Clock.System.now())
-            scope.launch {
-                syncController.state.collect { state ->
-                    statusBarItem.textContent = statusLabel(state, texts, Clock.System.now())
-                }
-            }
-            try {
-                val intervalId = window.setInterval({
-                    statusBarItem.textContent = statusLabel(syncController.state.value, texts, Clock.System.now())
-                }, 30000)
-                registerInterval(intervalId)
-            } catch (_: Throwable) {}
-        }
-
-        // Ribbon icon (быстрая синхронизация)
         try {
             addRibbonIcon("refresh-cw", "Mimir Sync") {
                 syncController.trigger(Trigger.Manual)
@@ -150,7 +109,6 @@ class MimirPlugin(app: App, manifest: PluginManifest) : Plugin(app, manifest) {
             }
         } catch (_: Throwable) {}
 
-        // Settings tab
         try {
             addSettingTab(
                 MimirSettingTab(
@@ -158,6 +116,7 @@ class MimirPlugin(app: App, manifest: PluginManifest) : Plugin(app, manifest) {
                     plugin = this,
                     settings = settingsStore,
                     secrets = secrets,
+                    stateStore = stateStore,
                     assembler = assembler,
                     controller = syncController,
                     texts = texts,
@@ -166,7 +125,78 @@ class MimirPlugin(app: App, manifest: PluginManifest) : Plugin(app, manifest) {
             )
         } catch (_: Throwable) {}
 
-        // Commands
+        registerCommands(syncController, texts)
+
+        try {
+            document.addEventListener("visibilitychange", {
+                val isHidden = js("document.hidden").unsafeCast<Boolean>()
+                syncController.onVisibilityChanged(!isHidden)
+            })
+        } catch (_: Throwable) {}
+
+        try {
+            app.workspace.onLayoutReady {
+                scope.launch {
+                    if (!assembler.isReady()) {
+                        Notice(texts.pleaseConfigureNotice)
+                    }
+                }
+            }
+        } catch (_: Throwable) {}
+
+        try {
+            PluginUpdater(this, scope).start()
+        } catch (e: Throwable) {
+            console.warn("Mimir: updater disabled: ${e.message}")
+        }
+
+        syncController.start()
+    }
+
+    private fun registerVaultListeners(vaultEventsFlow: MutableSharedFlow<VaultEvent>) {
+        try {
+            registerEvent(app.vault.on("create") { file: dynamic ->
+                val path = file?.path as? String ?: return@on
+                vaultEventsFlow.tryEmit(VaultEvent.Upsert(path))
+            })
+            registerEvent(app.vault.on("modify") { file: dynamic ->
+                val path = file?.path as? String ?: return@on
+                vaultEventsFlow.tryEmit(VaultEvent.Upsert(path))
+            })
+            registerEvent(app.vault.on("delete") { file: dynamic ->
+                val path = file?.path as? String ?: return@on
+                vaultEventsFlow.tryEmit(VaultEvent.Removed(path))
+            })
+            registerEvent(app.vault.on("rename") { file: dynamic, oldPath: dynamic ->
+                val newPath = file?.path as? String ?: return@on
+                val old = oldPath as? String ?: return@on
+                vaultEventsFlow.tryEmit(VaultEvent.Renamed(old, newPath))
+            })
+        } catch (_: Throwable) {}
+    }
+
+    private fun registerStatusBar(syncController: PluginSyncController, texts: PluginTexts) {
+        val statusBarItem = try {
+            addStatusBarItem()
+        } catch (_: Throwable) {
+            null
+        } ?: return
+
+        statusBarItem.textContent = statusLabel(PluginState.NotConnected, texts, Clock.System.now())
+        scope.launch {
+            syncController.state.collect { state ->
+                statusBarItem.textContent = statusLabel(state, texts, Clock.System.now())
+            }
+        }
+        try {
+            val intervalId = window.setInterval({
+                statusBarItem.textContent = statusLabel(syncController.state.value, texts, Clock.System.now())
+            }, 30000)
+            registerInterval(intervalId)
+        } catch (_: Throwable) {}
+    }
+
+    private fun registerCommands(syncController: PluginSyncController, texts: PluginTexts) {
         addCommand(
             json(
                 "id" to "mimir-sync-now",
@@ -209,35 +239,6 @@ class MimirPlugin(app: App, manifest: PluginManifest) : Plugin(app, manifest) {
                 },
             ),
         )
-
-        // Visibility listener
-        try {
-            document.addEventListener("visibilitychange", {
-                val isHidden = js("document.hidden").unsafeCast<Boolean>()
-                syncController.onVisibilityChanged(!isHidden)
-            })
-        } catch (_: Throwable) {}
-
-        // Notice при первом старте, если не настроено
-        try {
-            app.workspace.onLayoutReady {
-                scope.launch {
-                    if (!assembler.isReady()) {
-                        Notice(texts.pleaseConfigureNotice)
-                    }
-                }
-            }
-        } catch (_: Throwable) {}
-
-        // Updater
-        try {
-            PluginUpdater(this, scope).start()
-        } catch (e: Throwable) {
-            console.warn("Mimir: updater disabled: ${e.message}")
-        }
-
-        // Start sync controller
-        syncController.start()
     }
 
     override fun onunload() {

@@ -9,6 +9,8 @@ import dev.mimir.core.SyncAbortedException
 import dev.mimir.core.fs.EchoFilter
 import dev.mimir.core.sync.DefaultConflictResolver
 import dev.mimir.core.sync.DefaultSyncEngine
+import dev.mimir.core.testing.TestCiphers
+import dev.mimir.core.testing.TestClock
 import dev.mimir.obsidian.fakes.FakeVaultFs
 import dev.mimir.obsidian.platform.VaultEvent
 import dev.mimir.obsidian.state.ObsidianSyncStateStore
@@ -22,18 +24,10 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
-import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 
 class EndToEndSyncTest {
-
-    private class TestClock(var current: Instant = Instant.fromEpochMilliseconds(1_000_000_000_000L)) : Clock {
-        override fun now(): Instant = current
-        fun advance(millis: Long) {
-            current = Instant.fromEpochMilliseconds(current.toEpochMilliseconds() + millis)
-        }
-    }
 
     private class Device(
         val name: String,
@@ -70,9 +64,9 @@ class EndToEndSyncTest {
 
     @Test
     fun roundTripSyncBetweenTwoDevicesWithConflictAndAbortProtection() = runTest {
-        val clock = TestClock()
+        val clock = TestClock(Instant.fromEpochMilliseconds(1_000_000_000_000L))
         val password = "end-to-end-test-password"
-        val cipher = RcloneCipher.create(password, null)
+        val cipher = TestCiphers.forPassword(password)
         val remote = InMemoryRemoteStorage()
 
         val devA = Device("A", cipher, remote, clock)
@@ -86,7 +80,7 @@ class EndToEndSyncTest {
         assertTrue(remote.list(RemotePath("")).isNotEmpty())
 
         // 2. B синхронизирует -> notes/hello.md появляется в B с тем же содержимым
-        clock.advance(1000)
+        clock.advanceBy(1.seconds)
         devB.engine.syncNow()
         val entryB = devB.vault.getEntry("notes/hello.md")
         assertNotNull(entryB)
@@ -94,12 +88,12 @@ class EndToEndSyncTest {
         assertEquals("Hello from A", contentB)
 
         // 3. B редактирует notes/hello.md -> синхронизирует
-        clock.advance(1000)
+        clock.advanceBy(1.seconds)
         devB.vault.write("notes/hello.md", Buffer().apply { write("Edited by B".encodeToByteArray()) })
         devB.engine.syncNow()
 
         // 4. A синхронизирует -> видит правку
-        clock.advance(1000)
+        clock.advanceBy(1.seconds)
         devA.engine.syncNow()
         val entryA = devA.vault.getEntry("notes/hello.md")
         assertNotNull(entryA)
@@ -107,16 +101,16 @@ class EndToEndSyncTest {
         assertEquals("Edited by B", contentA)
 
         // 5. Одновременное изменение на A и B -> синхронизация A, затем B
-        clock.advance(1000)
+        clock.advanceBy(1.seconds)
         devA.vault.write("notes/hello.md", Buffer().apply { write("Conflict edit A".encodeToByteArray()) })
         devB.vault.write("notes/hello.md", Buffer().apply { write("Conflict edit B".encodeToByteArray()) })
 
         // A синхронизирует первым
-        clock.advance(1000)
+        clock.advanceBy(1.seconds)
         devA.engine.syncNow()
 
         // B синхронизирует вторым -> конфликт
-        clock.advance(1000)
+        clock.advanceBy(1.seconds)
         devB.engine.syncNow()
 
         // В B основной файл обновлён версией A, а правка B сохранена как копия конфликта

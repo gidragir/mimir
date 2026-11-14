@@ -1,7 +1,7 @@
 package dev.mimir.extension.platform
 
 import dev.mimir.core.Account
-import dev.mimir.extension.ui.AccountCodec
+import dev.mimir.extension.vault.AccountCodec
 
 /** In-memory двойник [ExtensionPlatform]: session/local хранилища живут в картах, побочные эффекты записываются. */
 class FakeExtensionPlatform : ExtensionPlatform {

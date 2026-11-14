@@ -21,6 +21,7 @@ class DeviceSecretStore(
         const val KEY_CIPHER_KEY = "mimir.key"
         const val KEY_CANARY_HASH = "mimir.canaryHash"
         const val KEY_CHANGE_TOKEN = "mimir.changeToken"
+        const val KEY_EMAIL = "mimir.accountEmail"
     }
 
     override suspend fun load(): OAuthTokens? {
@@ -68,10 +69,17 @@ class DeviceSecretStore(
         storage.save(KEY_CHANGE_TOKEN, token)
     }
 
+    suspend fun loadEmail(): String? = storage.load(KEY_EMAIL)
+
+    suspend fun saveEmail(email: String) {
+        storage.save(KEY_EMAIL, email)
+    }
+
     suspend fun clearAll() {
         storage.save(KEY_TOKENS, null)
         storage.save(KEY_CIPHER_KEY, null)
         storage.save(KEY_CANARY_HASH, null)
         storage.save(KEY_CHANGE_TOKEN, null)
+        storage.save(KEY_EMAIL, null)
     }
 }

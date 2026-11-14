@@ -24,22 +24,42 @@ class PopupDomView(
     private val dom = DomKit(root.ownerDocument!!)
     private val auth = AuthScreens(dom, controller, platform, scope)
 
+    private var lastVaultState: ExtensionUiState.VaultReady? = null
+    private var workspaceEl: HTMLElement? = null
+    private var treePaneEl: HTMLElement? = null
+    private var readerPaneEl: HTMLElement? = null
+
     fun render(state: ExtensionUiState) {
         val search = root.querySelector("[data-testid='search-input']") as? HTMLInputElement
         val keepFocus = search != null && root.ownerDocument?.activeElement === search
         val caret = search?.selectionStart
-        root.textContent = ""
+
         root.className = if (isFullTabMode) "app tab-mode" else "app panel-mode"
-        root.appendChild(
-            when (state) {
-                ExtensionUiState.Initializing -> auth.loading("Загрузка…")
-                is ExtensionUiState.AuthRequired -> auth.authRequired(state)
-                is ExtensionUiState.UnlockRequired -> auth.unlockRequired(state)
-                is ExtensionUiState.VaultLoading ->
-                    auth.loading("Загрузка списка заметок…", "Папок: ${state.foldersSeen}, файлов: ${state.filesSeen}")
-                is ExtensionUiState.VaultReady -> vault(state)
-            },
-        )
+        val prev = lastVaultState
+        val ws = workspaceEl
+        if (state is ExtensionUiState.VaultReady && prev != null && ws != null && ws.parentNode === root) {
+            patchVault(ws, prev, state)
+            lastVaultState = state
+        } else {
+            root.textContent = ""
+            workspaceEl = null
+            treePaneEl = null
+            readerPaneEl = null
+            lastVaultState = null
+            root.appendChild(
+                when (state) {
+                    ExtensionUiState.Initializing -> auth.loading("Загрузка…")
+                    is ExtensionUiState.AuthRequired -> auth.authRequired(state)
+                    is ExtensionUiState.UnlockRequired -> auth.unlockRequired(state)
+                    is ExtensionUiState.VaultLoading ->
+                        auth.loading("Загрузка списка заметок…", "Папок: ${state.foldersSeen}, файлов: ${state.filesSeen}")
+                    is ExtensionUiState.VaultReady -> {
+                        lastVaultState = state
+                        vault(state)
+                    }
+                },
+            )
+        }
         if (keepFocus) {
             (root.querySelector("[data-testid='search-input']") as? HTMLInputElement)?.let {
                 it.focus()
@@ -48,14 +68,88 @@ class PopupDomView(
         }
     }
 
+    private fun patchVault(
+        ws: HTMLElement,
+        prev: ExtensionUiState.VaultReady,
+        next: ExtensionUiState.VaultReady,
+    ) {
+        val treeChanged = hasTreePaneChanged(prev, next)
+        val readerChanged = prev.activeNote != next.activeNote || prev.statusError != next.statusError
+        if (isFullTabMode) {
+            if (treeChanged) {
+                val newTree = treePane(next)
+                treePaneEl?.let { ws.replaceChild(newTree, it) } ?: ws.appendChild(newTree)
+                treePaneEl = newTree
+            }
+            if (readerChanged) {
+                val newReader = readerPane(next)
+                readerPaneEl?.let { ws.replaceChild(newReader, it) } ?: ws.appendChild(newReader)
+                readerPaneEl = newReader
+            }
+            return
+        }
+
+        val wasTree = prev.activeNote == null
+        val isTree = next.activeNote == null
+        if (wasTree != isTree) {
+            ws.textContent = ""
+            if (isTree) {
+                val newTree = treePane(next)
+                treePaneEl = newTree
+                readerPaneEl = null
+                ws.appendChild(newTree)
+            } else {
+                val newReader = readerPane(next)
+                readerPaneEl = newReader
+                treePaneEl = null
+                ws.appendChild(newReader)
+            }
+            return
+        }
+        if (isTree && treeChanged) {
+            val newTree = treePane(next)
+            treePaneEl?.let { ws.replaceChild(newTree, it) } ?: ws.appendChild(newTree)
+            treePaneEl = newTree
+        } else if (!isTree && readerChanged) {
+            val newReader = readerPane(next)
+            readerPaneEl?.let { ws.replaceChild(newReader, it) } ?: ws.appendChild(newReader)
+            readerPaneEl = newReader
+        }
+    }
+
+    private fun hasTreePaneChanged(
+        prev: ExtensionUiState.VaultReady,
+        next: ExtensionUiState.VaultReady,
+    ): Boolean =
+        prev.tree != next.tree ||
+            prev.flatNotes != next.flatNotes ||
+            prev.searchQuery != next.searchQuery ||
+            prev.filteredNotes != next.filteredNotes ||
+            prev.expandedFolders != next.expandedFolders ||
+            prev.isRefreshing != next.isRefreshing ||
+            prev.isOffline != next.isOffline ||
+            prev.statusError != next.statusError ||
+            prev.cachedAtEpochSec != next.cachedAtEpochSec ||
+            prev.account != next.account ||
+            prev.activeNote?.file?.relativePath != next.activeNote?.file?.relativePath
+
     private fun vault(state: ExtensionUiState.VaultReady): HTMLElement {
         val note = state.activeNote
         val container = dom.el("div", if (isFullTabMode) "workspace-split" else "workspace-single")
+        workspaceEl = container
         if (isFullTabMode) {
-            container.appendChild(treePane(state))
-            container.appendChild(readerPane(state))
+            val tree = treePane(state).also { treePaneEl = it }
+            val reader = readerPane(state).also { readerPaneEl = it }
+            container.appendChild(tree)
+            container.appendChild(reader)
+        } else if (note == null) {
+            val tree = treePane(state).also { treePaneEl = it }
+            readerPaneEl = null
+            container.appendChild(tree)
         } else {
-            container.appendChild(if (note == null) treePane(state) else readerPane(state))
+            treePaneEl = null
+            val reader = readerPane(state).also { readerPaneEl = it }
+            container.appendChild(reader)
         }
         return container
     }

@@ -2,10 +2,16 @@ package dev.mimir.extension.ui
 
 import dev.mimir.core.Account
 import dev.mimir.core.CanaryVerifier
-import dev.mimir.core.RcloneCipher
-import dev.mimir.core.RemotePath
+import dev.mimir.core.ChangeFeedStorage
 import dev.mimir.core.CountingRemoteStorage
 import dev.mimir.core.InMemoryRemoteStorage
+import dev.mimir.core.RcloneCipher
+import dev.mimir.core.RemoteChange
+import dev.mimir.core.RemoteChangesResult
+import dev.mimir.core.RemoteEntry
+import dev.mimir.core.RemotePath
+import dev.mimir.core.RemoteStorage
+import dev.mimir.core.testing.TestCiphers
 import dev.mimir.extension.platform.FakeExtensionPlatform
 import kotlinx.coroutines.test.runTest
 import kotlinx.io.Buffer
@@ -20,7 +26,7 @@ import kotlin.test.assertTrue
 class ExtensionControllerTest {
     @Test
     fun fullLifecycleUnlockBrowseReadBackAndLockSharesSessionKey() = runTest {
-        val cipher = RcloneCipher.create("master-pass")
+        val cipher = TestCiphers.forPassword("master-pass")
         val rawRemote = InMemoryRemoteStorage()
         rawRemote.write(
             RemotePath(CanaryVerifier.CANARY_FILENAME),
@@ -45,6 +51,7 @@ class ExtensionControllerTest {
             platform = platform,
             remoteStorageFactory = { countingRemote },
             authHandler = FakeExtensionAuthHandler(platform),
+            cipherFactory = TestCiphers::forPassword,
         )
 
         controller.initialize()
@@ -87,6 +94,7 @@ class ExtensionControllerTest {
             platform = platform,
             remoteStorageFactory = { countingRemote },
             authHandler = FakeExtensionAuthHandler(platform),
+            cipherFactory = TestCiphers::forPassword,
         )
         tabController.initialize(initialPath = "Проекты/План.md")
         val tabReady = assertIs<ExtensionUiState.VaultReady>(tabController.state.value)
@@ -102,7 +110,7 @@ class ExtensionControllerTest {
     }
 
     private suspend fun vaultFixture(password: String): InMemoryRemoteStorage {
-        val cipher = RcloneCipher.create(password)
+        val cipher = TestCiphers.forPassword(password)
         val remote = InMemoryRemoteStorage()
         remote.write(
             RemotePath(CanaryVerifier.CANARY_FILENAME),
@@ -120,7 +128,7 @@ class ExtensionControllerTest {
         val counting = CountingRemoteStorage(vaultFixture("right-pass"))
         val platform = FakeExtensionPlatform()
         platform.seedAuthenticatedAccount(Account(email = "u@example.com", displayName = null))
-        val controller = ExtensionController(platform, { counting }, FakeExtensionAuthHandler(platform))
+        val controller = ExtensionController(platform, { counting }, FakeExtensionAuthHandler(platform), cipherFactory = TestCiphers::forPassword)
         controller.initialize()
         controller.unlock("right-pass")
         assertIs<ExtensionUiState.VaultReady>(controller.state.value)
@@ -137,7 +145,7 @@ class ExtensionControllerTest {
         val platform = FakeExtensionPlatform()
         platform.seedAuthenticatedAccount(Account(email = "u@example.com", displayName = null))
         platform.setLocalString("auth.refreshToken", "refresh-1")
-        val controller = ExtensionController(platform, { vaultFixture("pw") }, FakeExtensionAuthHandler(platform))
+        val controller = ExtensionController(platform, { vaultFixture("pw") }, FakeExtensionAuthHandler(platform), cipherFactory = TestCiphers::forPassword)
         controller.initialize()
         controller.unlock("pw")
         val ready = assertIs<ExtensionUiState.VaultReady>(controller.state.value)
@@ -157,7 +165,7 @@ class ExtensionControllerTest {
     fun searchQueryFiltersNotesAndToggleFolderExpandsIt() = runTest {
         val platform = FakeExtensionPlatform()
         platform.seedAuthenticatedAccount(Account(email = "u@example.com", displayName = null))
-        val controller = ExtensionController(platform, { vaultFixture("pw") }, FakeExtensionAuthHandler(platform))
+        val controller = ExtensionController(platform, { vaultFixture("pw") }, FakeExtensionAuthHandler(platform), cipherFactory = TestCiphers::forPassword)
         controller.initialize()
         controller.unlock("pw")
 
@@ -176,7 +184,7 @@ class ExtensionControllerTest {
 
     @Test
     fun openNoteExpandsParentFolders() = runTest {
-        val cipher = RcloneCipher.create("pw")
+        val cipher = TestCiphers.forPassword("pw")
         val rawRemote = InMemoryRemoteStorage()
         rawRemote.write(
             RemotePath(CanaryVerifier.CANARY_FILENAME),
@@ -189,7 +197,7 @@ class ExtensionControllerTest {
         )
         val platform = FakeExtensionPlatform()
         platform.seedAuthenticatedAccount(Account(email = "u@example.com", displayName = null))
-        val controller = ExtensionController(platform, { rawRemote }, FakeExtensionAuthHandler(platform))
+        val controller = ExtensionController(platform, { rawRemote }, FakeExtensionAuthHandler(platform), cipherFactory = TestCiphers::forPassword)
         controller.initialize()
         controller.unlock("pw")
 
@@ -199,5 +207,63 @@ class ExtensionControllerTest {
         controller.openNote(ready.flatNotes.single())
         val updated = assertIs<ExtensionUiState.VaultReady>(controller.state.value)
         assertEquals(setOf("Работа", "Работа/Проекты"), updated.expandedFolders)
+    }
+
+    private class CountingChangeFeedStorage(
+        private val inner: InMemoryRemoteStorage,
+        var latestToken: String = "tok-1",
+        var changesToReturn: List<RemoteChange> = emptyList(),
+    ) : ChangeFeedStorage, RemoteStorage by inner {
+        var listAllCalls = 0
+        var getLatestTokenCalls = 0
+        var getChangesCalls = 0
+
+        override suspend fun getLatestChangeToken(): String {
+            getLatestTokenCalls++
+            return latestToken
+        }
+
+        override suspend fun getChanges(sinceToken: String): RemoteChangesResult {
+            getChangesCalls++
+            return RemoteChangesResult(changes = changesToReturn, nextToken = latestToken)
+        }
+
+        override suspend fun listAll(
+            root: RemotePath,
+            onProgress: (folders: Int, files: Int) -> Unit,
+        ): List<RemoteEntry> {
+            listAllCalls++
+            return inner.listAll(root, onProgress)
+        }
+    }
+
+    @Test
+    fun refreshVaultSkipsListAllWhenCachedChangeTokenReturnsEmptyChangesFromChangeFeedStorage() = runTest {
+        val raw = vaultFixture("pw")
+        val feed = CountingChangeFeedStorage(raw, latestToken = "tok-1")
+        val platform = FakeExtensionPlatform()
+        platform.seedAuthenticatedAccount(Account(email = "u@example.com", displayName = null))
+        val controller = ExtensionController(platform, { feed }, FakeExtensionAuthHandler(platform), cipherFactory = TestCiphers::forPassword)
+
+        controller.initialize()
+        controller.unlock("pw")
+        assertIs<ExtensionUiState.VaultReady>(controller.state.value)
+        assertEquals(1, feed.listAllCalls)
+        assertEquals(0, feed.getChangesCalls)
+
+        feed.latestToken = "tok-2"
+        feed.changesToReturn = emptyList()
+        controller.refreshVault()
+
+        assertEquals(1, feed.getChangesCalls)
+        assertEquals(1, feed.listAllCalls)
+        assertIs<ExtensionUiState.VaultReady>(controller.state.value)
+
+        feed.latestToken = "tok-3"
+        feed.changesToReturn = listOf(RemoteChange(RemotePath("changed"), isDeleted = false))
+        controller.refreshVault()
+
+        assertEquals(2, feed.getChangesCalls)
+        assertEquals(2, feed.listAllCalls)
     }
 }

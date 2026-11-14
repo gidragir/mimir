@@ -1,8 +1,8 @@
 package dev.mimir.extension.vault
 
-import dev.mimir.core.RcloneCipher
 import dev.mimir.core.RemoteEntry
 import dev.mimir.core.RemotePath
+import dev.mimir.core.testing.TestCiphers
 import dev.mimir.drive.auth.GoogleClientKind
 import dev.mimir.drive.auth.OAuthTokens
 import dev.mimir.extension.platform.ExtensionTokenStorage
@@ -17,7 +17,7 @@ import kotlin.time.Instant
 class VaultTreeBuilderTest {
     @Test
     fun buildsSortedHierarchySkipsExcludedAndUnencryptedGarbage() = runTest {
-        val cipher = RcloneCipher.create("test-pass")
+        val cipher = TestCiphers.forPassword("test-pass")
         fun encPath(vararg segments: String) = RemotePath.of(segments.map(cipher::encryptName))
 
         val entries = listOf(
@@ -41,7 +41,7 @@ class VaultTreeBuilderTest {
 
     @Test
     fun filtersByNameAndPathAndResolvesWikilinks() = runTest {
-        val cipher = RcloneCipher.create("test-pass")
+        val cipher = TestCiphers.forPassword("test-pass")
         fun encPath(vararg segments: String) = RemotePath.of(segments.map(cipher::encryptName))
 
         val entries = listOf(

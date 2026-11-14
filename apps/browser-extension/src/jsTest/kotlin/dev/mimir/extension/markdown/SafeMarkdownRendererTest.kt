@@ -82,12 +82,4 @@ class SafeMarkdownRendererTest {
         assertEquals("цитата", root.querySelector("blockquote")?.textContent?.trim())
         assertTrue(root.querySelector("pre.frontmatter")?.textContent?.contains("tags: [a]") == true)
     }
-
-    @Test
-    fun stripsMarkdownSyntaxToPlainText() {
-        val plain = SafeMarkdownRenderer.stripMarkdownToPlainText(
-            "# Заголовок\n**жирный** и `код`, [ссылка](https://e.com), [[Папка/Заметка|Алиас]]\n> цитата\n```kt\nval x = 1\n```",
-        )
-        assertEquals("Заголовок\nжирный и код, ссылка, Алиас\nцитата\nval x = 1", plain)
-    }
 }

@@ -1,7 +1,6 @@
 package dev.mimir.obsidian.sync
 
 import dev.mimir.core.ChangeFeedStorage
-import dev.mimir.core.CompletedItem
 import dev.mimir.core.RemoteChangesResult
 import dev.mimir.core.RemoteEntry
 import dev.mimir.core.RemotePath
@@ -9,9 +8,8 @@ import dev.mimir.core.RemoteUnavailableException
 import dev.mimir.core.SyncAbortedException
 import dev.mimir.core.SyncEngine
 import dev.mimir.core.SyncItemAction
-import dev.mimir.core.SyncPhase
-import dev.mimir.core.SyncProgress
-import dev.mimir.core.SyncStatus
+import dev.mimir.core.testing.FakeSyncEngine
+import dev.mimir.core.testing.TestClock
 import dev.mimir.drive.client.DriveAuthException
 import dev.mimir.obsidian.daemon.DaemonPresence
 import dev.mimir.obsidian.daemon.DaemonProbe
@@ -26,9 +24,6 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
@@ -38,52 +33,12 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
-import kotlin.time.Clock
-import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class PluginSyncControllerTest {
-
-    private class TestClock(var current: Instant = Instant.fromEpochMilliseconds(1_000_000)) : Clock {
-        override fun now(): Instant = current
-        fun advance(d: Duration) {
-            current += d
-        }
-    }
-
-    private class FakeSyncEngine(
-        val onSync: suspend () -> Unit = {},
-    ) : SyncEngine {
-        var syncCount = 0
-        var stopCount = 0
-        private val _status = MutableStateFlow<SyncStatus>(SyncStatus.Idle)
-        override val status: StateFlow<SyncStatus> = _status.asStateFlow()
-
-        private val _progress = MutableStateFlow<SyncProgress?>(null)
-        override val progress: StateFlow<SyncProgress?> = _progress.asStateFlow()
-
-        fun setProgress(completed: List<CompletedItem>, total: Int) {
-            _progress.value = SyncProgress(
-                phase = SyncPhase.Applying,
-                startedAt = Instant.fromEpochMilliseconds(0),
-                total = total,
-                completed = completed,
-            )
-        }
-
-        override suspend fun start() {}
-        override suspend fun stop() {
-            stopCount++
-        }
-
-        override suspend fun syncNow() {
-            syncCount++
-            onSync()
-        }
-    }
 
     private class FakeChangeFeed(
         var latestToken: String = "token-1",
@@ -164,7 +119,7 @@ class PluginSyncControllerTest {
         try {
             controller.start()
             advanceTimeBy(100)
-            assertEquals(1, engine.syncCount)
+            assertEquals(1, engine.syncNowCalls)
             assertIs<PluginState.UpToDate>(controller.state.value)
         } finally {
             controller.stop()
@@ -199,27 +154,27 @@ class PluginSyncControllerTest {
         try {
             controller.start()
             advanceTimeBy(100) // Startup run finishes
-            assertEquals(1, engine.syncCount)
+            assertEquals(1, engine.syncNowCalls)
 
             // Burst of 100 events across 3 seconds
             for (i in 0 until 100) {
                 vaultEvents.emit(VaultEvent.Upsert("note-$i.md"))
-                clock.advance(30.seconds / 1000)
+                clock.advanceBy(30.seconds / 1000)
                 advanceTimeBy(30)
             }
 
             // Within 3 seconds of bursting, no new sync has run yet
-            assertEquals(1, engine.syncCount)
+            assertEquals(1, engine.syncNowCalls)
 
             // Advance 4.9 seconds (less than 5s quiet period)
-            clock.advance(4900.seconds / 1000)
+            clock.advanceBy(4900.seconds / 1000)
             advanceTimeBy(4_900)
-            assertEquals(1, engine.syncCount)
+            assertEquals(1, engine.syncNowCalls)
 
             // Advance 200ms more (5s quiet period reached)
-            clock.advance(200.seconds / 1000)
+            clock.advanceBy(200.seconds / 1000)
             advanceTimeBy(200)
-            assertEquals(2, engine.syncCount)
+            assertEquals(2, engine.syncNowCalls)
         } finally {
             controller.stop()
             scope.cancel()
@@ -256,7 +211,7 @@ class PluginSyncControllerTest {
             controller.start()
             advanceTimeBy(50)
             // Active run 1 is hanging on syncGate
-            assertEquals(1, engine.syncCount)
+            assertEquals(1, engine.syncNowCalls)
 
             // Trigger manual runs while run 1 is active
             controller.trigger(Trigger.Manual)
@@ -264,14 +219,14 @@ class PluginSyncControllerTest {
             controller.trigger(Trigger.Manual)
 
             // Still only run 1 started
-            assertEquals(1, engine.syncCount)
+            assertEquals(1, engine.syncNowCalls)
 
             // Release run 1
             syncGate.complete(Unit)
             advanceTimeBy(50)
 
             // Exactly one rerun took place
-            assertEquals(2, engine.syncCount)
+            assertEquals(2, engine.syncNowCalls)
         } finally {
             controller.stop()
             scope.cancel()
@@ -313,28 +268,28 @@ class PluginSyncControllerTest {
         try {
             controller.start()
             advanceTimeBy(100)
-            assertEquals(1, engine.syncCount)
+            assertEquals(1, engine.syncNowCalls)
 
             // First resume at t=10s
-            clock.advance(10.seconds)
+            clock.advanceBy(10.seconds)
             advanceTimeBy(10_000)
             controller.trigger(Trigger.Resume)
             advanceTimeBy(50)
-            assertEquals(2, engine.syncCount)
+            assertEquals(2, engine.syncNowCalls)
 
             // Second resume at t=20s (only 10s after first resume -> throttled!)
-            clock.advance(10.seconds)
+            clock.advanceBy(10.seconds)
             advanceTimeBy(10_000)
             controller.trigger(Trigger.Resume)
             advanceTimeBy(50)
-            assertEquals(2, engine.syncCount)
+            assertEquals(2, engine.syncNowCalls)
 
             // Third resume at t=41s (>30s after first resume -> executed!)
-            clock.advance(21.seconds)
+            clock.advanceBy(21.seconds)
             advanceTimeBy(21_000)
             controller.trigger(Trigger.Resume)
             advanceTimeBy(50)
-            assertEquals(3, engine.syncCount)
+            assertEquals(3, engine.syncNowCalls)
         } finally {
             controller.stop()
             scope.cancel()
@@ -368,12 +323,12 @@ class PluginSyncControllerTest {
         try {
             controller.start()
             advanceTimeBy(100)
-            assertEquals(1, engine.syncCount) // Startup run
+            assertEquals(1, engine.syncNowCalls) // Startup run
 
             // Advance 5 minutes to trigger timer (no remote changes)
-            clock.advance(5.minutes)
+            clock.advanceBy(5.minutes)
             advanceTimeBy(5.minutes.inWholeMilliseconds)
-            assertEquals(1, engine.syncCount) // Skipped!
+            assertEquals(1, engine.syncNowCalls) // Skipped!
             assertTrue(feed.getChangesCalls >= 1)
         } finally {
             controller.stop()
@@ -416,11 +371,11 @@ class PluginSyncControllerTest {
         try {
             controller.start()
             advanceTimeBy(100)
-            assertEquals(1, engine.syncCount) // Startup
+            assertEquals(1, engine.syncNowCalls) // Startup
 
-            clock.advance(5.minutes)
+            clock.advanceBy(5.minutes)
             advanceTimeBy(5.minutes.inWholeMilliseconds)
-            assertEquals(2, engine.syncCount) // Ran because changes were found
+            assertEquals(2, engine.syncNowCalls) // Ran because changes were found
         } finally {
             controller.stop()
             scope.cancel()
@@ -461,13 +416,13 @@ class PluginSyncControllerTest {
         try {
             controller.start()
             advanceTimeBy(100)
-            assertEquals(1, engine.syncCount)
+            assertEquals(1, engine.syncNowCalls)
 
             controller.onVisibilityChanged(false)
-            clock.advance(15.minutes)
+            clock.advanceBy(15.minutes)
             advanceTimeBy(15.minutes.inWholeMilliseconds)
             // No timer executions when hidden
-            assertEquals(1, engine.syncCount)
+            assertEquals(1, engine.syncNowCalls)
         } finally {
             controller.stop()
             scope.cancel()
@@ -481,9 +436,16 @@ class PluginSyncControllerTest {
         val clock = TestClock()
 
         val gate = CompletableDeferred<Unit>()
-        val engine = FakeSyncEngine(onSync = {
+        val delegate = FakeSyncEngine(onSync = {
             gate.await()
         })
+        var stopCount = 0
+        val engine = object : SyncEngine by delegate {
+            override suspend fun stop() {
+                stopCount++
+                delegate.stop()
+            }
+        }
         val source = FakeEngineSource(engine to FakeChangeFeed())
         val secrets = DeviceSecretStore(FakeLocalStorage())
         val settings = testSettingsStore()
@@ -503,13 +465,13 @@ class PluginSyncControllerTest {
             controller.start()
             advanceTimeBy(100)
             // Run started
-            assertEquals(1, engine.syncCount)
+            assertEquals(1, delegate.syncNowCalls)
 
             controller.onVisibilityChanged(false)
             advanceTimeBy(50)
 
             // Engine stop was called
-            assertEquals(1, engine.stopCount)
+            assertEquals(1, stopCount)
             // State is not Syncing
             val state = controller.state.value
             assertTrue(state !is PluginState.Syncing)
@@ -583,7 +545,7 @@ class PluginSyncControllerTest {
         try {
             controller.start()
             advanceTimeBy(100)
-            assertEquals(0, engine.syncCount)
+            assertEquals(0, engine.syncNowCalls)
             assertEquals(PluginState.YieldsToDaemon, controller.state.value)
         } finally {
             controller.stop()
@@ -625,14 +587,14 @@ class PluginSyncControllerTest {
         try {
             controller.start()
             advanceTimeBy(100)
-            assertEquals(0, engine.syncCount)
+            assertEquals(0, engine.syncNowCalls)
             assertEquals(PluginState.PausedForDaemon, controller.state.value)
 
             // Now set forceSyncWithDaemon = true
             settings.update { it.copy(forceSyncWithDaemon = true) }
             controller.trigger(Trigger.Manual)
             advanceTimeBy(100)
-            assertEquals(1, engine.syncCount)
+            assertEquals(1, engine.syncNowCalls)
             assertIs<PluginState.UpToDate>(controller.state.value)
         } finally {
             controller.stop()
