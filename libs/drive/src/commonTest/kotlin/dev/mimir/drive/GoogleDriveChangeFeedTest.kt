@@ -37,6 +37,8 @@ class GoogleDriveChangeFeedTest {
                     respond("""{"startPageToken":"start_token_1"}""", HttpStatusCode.OK, jsonHeaders)
                 }
                 request.url.encodedPath == "/drive/v3/changes" && request.url.parameters["pageToken"] == "start_token_1" -> {
+                    assertEquals("1000", request.url.parameters["pageSize"])
+                    assertEquals("false", request.url.parameters["supportsAllDrives"])
                     respond("""
                         {
                             "newStartPageToken": "start_token_2",

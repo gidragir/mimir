@@ -4,6 +4,8 @@ import dev.mimir.core.RemoteEntry
 import dev.mimir.core.RemotePath
 import dev.mimir.core.RemoteUnavailableException
 import dev.mimir.drive.api.GoogleDriveFile
+import dev.mimir.drive.api.driveJson
+import dev.mimir.drive.api.toRemoteEntry
 import dev.mimir.drive.client.DriveHttpClient
 import dev.mimir.drive.client.DriveHttpException
 import dev.mimir.drive.path.DrivePathResolver
@@ -27,9 +29,6 @@ import kotlinx.io.Source
 import kotlinx.io.readByteArray
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
-import kotlin.time.Clock
-import kotlin.time.Instant
 
 class DriveUploader(
     private val client: DriveHttpClient,
@@ -37,7 +36,6 @@ class DriveUploader(
     private val resumableThresholdBytes: Long = 5 * 1024 * 1024,
     private val chunkSize: Int = 1024 * 1024,
 ) {
-    private val json = Json { ignoreUnknownKeys = true }
 
     /**
      * Отправляет [data] в Drive, не читая её целиком в память.
@@ -72,25 +70,8 @@ class DriveUploader(
             uploadResumable(parentFolderId, existingFile, fileName, head, data) { sentBytes = it }
         }
 
-        pathResolver.invalidate(path)
-
-        val instant = uploadedFile.modifiedTime?.let {
-            try {
-                Instant.parse(it)
-            } catch (_: Exception) {
-                Clock.System.now()
-            }
-        } ?: Clock.System.now()
-
-        return RemoteEntry(
-            path = path,
-            size = uploadedFile.size ?: sentBytes,
-            modifiedAt = instant,
-            // Ревизия — только md5, как в листинге (`listAll`); id файла не меняется при записи и дал бы
-            // расхождение с листингом, то есть ложное «удалённый изменён» на следующем прогоне.
-            revision = uploadedFile.md5Checksum,
-            isDirectory = false,
-        )
+        pathResolver.registerPath(path, uploadedFile)
+        return uploadedFile.toRemoteEntry(path, defaultSize = sentBytes)
     }
 
     private suspend fun uploadSimple(
@@ -104,7 +85,7 @@ class DriveUploader(
         } else {
             FileMetadata(name = fileName, parents = listOf(parentFolderId))
         }
-        val metadataJson = json.encodeToString(metadata)
+        val metadataJson = driveJson.encodeToString(metadata)
 
         val url = if (existingFile != null) {
             "https://www.googleapis.com/upload/drive/v3/files/${existingFile.id}?uploadType=multipart&fields=$UPLOADED_FILE_FIELDS"
@@ -150,7 +131,7 @@ class DriveUploader(
         } else {
             FileMetadata(name = fileName, parents = listOf(parentFolderId))
         }
-        val metadataJson = json.encodeToString(metadata)
+        val metadataJson = driveJson.encodeToString(metadata)
 
         val initUrl = if (existingFile != null) {
             "https://www.googleapis.com/upload/drive/v3/files/${existingFile.id}?uploadType=resumable&fields=$UPLOADED_FILE_FIELDS"
