@@ -1,5 +1,78 @@
 # Changelog
 
+## [0.6.0](https://github.com/gidragir/mimir/compare/v0.5.0...v0.6.0) (2026-11-14)
+
+
+### Features
+
+* **core:** add test utilities for ciphers, clock, and conflict resolver tests ([41bc02c](https://github.com/gidragir/mimir/commit/41bc02cf2fd359274410c32ed889015c06aa6437))
+* **daemon:** add authentication routes and improve HTTP client handling for SSE and status updates ([c8d522a](https://github.com/gidragir/mimir/commit/c8d522ac097e8ca45488670175c7baff6189ab4c))
+* **drive:** add ranged chunked download to GoogleDriveStorage ([99e7af7](https://github.com/gidragir/mimir/commit/99e7af74a454da812f4cf937409968aa11a3e6eb))
+* **drive:** introduce DriveDownloader and refactor GoogleDriveStorage to improve modularity and readability ([61d3b4a](https://github.com/gidragir/mimir/commit/61d3b4a74ee94ba65724a1ed0da7620acc29df90))
+* **obsidian:** add device code sign-in flow ([c7d8f41](https://github.com/gidragir/mimir/commit/c7d8f41fc1fdad676108b1aaa2e74635e89f00b0))
+* **obsidian:** add Ktor engine over Obsidian requestUrl ([109640e](https://github.com/gidragir/mimir/commit/109640e42b06972c7fa0f75bf0a4c462471950aa))
+* **obsidian:** add LocalVault adapter over Obsidian DataAdapter ([e6016c1](https://github.com/gidragir/mimir/commit/e6016c1e4dc92aa3fd960d9902742e6de8fbb7fc))
+* **obsidian:** add platform diagnostics command ([20a93bf](https://github.com/gidragir/mimir/commit/20a93bf40f26aa7192004b173177ac53a1dbfd19))
+* **obsidian:** add settings, sign-in modal and status UI ([1a5aa08](https://github.com/gidragir/mimir/commit/1a5aa0855a928bbbb5552e63d2859864a61e21ee))
+* **obsidian:** add sync controller with foreground triggers ([7ff29d1](https://github.com/gidragir/mimir/commit/7ff29d164c5a062cd478d5c7020a70ebfdff4d52))
+* **obsidian:** assemble encrypted sync engine and verify vault password ([e7df765](https://github.com/gidragir/mimir/commit/e7df76530885ce4a600ff765cd1dabc41c082abb))
+* **obsidian:** detect Mimir daemon serving the same vault ([ace5d7d](https://github.com/gidragir/mimir/commit/ace5d7dc839cc96c8e5b4f7cb598994ac03a9296))
+* **obsidian:** persist sync index in plugin directory ([b053b3e](https://github.com/gidragir/mimir/commit/b053b3e9a447919440714893d503b93dc16c12aa))
+* **obsidian:** store tokens and cipher key in device local storage ([62be16b](https://github.com/gidragir/mimir/commit/62be16b0df14ad965017f3ae22500ca38b1245d4))
+* **runtime:** introduce cipher factory and watcher factory in runtime creation to enhance flexibility and customization ([10eb913](https://github.com/gidragir/mimir/commit/10eb91313f4a60882d5dbb3e5e5ff64694fd379b))
+* **ui:** redesign conflicts screen with clear cloud vs local actions and Mimir components ([a201bda](https://github.com/gidragir/mimir/commit/a201bda1f92294fa9f745f5fbd217a4a92b680c2))
+* **ui:** refactor status screen and tray popover to improve modularity and reusability ([3d655b5](https://github.com/gidragir/mimir/commit/3d655b51a571842cefb7017d6c21899502028f10))
+* **web-ui:** add HTTP client integration and session token handling for web UI ([16d91a7](https://github.com/gidragir/mimir/commit/16d91a7be6a93adb8727cdf1d9645284b969c7ce))
+
+
+### Bug Fixes
+
+* **ci:** set Node Mocha timeout, track actions filter and replace grep with rg ([e0de552](https://github.com/gidragir/mimir/commit/e0de552c4b8e0a1fff3e559edcc69f0724261bc5))
+* **extension:** adapt file tree width to side panel resizing ([c09003f](https://github.com/gidragir/mimir/commit/c09003fc22526603e9a3deedacaa3efde774d9e3))
+* **extension:** collapse folders by default on initial vault load ([0420273](https://github.com/gidragir/mimir/commit/0420273f33327dab485235615304bdcb71b046e8))
+* **json:** update command mappings and subsystem documentation for improved clarity and accuracy ([9f9a837](https://github.com/gidragir/mimir/commit/9f9a837143145ab1afa0596125607d8efc69bb0f))
+* **L0_index:** update last modified date and reorder custom commands for clarity ([98076ef](https://github.com/gidragir/mimir/commit/98076efaaebe3ac2f8c73f43d4ed088e48d2006a))
+* **obsidian:** pass app and manifest to Plugin constructor ([cbc844f](https://github.com/gidragir/mimir/commit/cbc844f19ae928ab8ca07c16838f57b72edf02f7))
+* **obsidian:** write diagnostics report incrementally with staged stream sizes ([b746612](https://github.com/gidragir/mimir/commit/b746612df2284934e5569f94735224869a3ca201))
+
+
+### Performance Improvements
+
+* **win-vm:** reuse template git repo in win:test helpers ([598fa23](https://github.com/gidragir/mimir/commit/598fa23da372ea55881ea790d04b03a500797672))
+
+
+### Documentation
+
+* add spec and plan for conflicts UI clarification ([067e881](https://github.com/gidragir/mimir/commit/067e88162578e25540633e1ef8a3770570da3a92))
+* **context:** refresh context-init knowledge base ([435c1ae](https://github.com/gidragir/mimir/commit/435c1ae40ba8d73b8e4b99b91b25992aafd3a39e))
+* **context:** refresh context-init knowledge base after review fixes ([9107ed4](https://github.com/gidragir/mimir/commit/9107ed41c16ee16f3832eb605327a9859e53c893))
+* **obsidian:** add design spec for standalone plugin sync on iOS/Android/desktop ([a9e1868](https://github.com/gidragir/mimir/commit/a9e18683afa0262bbfff2682ec1427ed318ba23b))
+* **obsidian:** add implementation plan for standalone plugin sync ([e6cfd7b](https://github.com/gidragir/mimir/commit/e6cfd7b78360d53488ae7f2a91e7df8665db00bb))
+* **obsidian:** document standalone plugin sync and limitations ([a0362df](https://github.com/gidragir/mimir/commit/a0362df1c95c9a450690b551e8b063c73cadc53d))
+* **obsidian:** record iPhone diagnostics result as Ruling 4 ([9617fe4](https://github.com/gidragir/mimir/commit/9617fe4edda90855f43108540b6654f33b7be441))
+* **plans:** add WT1-WT5 implementation plans and subagent prompts ([2dfd70f](https://github.com/gidragir/mimir/commit/2dfd70f24efded56790ef7372a60cb094db29815))
+* record Release Please, CI duplicate prevention, and WorkManager testing invariants ([d1d9164](https://github.com/gidragir/mimir/commit/d1d9164be91186077eae7ad60fc6c77300bea32e))
+* update context-init knowledge base for ConflictsTexts ([20d94f7](https://github.com/gidragir/mimir/commit/20d94f73bbfdebc907ff435d4f69a6aaa401cccc))
+
+
+### Code Refactoring
+
+* **android:** improve MainViewModel and add tests for background sync functionality ([68ab1f6](https://github.com/gidragir/mimir/commit/68ab1f6bb726daab574e91ffb78fcb1d6bd57c4e))
+* **browser-extension:** modularize markdown rendering, incremental sync cache, and partial DOM patching ([6b7ff05](https://github.com/gidragir/mimir/commit/6b7ff056f650028a292c78d913658f84cace2bda))
+* **core:** improve handling of symbolic links and hidden paths in FileSystemLocalVault and update tests ([946c527](https://github.com/gidragir/mimir/commit/946c52718f674eef90a1a43a8c5cc31e6c49f05a))
+* **core:** share sync index JSON format across platforms ([6e77f5e](https://github.com/gidragir/mimir/commit/6e77f5e75b6489400b6571e09bc034b952df2213))
+* **core:** update and consolidate sync engine logic and introduce change feed support ([99aeceb](https://github.com/gidragir/mimir/commit/99aeceb1c6113743f7e25f5d18773752aae3ab95))
+* **crypto:** improve buffer handling and error handling in hashing and encryption sources ([ea0eda7](https://github.com/gidragir/mimir/commit/ea0eda7553862a2b7aff8025a6e40835be567193))
+* **obsidian-plugin:** organize and modularize event registration and status bar management in MimirPlugin.kt ([f558d8e](https://github.com/gidragir/mimir/commit/f558d8ebb0fa28af8042c041ac4dc7e4b7b2cf9a))
+* **runtime:** consolidate login logic and introduce RuntimeAuthCoordinator for better management ([f18263b](https://github.com/gidragir/mimir/commit/f18263be545563af6a0a77211f27816ee84fe46d))
+* **subsystems:** reorganize and update command mappings and subsystem references to improve clarity and maintainability ([c830eb7](https://github.com/gidragir/mimir/commit/c830eb78221e86b5127ccb11c7990d275563caa9))
+
+
+### Build System
+
+* **packaging:** split Docker Gradle layer and set PKGBUILD url ([94f3e89](https://github.com/gidragir/mimir/commit/94f3e89990c2a15554a9aeedde2c911da5828074))
+* run library JS tests on Node and share build-logic helpers ([f4db9b8](https://github.com/gidragir/mimir/commit/f4db9b8efb0cdaa725b0eb3f99d0eb25ae670124))
+
 ## [0.5.0](https://github.com/gidragir/mimir/compare/v0.4.0...v0.5.0) (2026-11-07)
 
 
