@@ -1,16 +1,16 @@
 ---
-directory: libs/ui/build.gradle.kts
+directory: libs/ui
 source:
   kind: git
-  blob_sha: 58d8f7cfd1b189b7a77351edd11b474a219282ab
-  commit_sha: c830eb78221e86b5127ccb11c7990d275563caa9
+  blob_sha: f5dda16a6c63955262da856c76a0519b10d777eb
+  commit_sha: e735cb52ed681f464f3b8e62310c00a288fd4504
 generated_by:
   component: context-init
   role: update
   model: none
 freshness:
-  total_entries: 1
-  sampled_entries: 1
+  total_entries: 4
+  sampled_entries: 4
   unsampled_entries: 0
   pending_child_changes: 0
 ---
@@ -27,6 +27,16 @@ freshness:
 | Файл | Статус |
 | :--- | :--- |
 | `libs/ui/build.gradle.kts` | ⭐ Точка входа |
+| `libs/ui/src/androidMain/kotlin/dev/mimir/ui/platform/ClipboardEntries.android.kt` | Исходный код |
+| `libs/ui/src/desktopMain/kotlin/dev/mimir/ui/platform/ClipboardEntries.desktop.kt` | Исходный код |
+| `libs/ui/src/wasmJsMain/kotlin/dev/mimir/ui/platform/ClipboardEntries.wasmJs.kt` | Исходный код |
+
+## 🔑 Ключевой контракт и экспорты
+```text
+internal actual fun plainTextClipEntry(text: String): ClipEntry = ClipEntry(ClipData.newPlainText(null, text))
+internal actual fun plainTextClipEntry(text: String): ClipEntry = ClipEntry(StringSelection(text))
+internal actual fun plainTextClipEntry(text: String): ClipEntry = ClipEntry.withPlainText(text)
+```
 
 ## 🧪 Запуск и тестирование
 ```bash

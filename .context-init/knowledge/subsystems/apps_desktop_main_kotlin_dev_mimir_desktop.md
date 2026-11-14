@@ -2,8 +2,8 @@
 directory: apps/desktop/src/main/kotlin/dev/mimir/desktop
 source:
   kind: git
-  blob_sha: 980d9f15247d6cde42162128d7c9d20af8cd9d6c
-  commit_sha: 570bdf8b131c69da889f78491ee6adaf106b3095
+  blob_sha: be4b28c7c2f3ca55ea5cf3b08366dbe573459466
+  commit_sha: e735cb52ed681f464f3b8e62310c00a288fd4504
 generated_by:
   component: context-init
   role: update
@@ -52,8 +52,8 @@ suspend fun create( config: DaemonConfig, platform: TargetPlatform = detectTarge
 override suspend fun quiesce() = runtimeRef.get()?.quiesceForUpdate() ?: false
 override suspend fun resume()
 override suspend fun shutdown()
+internal fun createUpdateApplier(...): UpdateApplier = DesktopApplierFactory.create( platform = platform, httpClient = httpClient, tempDir = updateTempDir, host = host, browserOpener = SystemBrowserOpener()::openUri, )
 fun main(args: Array<String>)
-object PlatformFocus
 ```
 
 ## 🧪 Запуск и тестирование

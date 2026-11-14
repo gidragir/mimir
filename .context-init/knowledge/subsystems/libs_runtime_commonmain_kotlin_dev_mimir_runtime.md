@@ -2,8 +2,8 @@
 directory: libs/runtime/src/commonMain/kotlin/dev/mimir/runtime
 source:
   kind: git
-  blob_sha: 42db5026145237f4cfc4d55dfb2262c5e4c050c0
-  commit_sha: 1a5aa0855a928bbbb5552e63d2859864a61e21ee
+  blob_sha: 11241b1b60dab442cf7a88af696e491de0ca0170
+  commit_sha: e735cb52ed681f464f3b8e62310c00a288fd4504
 generated_by:
   component: context-init
   role: update
@@ -29,7 +29,6 @@ freshness:
 | `libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/AccountStore.kt` | Исходный код |
 | `libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/AtomicFiles.kt` | Исходный код |
 | `libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/Canary.kt` | Исходный код |
-| `libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/ConflictFiles.kt` | Исходный код |
 | `libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/ConflictTracker.kt` | Исходный код |
 | `libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/EngineAssembler.kt` | Исходный код |
 | `libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/FileTokenStorage.kt` | Исходный код |
@@ -41,6 +40,7 @@ freshness:
 | `libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/login/BrowserLoginReceiver.kt` | Исходный код |
 | `libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/login/DeviceCodeLoginProvider.kt` | Исходный код |
 | `libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/login/LoginProvider.kt` | Исходный код |
+| `libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/login/RuntimeAuthCoordinator.kt` | Исходный код |
 
 ## 🔑 Ключевой контракт и экспорты
 ```text
@@ -50,10 +50,10 @@ suspend fun method(): DaemonLoginMethod?
 fun save(email: String?, method: DaemonLoginMethod)
 fun delete()
 fun writeFileAtomically(target: Path, content: String, ownerOnly: Boolean = false)
-class InvalidPasswordException(message: String) : IllegalArgumentException(message)
+typealias InvalidPasswordException = dev.mimir.client.InvalidPasswordException
+typealias SyncNotConfiguredException = dev.mimir.client.SyncNotConfiguredException
 suspend fun verifyOrInitCanary(remote: RemoteStorage, cipher: Cipher, configDir: Path)
-class SyncNotConfiguredException(message: String) : IllegalStateException(message)
-typealias ConflictFileEntry = dev.mimir.core.ConflictFileEntry
+internal class ConflictTracker( private val scope: CoroutineScope, private val watcherFactory: VaultWatcherFactory, private val localVaultFactory: (Path) -> LocalVault, private val scanInterval: Duration, private val vaultPath: () -> String?, )
 ```
 
 ## 🧪 Запуск и тестирование

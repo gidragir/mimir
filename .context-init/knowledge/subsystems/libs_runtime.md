@@ -3,7 +3,7 @@ directory: libs/runtime/build.gradle.kts
 source:
   kind: git
   blob_sha: 4b4488e19a9bbff08eb1b173537c8aeecb81464d
-  commit_sha: c830eb78221e86b5127ccb11c7990d275563caa9
+  commit_sha: e735cb52ed681f464f3b8e62310c00a288fd4504
 generated_by:
   component: context-init
   role: update

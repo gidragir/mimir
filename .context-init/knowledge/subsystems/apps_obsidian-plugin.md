@@ -2,8 +2,8 @@
 directory: apps/obsidian-plugin
 source:
   kind: git
-  blob_sha: 350296c8cb255a6ee4bf4c1dccd1bc613b0be1b3
-  commit_sha: c830eb78221e86b5127ccb11c7990d275563caa9
+  blob_sha: 101ec9763c83e866f88c3a709f3a9a769e74377b
+  commit_sha: e735cb52ed681f464f3b8e62310c00a288fd4504
 generated_by:
   component: context-init
   role: update

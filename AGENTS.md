@@ -147,8 +147,8 @@ Mimir — клиент синхронизации Obsidian-хранилища с
 - `apps_android` (Android) — Подсистема `apps/android` с ключевыми точками входа: apps/android/build.gradle.kts
 - `apps_browser-extension` (Browser Extension) — Подсистема `apps/browser-extension` с ключевыми точками входа: apps/browser-extension/build.gradle.kts
 - `apps_browser-extension_jsmain` (Browser Extension JsMain) — Модуль и компоненты директории `apps/browser-extension/src/jsMain` (3 файлов)
-- `apps_browser-extension_jsmain_kotlin_dev_mimir_extension` (Browser Extension JsMain Kotlin Dev Mimir Extension) — Модуль и компоненты директории `apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension` (8 файлов)
-- `apps_browser-extension_jsmain_kotlin_dev_mimir_extension_ui` (Browser Extension JsMain Kotlin Dev Mimir Extension Ui) — Модуль и компоненты директории `apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/ui` (8 файлов)
+- `apps_browser-extension_jsmain_kotlin_dev_mimir_extension` (Browser Extension JsMain Kotlin Dev Mimir Extension) — Модуль и компоненты директории `apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension` (10 файлов)
+- `apps_browser-extension_jsmain_kotlin_dev_mimir_extension_ui` (Browser Extension JsMain Kotlin Dev Mimir Extension Ui) — Модуль и компоненты директории `apps/browser-extension/src/jsMain/kotlin/dev/mimir/extension/ui` (7 файлов)
 - `apps_daemon` (Daemon) — Подсистема `apps/daemon` с ключевыми точками входа: apps/daemon/build.gradle.kts
 - `apps_desktop` (Desktop) — Подсистема `apps/desktop` с ключевыми точками входа: apps/desktop/build.gradle.kts
 - `apps_desktop_main_kotlin_dev_mimir_desktop` (Desktop Main Kotlin Dev Mimir Desktop) — Модуль и компоненты директории `apps/desktop/src/main/kotlin/dev/mimir/desktop` (15 файлов)
@@ -170,7 +170,8 @@ Mimir — клиент синхронизации Obsidian-хранилища с
 - `libs_runtime_commonmain_kotlin_dev_mimir_runtime_update` (Runtime CommonMain Kotlin Dev Mimir Runtime Update) — Модуль и компоненты директории `libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/update` (6 файлов)
 - `libs_ui` (Ui) — Подсистема `libs/ui` с ключевыми точками входа: libs/ui/build.gradle.kts
 - `libs_ui_commonmain_kotlin_dev_mimir_ui` (Ui CommonMain Kotlin Dev Mimir Ui) — Модуль и компоненты директории `libs/ui/src/commonMain/kotlin/dev/mimir/ui` (15 файлов)
-- `libs_ui_commonmain_kotlin_dev_mimir_ui_screens` (Ui CommonMain Kotlin Dev Mimir Ui Screens) — Модуль и компоненты директории `libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens` (14 файлов)
+- `libs_ui_commonmain_kotlin_dev_mimir_ui_screens` (Ui CommonMain Kotlin Dev Mimir Ui Screens) — Модуль и компоненты директории `libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens` (11 файлов)
+- `libs_ui_commonmain_kotlin_dev_mimir_ui_screens_setup` (Ui CommonMain Kotlin Dev Mimir Ui Screens Setup) — Модуль и компоненты директории `libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens/setup` (6 файлов)
 - `packaging` (Packaging) — Модуль и компоненты директории `packaging` (2 файлов)
 - `scripts_win-vm` (Scripts Win Vm) — Модуль и компоненты директории `scripts/win-vm` (6 файлов)
 - `scripts_win-vm_tests` (Scripts Win Vm Tests) — Тесты для `scripts_win-vm`

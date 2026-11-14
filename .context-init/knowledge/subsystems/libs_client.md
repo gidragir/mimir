@@ -2,15 +2,15 @@
 directory: libs/client
 source:
   kind: git
-  blob_sha: 4b73e85fb7e15610db2dc329a1bea2a9c66636ff
-  commit_sha: bca5a71aa25e84ea197c3bf1e2540a4de155de19
+  blob_sha: 53f3d72c83df91216a8ee5083210c9a7ba482f6c
+  commit_sha: e735cb52ed681f464f3b8e62310c00a288fd4504
 generated_by:
   component: context-init
   role: update
   model: none
 freshness:
-  total_entries: 5
-  sampled_entries: 5
+  total_entries: 6
+  sampled_entries: 6
   unsampled_entries: 0
   pending_child_changes: 0
 ---
@@ -28,6 +28,7 @@ freshness:
 | :--- | :--- |
 | `libs/client/build.gradle.kts` | ⭐ Точка входа |
 | `libs/client/src/commonMain/kotlin/dev/mimir/client/DaemonDto.kt` | Исходный код |
+| `libs/client/src/commonMain/kotlin/dev/mimir/client/DaemonHttpTransport.kt` | Исходный код |
 | `libs/client/src/commonMain/kotlin/dev/mimir/client/DaemonService.kt` | Исходный код |
 | `libs/client/src/commonMain/kotlin/dev/mimir/client/HttpDaemonClient.kt` | Исходный код |
 | `libs/client/src/commonMain/kotlin/dev/mimir/client/UpdateDto.kt` | Исходный код |

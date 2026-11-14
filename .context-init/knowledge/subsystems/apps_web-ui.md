@@ -2,8 +2,8 @@
 directory: apps/web-ui
 source:
   kind: git
-  blob_sha: 1a5645b9cbc56627a03ccb3bedbdda942f953655
-  commit_sha: c830eb78221e86b5127ccb11c7990d275563caa9
+  blob_sha: df3d1643789b79de9b23ad937d236ba0223b469b
+  commit_sha: e735cb52ed681f464f3b8e62310c00a288fd4504
 generated_by:
   component: context-init
   role: update

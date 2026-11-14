@@ -2,8 +2,8 @@
 directory: apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian
 source:
   kind: git
-  blob_sha: eb1d17d4cef48ae08fd522cc13dbe64323423ebe
-  commit_sha: 1a5aa0855a928bbbb5552e63d2859864a61e21ee
+  blob_sha: 6e851be12e276529ed2ab17aa3800e8dd6184b67
+  commit_sha: e735cb52ed681f464f3b8e62310c00a288fd4504
 generated_by:
   component: context-init
   role: update

@@ -2,15 +2,15 @@
 directory: apps/daemon
 source:
   kind: git
-  blob_sha: 43488bfde52920639b24ad94afd2a5003c0e34b9
-  commit_sha: 26d53005b2cd507dcc6d6b2875e8475b7ca8fb6c
+  blob_sha: 20cbd43a95e92b9394a26fd348d9885a490a675f
+  commit_sha: e735cb52ed681f464f3b8e62310c00a288fd4504
 generated_by:
   component: context-init
   role: update
   model: none
 freshness:
-  total_entries: 9
-  sampled_entries: 9
+  total_entries: 10
+  sampled_entries: 10
   unsampled_entries: 0
   pending_child_changes: 0
 ---
@@ -27,6 +27,7 @@ freshness:
 | Файл | Статус |
 | :--- | :--- |
 | `apps/daemon/build.gradle.kts` | ⭐ Точка входа |
+| `apps/daemon/src/main/kotlin/dev/mimir/daemon/AuthRoutes.kt` | Исходный код |
 | `apps/daemon/src/main/kotlin/dev/mimir/daemon/DaemonConfig.kt` | Исходный код |
 | `apps/daemon/src/main/kotlin/dev/mimir/daemon/DaemonService.kt` | Исходный код |
 | `apps/daemon/src/main/kotlin/dev/mimir/daemon/DockerLogNotifyApplier.kt` | Исходный код |
@@ -38,6 +39,7 @@ freshness:
 
 ## 🔑 Ключевой контракт и экспорты
 ```text
+internal fun Route.authRoutes(service: DaemonService)
 data class DaemonConfig( val bind: String = "127.0.0.1", val port: Int = BuildConfig.API_DEFAULT_PORT, val vaultPath: String? = null, val token: String? = null, val password: String? = null, val passwordFile: String? = null, val googleDesktopClientId: String? = null, val googl...
 fun resolvePassword(): String?
 fun isPasswordFileInsecure(): Boolean
@@ -47,7 +49,6 @@ fun load(configDir: String? = null, env: Map<String, String> = System.getenv()):
 fun readFile(configDir: String): DaemonConfig
 fun DaemonConfig.Companion.fromEnv(env: Map<String, String>): DaemonConfig = DaemonConfig().applyEnv(env)
 class DaemonSettingsStore(initial: DaemonConfig) : RuntimeSettingsStore
-override fun load() = RuntimeConfig( dataDir = Paths.get(configDir), vaultPath = config.vaultPath, syncIntervalSeconds = config.syncIntervalSeconds, syncParallelism = config.syncParallelism, rootFolder = config.rootFolder, )
 ```
 
 ## 🧪 Запуск и тестирование
