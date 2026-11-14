@@ -2,18 +2,15 @@ package dev.mimir.core
 
 import dev.mimir.core.sync.DefaultSyncEngine
 import dev.mimir.core.sync.InMemorySyncStateStore
-import dev.mimir.core.sync.SyncIndex
-import dev.mimir.core.sync.SyncStateStore
+import dev.mimir.core.testing.CountingLocalVault
+import dev.mimir.core.testing.CountingSyncStateStore
 import dev.mimir.core.testing.InMemoryLocalVault
 import kotlinx.coroutines.test.runTest
 import kotlinx.io.Buffer
-import kotlinx.io.Source
 import kotlinx.io.readByteArray
-import kotlin.concurrent.atomics.AtomicInt
-import kotlin.concurrent.atomics.ExperimentalAtomicApi
-import kotlin.concurrent.atomics.incrementAndFetch
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -22,29 +19,9 @@ class SyncEngineIoBudgetTest {
 
     private fun bufferOf(text: String): Buffer = Buffer().also { it.write(text.encodeToByteArray()) }
 
-    /** Vault, считающий локальные записи (атомарно: движок пишет из параллельных воркеров). */
-    @OptIn(ExperimentalAtomicApi::class)
-    private class CountingVault(private val inner: InMemoryLocalVault = InMemoryLocalVault()) : LocalVault by inner {
-        private val writeCount = AtomicInt(0)
-        val writes: Int get() = writeCount.load()
-
-        override suspend fun write(relativePath: String, data: Source): LocalEntry {
-            writeCount.incrementAndFetch()
-            return inner.write(relativePath, data)
-        }
-
-        override suspend fun write(id: VaultFileId, data: Source) {
-            writeCount.incrementAndFetch()
-            inner.write(id, data)
-        }
-
-        fun resetWrites() {
-            writeCount.store(0)
-        }
-    }
-
     private class Fixture {
-        val vault = CountingVault()
+        val innerVault = InMemoryLocalVault()
+        val vault = CountingLocalVault(innerVault)
         val inner = InMemoryRemoteStorage()
         val remote = CountingRemoteStorage(inner)
         val store = InMemorySyncStateStore()
@@ -52,7 +29,7 @@ class SyncEngineIoBudgetTest {
 
         fun reset() {
             remote.reset()
-            vault.resetWrites()
+            vault.reset()
         }
     }
 
@@ -211,8 +188,8 @@ class SyncEngineIoBudgetTest {
 
     @Test
     fun indexSavesAreBatched() = runTest {
-        val saves = CountingStateStore()
-        val vault = CountingVault()
+        val saves = CountingSyncStateStore()
+        val vault = CountingLocalVault()
         val batched = DefaultSyncEngine(vault, InMemoryRemoteStorage(), saves)
         for (i in 1..250) vault.write("notes/n$i.md", bufferOf("note $i"))
 
@@ -222,18 +199,53 @@ class SyncEngineIoBudgetTest {
         assertTrue(saves.saves in 1..4, "250 uploads → at most 3 + 1 index saves, got ${saves.saves}")
     }
 
-    /** Хранилище индекса, считающее сохранения. */
-    private class CountingStateStore : SyncStateStore {
-        private val inner = InMemorySyncStateStore()
-        var saves = 0
-            private set
+    @Test
+    fun incrementalChangeFeedSkipsListAll() = runTest {
+        val raw = InMemoryRemoteStorage()
+        var listAllCalls = 0
+        var getChangesCalls = 0
+        val pendingChanges = mutableListOf<RemoteChange>()
+        var tokenSeq = 1
 
-        override suspend fun load(): SyncIndex = inner.load()
+        val feedStorage = object : ChangeFeedStorage, RemoteStorage by raw {
+            override suspend fun listAll(root: RemotePath, onProgress: (Int, Int) -> Unit): List<RemoteEntry> {
+                listAllCalls++
+                return raw.listAll(root, onProgress)
+            }
 
-        override suspend fun save(index: SyncIndex) {
-            saves++
-            inner.save(index)
+            override suspend fun getLatestChangeToken(): String = "tok-${tokenSeq++}"
+
+            override suspend fun getChanges(sinceToken: String): RemoteChangesResult {
+                getChangesCalls++
+                val batch = pendingChanges.toList()
+                pendingChanges.clear()
+                return RemoteChangesResult(batch, "tok-${tokenSeq++}")
+            }
         }
+
+        val vault = CountingLocalVault()
+        val store = InMemorySyncStateStore()
+        val engine = DefaultSyncEngine(vault, feedStorage, store)
+
+        // Первый прогон: полный listAll + сохранение remoteChangeToken
+        vault.write("a.md", bufferOf("A"))
+        vault.write("b.md", bufferOf("B"))
+        engine.syncNow()
+        assertEquals(1, listAllCalls)
+        assertEquals(0, getChangesCalls)
+        val firstToken = assertNotNull(store.load().remoteChangeToken)
+
+        // Удалённо изменился только b.md
+        listAllCalls = 0
+        val updatedEntry = raw.write(RemotePath("b.md"), bufferOf("B2"))
+        pendingChanges += RemoteChange(path = RemotePath("b.md"), entry = updatedEntry, isDeleted = false)
+
+        engine.syncNow()
+
+        assertEquals(0, listAllCalls)
+        assertEquals(1, getChangesCalls)
+        assertEquals("B2", vault.text("b.md"))
+        assertNotEquals(firstToken, store.load().remoteChangeToken)
     }
 
     private companion object {

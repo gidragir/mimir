@@ -33,6 +33,24 @@ class IndexUpdater(
         if (unsaved >= saveEvery) saveLocked()
     }
 
+    /** Применяет пакет метаданных ([SyncAction.UpdateMetadata], [SyncAction.ForgetRecord]) за одно копирование и одно сохранение. */
+    suspend fun updateAll(actions: List<SyncAction>): Unit = mutex.withLock {
+        if (actions.isEmpty()) return@withLock
+        val put = mutableListOf<FileSyncRecord>()
+        val remove = mutableListOf<String>()
+        for (action in actions) {
+            when (action) {
+                is SyncAction.UpdateMetadata -> put += action.record
+                is SyncAction.ForgetRecord -> remove += action.path
+                else -> Unit
+            }
+        }
+        if (put.isEmpty() && remove.isEmpty()) return@withLock
+        index = index.withChanges(put = put, remove = remove)
+        unsaved += put.size + remove.size
+        if (unsaved >= saveEvery) saveLocked()
+    }
+
     /** Сохраняет индекс, только если есть несохранённые изменения. */
     suspend fun flush(): Unit = mutex.withLock {
         if (unsaved > 0) saveLocked()

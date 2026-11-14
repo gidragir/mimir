@@ -72,6 +72,7 @@ interface RemoteStorage {
 }
 
 interface ChangeFeedStorage : RemoteStorage {
+    val isChangeFeedSupported: Boolean get() = true
     suspend fun getLatestChangeToken(): String
     suspend fun getChanges(sinceToken: String): RemoteChangesResult
 }

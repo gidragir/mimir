@@ -8,9 +8,5 @@ class StubSyncEngine : SyncEngine {
     override val status: StateFlow<SyncStatus> = MutableStateFlow<SyncStatus>(SyncStatus.NotConfigured).asStateFlow()
     override val progress: StateFlow<SyncProgress?> = MutableStateFlow<SyncProgress?>(null).asStateFlow()
 
-    override suspend fun start() = Unit
-
-    override suspend fun stop() = Unit
-
     override suspend fun syncNow() = throw NotImplementedError("Sync engine is not implemented yet")
 }

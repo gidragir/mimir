@@ -9,6 +9,8 @@ class EncryptedRemoteStorage(
     /** Служебные файлы в корне `inner` с открытыми именами (например, канарейка пароля): не расшифровываются и скрыты. */
     private val reservedRootNames: Set<String> = emptySet(),
 ) : ChangeFeedStorage {
+    override val isChangeFeedSupported: Boolean get() = inner is ChangeFeedStorage
+
     override suspend fun getLatestChangeToken(): String {
         val feed = inner as? ChangeFeedStorage
             ?: throw UnsupportedOperationException("Inner storage does not support ChangeFeedStorage")

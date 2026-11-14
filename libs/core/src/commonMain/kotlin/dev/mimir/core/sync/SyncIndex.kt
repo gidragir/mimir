@@ -19,6 +19,7 @@ data class FileSyncRecord(
 data class SyncIndex(
     val version: Int = 1,
     val records: Map<String, FileSyncRecord> = emptyMap(),
+    val remoteChangeToken: String? = null,
 ) {
     fun find(path: String): FileSyncRecord? = records[path]
 
@@ -27,4 +28,18 @@ data class SyncIndex(
 
     fun withoutRecord(path: String): SyncIndex =
         copy(records = records - path)
+
+    fun withChanges(
+        put: Iterable<FileSyncRecord> = emptyList(),
+        remove: Iterable<String> = emptyList(),
+        remoteChangeToken: String? = this.remoteChangeToken,
+    ): SyncIndex {
+        if (!put.iterator().hasNext() && !remove.iterator().hasNext() && remoteChangeToken == this.remoteChangeToken) {
+            return this
+        }
+        val next = records.toMutableMap()
+        for (path in remove) next.remove(path)
+        for (record in put) next[record.relativePath] = record
+        return copy(records = next, remoteChangeToken = remoteChangeToken)
+    }
 }

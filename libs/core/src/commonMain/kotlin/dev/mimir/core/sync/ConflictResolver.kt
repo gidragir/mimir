@@ -2,20 +2,11 @@ package dev.mimir.core.sync
 
 import dev.mimir.core.LocalEntry
 import dev.mimir.core.RemoteEntry
-import dev.mimir.core.VaultFileId
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.io.Source
 import kotlin.time.Clock
 import kotlin.time.Instant
-
-data class Conflict(val id: VaultFileId, val local: ByteArray, val remote: ByteArray)
-
-sealed interface Resolution {
-    data object KeepLocal : Resolution
-    data object KeepRemote : Resolution
-    data class Merged(val content: ByteArray) : Resolution
-}
 
 data class ConflictDetails(
     val path: String,
@@ -31,8 +22,6 @@ data class ConflictOutcome(
 )
 
 interface ConflictResolver {
-    suspend fun resolve(conflict: Conflict): Resolution = Resolution.KeepLocal
-
     /**
      * Куда положить версии при настоящем конфликте. [localSource] — локальное содержимое основного файла;
      * удалённое до решения не скачивается (спека sync-io §4).

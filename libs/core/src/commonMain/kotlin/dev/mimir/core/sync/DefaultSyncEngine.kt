@@ -1,8 +1,10 @@
 package dev.mimir.core.sync
 
+import dev.mimir.core.ChangeFeedStorage
 import dev.mimir.core.CompletedItem
 import dev.mimir.core.LocalVault
 import dev.mimir.core.RemoteAuthException
+import dev.mimir.core.RemoteEntry
 import dev.mimir.core.RemotePath
 import dev.mimir.core.RemoteStorage
 import dev.mimir.core.RemoteUnavailableException
@@ -19,7 +21,6 @@ import dev.mimir.core.rules.SyncRules
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -29,6 +30,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlin.concurrent.atomics.AtomicInt
+import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Clock
 
@@ -57,10 +60,6 @@ class DefaultSyncEngine(
     private val syncMutex = Mutex()
     private val planBuilder = SyncPlanBuilder(rules)
     private val executor = ActionExecutor(localVault, remoteStorage, conflictResolver, dispatcher)
-
-    override suspend fun start() = Unit
-
-    override suspend fun stop() = Unit
 
     override suspend fun syncNow() {
         syncMutex.withLock {
@@ -98,9 +97,7 @@ class DefaultSyncEngine(
         val localFiles = localVault.list()
         val hiddenPaths = localVault.hiddenPaths()
         _progress.update { it?.copy(scanned = localFiles.size) }
-        val remoteFiles = remoteStorage.listAll(RemotePath("")) { folders, files ->
-            _progress.update { it?.copy(foldersScanned = folders, scanned = localFiles.size + files) }
-        }
+        val (remoteFiles, nextChangeToken) = fetchRemoteSnapshot(index.current, localFiles.size)
 
         // Пустой удалённый список при непустом индексе почти наверняка означает сбой
         // (отстающий поиск Drive, пустой дубль папки хранилища, чужой аккаунт), а не то,
@@ -118,6 +115,10 @@ class DefaultSyncEngine(
         var failure: Throwable? = null
         try {
             applyPlan(plan, index)
+            val hasProblems = _progress.value?.problems?.isNotEmpty() == true
+            if (!hasProblems && nextChangeToken != null && nextChangeToken != index.current.remoteChangeToken) {
+                index.update { it.copy(remoteChangeToken = nextChangeToken) }
+            }
         } catch (e: Throwable) {
             failure = e
             throw e
@@ -133,20 +134,58 @@ class DefaultSyncEngine(
         }
     }
 
+    private suspend fun fetchRemoteSnapshot(
+        index: SyncIndex,
+        localCount: Int,
+    ): Pair<List<RemoteEntry>, String?> {
+        val token = index.remoteChangeToken
+        if (remoteStorage is ChangeFeedStorage && remoteStorage.isChangeFeedSupported && token != null && index.records.isNotEmpty()) {
+            val feed = remoteStorage.getChanges(token)
+            val remoteMap = HashMap<String, RemoteEntry>(index.records.size)
+            for (r in index.records.values) {
+                remoteMap[r.remotePath.value] = RemoteEntry(
+                    path = r.remotePath,
+                    size = r.remoteSize,
+                    modifiedAt = r.remoteModifiedAt,
+                    revision = r.remoteRevision,
+                    isDirectory = false,
+                )
+            }
+            for (change in feed.changes) {
+                val key = change.path.value
+                val entry = change.entry
+                if (change.isDeleted || entry == null) {
+                    remoteMap.remove(key)
+                } else if (!entry.isDirectory) {
+                    remoteMap[key] = entry
+                }
+            }
+            return remoteMap.values.toList() to feed.nextToken
+        }
+        val tokenBeforeList = if (remoteStorage is ChangeFeedStorage && remoteStorage.isChangeFeedSupported) {
+            remoteStorage.getLatestChangeToken()
+        } else {
+            null
+        }
+        val remoteFiles = remoteStorage.listAll(RemotePath("")) { folders, files ->
+            _progress.update { it?.copy(foldersScanned = folders, scanned = localCount + files) }
+        }
+        return remoteFiles to tokenBeforeList
+    }
+
     /**
      * Спека §6: метаданные (`UpdateMetadata`, `ForgetRecord`) — сразу в индекс, без IO, затем переносы, затем удаления (переименование =
      * удаление + отправка: новая копия появляется до удаления старой). Каждая фаза — [parallelism]
      * воркеров над общей очередью.
      */
     private suspend fun applyPlan(plan: SyncPlan, index: IndexUpdater) {
-        val metadata = mutableListOf<(SyncIndex) -> SyncIndex>()
+        val metadata = mutableListOf<SyncAction>()
         val transfers = mutableListOf<SyncAction>()
         val deletes = mutableListOf<SyncAction>()
         // Исчерпывающий when: новое действие плана не потеряется молча ни в одной фазе.
         for (action in plan.actions) {
             when (action) {
-                is SyncAction.UpdateMetadata -> metadata += { it.withRecord(action.record) }
-                is SyncAction.ForgetRecord -> metadata += { it.withoutRecord(action.path) }
+                is SyncAction.UpdateMetadata, is SyncAction.ForgetRecord -> metadata += action
                 is SyncAction.Upload, is SyncAction.Download, is SyncAction.Reconcile -> transfers += action
                 is SyncAction.DeleteRemote, is SyncAction.DeleteLocal -> deletes += action
                 is SyncAction.NoOp -> Unit
@@ -163,7 +202,7 @@ class DefaultSyncEngine(
             )
         }
 
-        for (change in metadata) index.update(change)
+        index.updateAll(metadata)
         runPhase(transfers, offset = 0, counted, index)
         runPhase(deletes, offset = transfers.size, counted, index)
     }
@@ -172,15 +211,18 @@ class DefaultSyncEngine(
      * Ошибка воркера, которую он не превратил в проблему (отмена, нет сети, нет доступа, сбой записи
      * индекса), отменяет остальных через [coroutineScope] и пробрасывается.
      */
+    @OptIn(ExperimentalAtomicApi::class)
     private suspend fun runPhase(actions: List<SyncAction>, offset: Int, counted: List<SyncItem>, index: IndexUpdater) {
         if (actions.isEmpty()) return
-        val queue = Channel<Int>(Channel.UNLIMITED)
-        actions.indices.forEach { queue.trySend(it) }
-        queue.close()
+        val cursor = AtomicInt(0)
         coroutineScope {
             repeat(minOf(parallelism, actions.size)) {
                 launch {
-                    for (i in queue) applyAction(actions[i], offset + i, counted, index)
+                    while (true) {
+                        val i = cursor.fetchAndAdd(1)
+                        if (i >= actions.size) break
+                        applyAction(actions[i], offset + i, counted, index)
+                    }
                 }
             }
         }

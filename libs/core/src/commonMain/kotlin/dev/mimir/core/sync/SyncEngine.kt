@@ -22,8 +22,6 @@ sealed interface SyncStatus {
 interface SyncEngine {
     val status: StateFlow<SyncStatus>
     val progress: StateFlow<SyncProgress?>
-    suspend fun start()
-    suspend fun stop()
     suspend fun syncNow()
 }
 

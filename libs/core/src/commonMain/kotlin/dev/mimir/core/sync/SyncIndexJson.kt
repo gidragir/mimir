@@ -2,6 +2,8 @@ package dev.mimir.core.sync
 
 import dev.mimir.core.RemotePath
 import dev.mimir.core.VaultFileId
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlin.time.Instant
@@ -18,12 +20,26 @@ object SyncIndexJson {
     fun decode(text: String): SyncIndex =
         json.decodeFromString<IndexDto>(text).toIndex()
 
+    @OptIn(ExperimentalSerializationApi::class)
     @Serializable
-    private class IndexDto(val version: Int, val records: List<RecordDto>) {
-        fun toIndex() = SyncIndex(version, records.associate { it.relativePath to it.toRecord() })
+    private class IndexDto(
+        val version: Int,
+        val records: List<RecordDto>,
+        @EncodeDefault(EncodeDefault.Mode.NEVER)
+        val remoteChangeToken: String? = null,
+    ) {
+        fun toIndex() = SyncIndex(
+            version = version,
+            records = records.associate { it.relativePath to it.toRecord() },
+            remoteChangeToken = remoteChangeToken,
+        )
 
         companion object {
-            fun of(index: SyncIndex) = IndexDto(index.version, index.records.values.map(RecordDto::of))
+            fun of(index: SyncIndex) = IndexDto(
+                version = index.version,
+                records = index.records.values.map(RecordDto::of),
+                remoteChangeToken = index.remoteChangeToken,
+            )
         }
     }
 

@@ -2,6 +2,7 @@ package dev.mimir.core
 
 import dev.mimir.core.sync.FileSyncRecord
 import dev.mimir.core.sync.IndexUpdater
+import dev.mimir.core.sync.SyncAction
 import dev.mimir.core.sync.SyncIndex
 import dev.mimir.core.sync.SyncStateStore
 import kotlinx.coroutines.test.runTest
@@ -62,6 +63,19 @@ class IndexUpdaterTest {
         assertEquals(1, store.saved.size)
         updater.flush()
         updater.flush()
+        assertEquals(1, store.saved.size)
+    }
+
+    @Test
+    fun updateAllSavesBatchOnce() = runTest {
+        val store = CountingStore()
+        val updater = IndexUpdater(store, SyncIndex(), saveEvery = 100)
+        val actions = (1..250).map { i -> SyncAction.UpdateMetadata("f$i.md", record("f$i.md")) }
+
+        updater.updateAll(actions)
+        updater.flush()
+
+        assertEquals(250, updater.current.records.size)
         assertEquals(1, store.saved.size)
     }
 }

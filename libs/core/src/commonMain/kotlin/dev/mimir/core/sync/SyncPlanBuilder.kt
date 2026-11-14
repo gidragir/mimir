@@ -148,8 +148,16 @@ class SyncPlanBuilder(
     }
 
     /** Путь под скрытым vault путём (например, символьной ссылкой): его отсутствие в локальном списке ничего не значит. */
-    private fun isHidden(path: String, hidden: Set<String>): Boolean =
-        hidden.any { path == it || path.startsWith("$it/") }
+    private fun isHidden(path: String, hidden: Set<String>): Boolean {
+        if (hidden.isEmpty()) return false
+        if (path in hidden) return true
+        var idx = path.indexOf('/')
+        while (idx >= 0) {
+            if (path.substring(0, idx) in hidden) return true
+            idx = path.indexOf('/', idx + 1)
+        }
+        return false
+    }
 
     private fun normalize(path: String): String =
         path.replace('\\', '/').split('/').filter { it.isNotEmpty() }.joinToString("/")
