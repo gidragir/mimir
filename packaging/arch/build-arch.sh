@@ -10,14 +10,21 @@ cd "$root"
 prop() { sed -n "s/^$1=//p" gradle.properties; }
 pkgname="$(prop mimir.pacmanName)"
 pkgver="$(prop mimir.version)"
+owner="$(prop mimir.githubOwner)"
+repo="$(prop mimir.githubRepo)"
+pkgurl="https://github.com/${owner}/${repo}"
 
 ./gradlew :apps:desktop:packageUberJarForCurrentOS -Pmimir.bundleWebUi=true --no-daemon --console=plain
 
-jar="$(ls apps/desktop/build/compose/jars/*.jar | head -n 1)"
+jars=(apps/desktop/build/compose/jars/*.jar)
+jar="${jars[0]}"
 cp "$jar" packaging/arch/mimir.jar
 
 cd packaging/arch
-sed -i -e "s/^pkgname=.*/pkgname=${pkgname}/" -e "s/^pkgver=.*/pkgver=${pkgver}/" PKGBUILD
+# Подстановки живут только на время сборки: PKGBUILD в дереве остаётся чистым. Разделитель `|` в sed не требует экранировать `/` в URL.
+cp PKGBUILD PKGBUILD.orig
+trap 'mv -f PKGBUILD.orig PKGBUILD' EXIT
+sed -i -e "s|^pkgname=.*|pkgname=${pkgname}|" -e "s|^pkgver=.*|pkgver=${pkgver}|" -e "s|^url=.*|url='${pkgurl}'|" PKGBUILD
 
 # --nodeps: java-runtime нужен только при установке пакета, не при сборке (JDK может быть из mise).
 if [ "$(id -u)" -eq 0 ]; then
