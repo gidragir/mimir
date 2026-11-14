@@ -18,19 +18,19 @@ import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncStatus
 import dev.mimir.core.fs.FileSystemLocalVault
 import dev.mimir.core.update.UpdateManager
-import dev.mimir.runtime.login.LoginProvider
 import dev.mimir.runtime.login.LoginRegistry
-import dev.mimir.runtime.login.notConfiguredMessage
+import dev.mimir.runtime.login.RuntimeAuthCoordinator
 import dev.mimir.runtime.update.DisabledUpdateManager
 import dev.mimir.runtime.update.UpdateScheduler
 import io.ktor.client.HttpClient
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -55,7 +55,7 @@ private val logger = java.util.logging.Logger.getLogger(MimirRuntime::class.java
  */
 class MimirRuntime(
     private val settings: RuntimeSettingsStore,
-    private val logins: LoginRegistry,
+    logins: LoginRegistry,
     watcherFactory: VaultWatcherFactory,
     private val passwordProvider: suspend () -> String?,
     ioDispatcher: CoroutineDispatcher,
@@ -71,11 +71,13 @@ class MimirRuntime(
     updateSchedulerFactory: ((UpdateManager, () -> Boolean) -> UpdateScheduler)? = null,
     /** Начальный режим: на Android процесс может стартовать в фоне для WorkManager без вызова `onStart`/`onStop`. */
     initialInteractive: Boolean = true,
+    /** Фабрика шифратора (тесты подменяют на быстрый предвычисленный ключ без PBKDF2). */
+    private val cipherFactory: suspend (String) -> RcloneCipher = { RcloneCipher.create(it) },
 ) : DaemonService {
     @Volatile
     private var config: RuntimeConfig = settings.load()
     private val dataDir get() = config.dataDir
-    private val account = AccountStore(config.dataDir)
+    private val auth = RuntimeAuthCoordinator(logins, AccountStore(config.dataDir))
     private val assembler = EngineAssembler(httpClient, cloudFactory, watcherFactory, ioDispatcher, scope) { config }
     private val localVaults = localVaultFactory
     private val conflictTracker = ConflictTracker(scope, watcherFactory, localVaultFactory, conflictScanInterval) { config.vaultPath }
@@ -101,10 +103,6 @@ class MimirRuntime(
     private var interactive = initialInteractive
     private var engineJobs: List<Job> = emptyList()
 
-    private val loginMutex = Mutex()
-    private var activeLogin: LoginProvider? = null
-    private var loginCompleted = false
-
     val updateManager: UpdateManager = updateManager ?: DisabledUpdateManager
 
     /** Проверка обновлений не прерывает синхронизацию: тик пропускается, пока статус — Syncing. */
@@ -123,14 +121,11 @@ class MimirRuntime(
     val isReady: Boolean get() = assembled != null
     override val lastSyncTime: Instant? get() = assembled?.scheduler?.lastSyncTime
     val pendingLocalChanges: StateFlow<Boolean> = _pendingLocalChanges.asStateFlow()
-
-    @Volatile
-    override var accountEmail: String? = null
-        private set
+    override val accountEmail: String? get() = auth.accountEmail
 
     suspend fun initialize() {
-        accountEmail = account.email()
-        passwordProvider()?.takeIf { it.isNotEmpty() }?.let { cipher = RcloneCipher.create(it) }
+        auth.initAccountEmail()
+        passwordProvider()?.takeIf { it.isNotEmpty() }?.let { cipher = cipherFactory(it) }
         conflictTracker.refresh()
         if (interactive) conflictTracker.watch()
         rebuildLenient()
@@ -225,15 +220,19 @@ class MimirRuntime(
         check(!isLocked) { "Vault is locked" }
         val remote = assembled?.remote ?: throw notConfigured()
         val local = localVaults(Path(config.vaultPath ?: throw SyncNotConfiguredException("Vault path not configured")))
-        val localCount = local.list().size
-        val remoteCount = remote.listAll().size
-        return DaemonVaultInspectionDto(localCount, remoteCount, localCount > 0 && remoteCount > 0)
+        return coroutineScope {
+            val localDeferred = async { local.list().size }
+            val remoteDeferred = async { remote.listAll().size }
+            val localCount = localDeferred.await()
+            val remoteCount = remoteDeferred.await()
+            DaemonVaultInspectionDto(localCount, remoteCount, localCount > 0 && remoteCount > 0)
+        }
     }
 
     /** [InvalidPasswordException], если пароль не подходит к хранилищу в облаке; runtime остаётся заблокированным. */
     override suspend fun unlock(password: String) {
         val previous = cipher
-        cipher = RcloneCipher.create(password)
+        cipher = cipherFactory(password)
         try {
             rebuild()
         } catch (e: Exception) {
@@ -267,51 +266,19 @@ class MimirRuntime(
     override suspend fun downloadUpdate() = updates.download()
     override suspend fun applyUpdate(): UpdateApplyDto = updates.apply()
 
-    override suspend fun loginMethods(): Set<DaemonLoginMethod> = logins.methods()
+    override suspend fun loginMethods(): Set<DaemonLoginMethod> = auth.methods()
 
-    override suspend fun startLogin(method: DaemonLoginMethod): DaemonLoginStart = loginMutex.withLock {
-        val provider = logins[method] ?: throw SyncNotConfiguredException(method.notConfiguredMessage())
-        // Попытка другим способом (например, вкладка браузера после «Отмена») не должна перезаписать новый вход.
-        activeLogin?.takeIf { it !== provider }?.cancel()
-        activeLogin = null
-        val start = provider.start()
-        activeLogin = provider
-        loginCompleted = false
-        start
-    }
+    override suspend fun startLogin(method: DaemonLoginMethod): DaemonLoginStart = auth.startLogin(method)
 
     /** Первый [DaemonLoginPoll.Authorized] попытки запоминает аккаунт и пересобирает движок — ровно один раз. */
-    override suspend fun pollLogin(): DaemonLoginPoll = loginMutex.withLock {
-        val provider = activeLogin ?: return@withLock DaemonLoginPoll.Failed("Вход не начат")
-        val result = provider.poll()
-        if (result !is DaemonLoginPoll.Authorized || loginCompleted) return@withLock result
-        try {
-            // Токены уже сохранены провайдером: запоминаем аккаунт и перезапускаем синхронизацию.
-            account.save(result.email, provider.method)
-            accountEmail = result.email
-            rebuildLenient()
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            logger.warning("Saving sign-in failed: ${e.javaClass.name}")
-            return@withLock DaemonLoginPoll.Failed("Не удалось сохранить вход")
-        }
-        loginCompleted = true
-        result
-    }
+    override suspend fun pollLogin(): DaemonLoginPoll = auth.pollLogin { rebuildLenient() }
 
     /** Выход: провайдер забывает учётные данные, `account.json` удаляется; vault и индекс не трогаются. */
-    suspend fun signOut() = loginMutex.withLock {
-        account.method()?.let { logins[it] }?.signOut()
-        account.delete()
-        accountEmail = null
-        activeLogin = null
-        buildMutex.withLock { teardown() }
-    }
+    suspend fun signOut() = auth.signOut { buildMutex.withLock { teardown() } }
 
     fun close() {
         updateScheduler?.stop()
-        logins.close()
+        auth.close()
         teardown()
         conflictTracker.stop()
         scope.cancel()
@@ -338,7 +305,7 @@ class MimirRuntime(
         teardown()
         val vaultPath = config.vaultPath ?: return@withLock
         val cipher = cipher ?: return@withLock
-        val tokenSource = account.method()?.let { logins[it] }?.tokenSource ?: return@withLock
+        val tokenSource = auth.tokenSource() ?: return@withLock
         val built = try {
             assembler.assemble(vaultPath, cipher, tokenSource) ?: return@withLock
         } catch (e: InvalidPasswordException) {

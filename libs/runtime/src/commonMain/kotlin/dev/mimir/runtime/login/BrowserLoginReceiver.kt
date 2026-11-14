@@ -42,7 +42,7 @@ class BrowserLoginReceiver(
     var port: Int = 0
         private set
 
-    fun start() {
+    suspend fun start(): Int {
         val engine = embeddedServer(CIO, host = "127.0.0.1", port = 0) {
             routing {
                 get("/callback") {
@@ -65,7 +65,8 @@ class BrowserLoginReceiver(
         }
         engine.start(wait = false)
         server.set(engine)
-        port = kotlinx.coroutines.runBlocking { engine.engine.resolvedConnectors().first().port }
+        port = engine.engine.resolvedConnectors().first().port
+        return port
     }
 
     /** [LoginCallback.Code] или [LoginCallback.Denied]; `null` — тайм-аут. Сервер останавливается в любом случае. */
