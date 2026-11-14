@@ -1,13 +1,17 @@
 package dev.mimir.obsidian.sync
 
 import dev.mimir.core.CanaryVerifier
+import dev.mimir.core.CountingRemoteStorage
 import dev.mimir.core.InMemoryRemoteStorage
 import dev.mimir.core.RcloneCipher
 import dev.mimir.core.RemotePath
 import dev.mimir.core.sync.InMemorySyncStateStore
 import dev.mimir.core.testing.InMemoryLocalVault
+import dev.mimir.core.testing.TestCiphers
+import dev.mimir.drive.GoogleDriveStorage
 import dev.mimir.drive.auth.GoogleClientKind
 import dev.mimir.drive.auth.OAuthTokens
+import dev.mimir.drive.path.DrivePathResolver
 import dev.mimir.obsidian.fakes.FakeLocalStorage
 import dev.mimir.obsidian.state.DeviceSecretStore
 import dev.mimir.obsidian.state.PluginSettings
@@ -24,7 +28,9 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
+import kotlin.test.assertNotSame
 import kotlin.test.assertNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 class SyncAssemblerTest {
@@ -57,6 +63,7 @@ class SyncAssemblerTest {
         val settings = testSettingsStore(PluginSettings(rootFolder = "MyVault"))
 
         val remote = InMemoryRemoteStorage()
+        val countingRemote = CountingRemoteStorage(remote)
         val vault = InMemoryLocalVault()
         val stateStore = InMemorySyncStateStore()
 
@@ -66,12 +73,14 @@ class SyncAssemblerTest {
             settings = settings,
             vault = vault,
             stateStore = stateStore,
-            remoteFactory = { _, _ -> remote },
+            remoteFactory = { _, _ -> countingRemote },
+            cipherFactory = { password, salt -> TestCiphers.forPassword(password, salt) },
         )
 
         val result = assembler.setupKey(password = "test-pass", salt = null)
         val ok = assertIs<KeySetup.Ok>(result)
         assertTrue(ok.firstDevice)
+        assertEquals(1, countingRemote.statCalls)
 
         // Key and canary saved in secrets
         val key = secrets.loadKey()
@@ -84,7 +93,7 @@ class SyncAssemblerTest {
         assertNotNull(remote.stat(canaryPath))
         val cipher = RcloneCipher.fromKeyBytes(key)
         val canaryContent = cipher.decrypt(remote.read(canaryPath)).readString()
-        assertEquals(CanaryVerifier.CANARY_MAGIC, canaryContent)
+        assertEquals(CanaryVerifier.CANARY_BODY, canaryContent)
     }
 
     @Test
@@ -93,8 +102,8 @@ class SyncAssemblerTest {
         val remote = InMemoryRemoteStorage()
 
         // First device creates canary
-        val cipher = RcloneCipher.create("correct-password", null)
-        val canaryData = Buffer().apply { write(CanaryVerifier.CANARY_MAGIC.encodeToByteArray()) }
+        val cipher = TestCiphers.forPassword("correct-password")
+        val canaryData = Buffer().apply { write(CanaryVerifier.CANARY_BODY.encodeToByteArray()) }
         remote.write(RemotePath(CanaryVerifier.CANARY_FILENAME), cipher.encrypt(canaryData))
 
         // Second device with fresh storage
@@ -111,6 +120,7 @@ class SyncAssemblerTest {
             vault = InMemoryLocalVault(),
             stateStore = InMemorySyncStateStore(),
             remoteFactory = { _, _ -> remote },
+            cipherFactory = { password, salt -> TestCiphers.forPassword(password, salt) },
         )
 
         val result = assembler.setupKey(password = "correct-password", salt = null)
@@ -128,8 +138,8 @@ class SyncAssemblerTest {
         val remote = InMemoryRemoteStorage()
 
         // Existing vault with password "right-pass"
-        val rightCipher = RcloneCipher.create("right-pass", null)
-        val canaryData = Buffer().apply { write(CanaryVerifier.CANARY_MAGIC.encodeToByteArray()) }
+        val rightCipher = TestCiphers.forPassword("right-pass")
+        val canaryData = Buffer().apply { write(CanaryVerifier.CANARY_BODY.encodeToByteArray()) }
         remote.write(RemotePath(CanaryVerifier.CANARY_FILENAME), rightCipher.encrypt(canaryData))
 
         val initialRemoteFiles = remote.list(RemotePath("")).associate { it.path.value to remote.read(it.path).readByteArray() }
@@ -148,6 +158,7 @@ class SyncAssemblerTest {
             vault = vault,
             stateStore = InMemorySyncStateStore(),
             remoteFactory = { _, _ -> remote },
+            cipherFactory = { password, salt -> TestCiphers.forPassword(password, salt) },
         )
 
         val result = assembler.setupKey(password = "wrong-pass", salt = null)
@@ -198,7 +209,7 @@ class SyncAssemblerTest {
         val secrets = DeviceSecretStore(storage)
         secrets.save(testTokens())
 
-        val cipher = RcloneCipher.create("sync-password", null)
+        val cipher = TestCiphers.forPassword("sync-password")
         secrets.saveKey(cipher.exportKeyBytes())
         secrets.saveCanaryHash(CanaryVerifier.computeCanaryHash(cipher))
 
@@ -215,6 +226,7 @@ class SyncAssemblerTest {
             vault = vault,
             stateStore = InMemorySyncStateStore(),
             remoteFactory = { _, _ -> remote },
+            cipherFactory = { password, salt -> TestCiphers.forPassword(password, salt) },
         )
 
         assertTrue(assembler.isReady())
@@ -233,5 +245,54 @@ class SyncAssemblerTest {
         val firstSegment = remoteList.first().path.segments.first()
         // Ensure name is encrypted
         assertEquals("a", cipher.decryptName(firstSegment))
+    }
+
+    @Test
+    fun buildEngineReusesResolverUntilRootFolderChangesOrClearKey() = runTest {
+        val http = testHttpClient()
+        val storage = FakeLocalStorage()
+        val secrets = DeviceSecretStore(storage)
+        secrets.save(testTokens())
+
+        val cipher = TestCiphers.forPassword("reuse-password")
+        secrets.saveKey(cipher.exportKeyBytes())
+
+        val settings = testSettingsStore(PluginSettings(rootFolder = "VaultA"))
+        val resolvers = mutableListOf<DrivePathResolver>()
+
+        val assembler = SyncAssembler(
+            http = http,
+            secrets = secrets,
+            settings = settings,
+            vault = InMemoryLocalVault(),
+            stateStore = InMemorySyncStateStore(),
+            remoteFactory = { client, root ->
+                val resolver = DrivePathResolver(client, root)
+                resolvers += resolver
+                GoogleDriveStorage(client, resolver)
+            },
+            cipherFactory = { password, salt -> TestCiphers.forPassword(password, salt) },
+        )
+
+        val first = assembler.buildEngine()
+        val second = assembler.buildEngine()
+        assertNotNull(first)
+        assertSame(first.first, second?.first)
+        assertSame(first.second, second?.second)
+        assertEquals(1, resolvers.size)
+
+        settings.update { it.copy(rootFolder = "VaultB") }
+        val third = assembler.buildEngine()
+        assertNotNull(third)
+        assertEquals(2, resolvers.size)
+        assertNotSame(resolvers[0], resolvers[1])
+        assertNotSame(first.second, third.second)
+
+        assembler.clearKey()
+        val fourth = assembler.buildEngine()
+        assertNotNull(fourth)
+        assertEquals(3, resolvers.size)
+        assertNotSame(resolvers[1], resolvers[2])
+        assertNotSame(third.second, fourth.second)
     }
 }

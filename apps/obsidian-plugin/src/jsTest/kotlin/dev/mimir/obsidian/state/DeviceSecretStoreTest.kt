@@ -62,6 +62,9 @@ class DeviceSecretStoreTest {
         store.saveKey(key)
         store.saveCanaryHash("hash-abc")
         store.saveChangeToken("token-xyz")
+        store.saveEmail("user@example.com")
+
+        assertEquals("user@example.com", store.loadEmail())
 
         store.clearAll()
 
@@ -69,6 +72,7 @@ class DeviceSecretStoreTest {
         assertNull(store.loadKey())
         assertNull(store.loadCanaryHash())
         assertNull(store.loadChangeToken())
+        assertNull(store.loadEmail())
     }
 
     @Test

@@ -1,5 +1,6 @@
 package dev.mimir.obsidian.ui
 
+import dev.mimir.core.sync.SyncStateStore
 import dev.mimir.obsidian.App
 import dev.mimir.obsidian.Notice
 import dev.mimir.obsidian.Plugin
@@ -13,17 +14,20 @@ import dev.mimir.obsidian.sync.PluginSyncController
 import dev.mimir.obsidian.sync.SyncAssembler
 import dev.mimir.obsidian.sync.Trigger
 import dev.mimir.obsidian.sync.deviceAuthClient
+import dev.mimir.obsidian.sync.disconnectAccount
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlin.js.json
 
 class MimirSettingTab(
     app: App,
     plugin: Plugin,
     private val settings: PluginSettingsStore,
     private val secrets: DeviceSecretStore,
+    private val stateStore: SyncStateStore,
     private val assembler: SyncAssembler,
     private val controller: PluginSyncController,
     private val texts: PluginTexts,
@@ -42,14 +46,15 @@ class MimirSettingTab(
         val container = containerEl
         container.empty()
 
-        container.createEl("h2", js("({ text: this.texts.settingsTitle })"))
+        container.createEl("h2", json("text" to texts.settingsTitle))
 
         val currentTokens = secrets.load()
         val currentSettings = settings.get()
         val hasKey = secrets.loadKey() != null
+        val accountEmail = secrets.loadEmail()
 
         // 1. Блок Аккаунт
-        container.createEl("h3", js("({ text: this.texts.accountSection })"))
+        container.createEl("h3", json("text" to texts.accountSection))
         val accountSetting = Setting(container)
         if (currentTokens == null) {
             accountSetting.setName(texts.accountSection)
@@ -77,13 +82,14 @@ class MimirSettingTab(
                 }
         } else {
             accountSetting.setName(texts.accountSection)
-                .setDesc(texts.signedInAs("Google Drive user"))
+                .setDesc(texts.signedInAs(accountEmail ?: "Google Drive user"))
                 .addButton { btn ->
                     btn.setButtonText(texts.signOutButton)
                     btn.setWarning()
                     btn.onClick {
                         tabScope.launch {
-                            secrets.clearAll()
+                            val client = deviceAuthClient(http, currentSettings)
+                            disconnectAccount(client, secrets, stateStore, assembler, controller)
                             render()
                         }
                     }
@@ -92,7 +98,7 @@ class MimirSettingTab(
 
         // 2. Блок Папка Drive и пароль (активен, если выполнен вход)
         if (currentTokens != null) {
-            container.createEl("h3", js("({ text: this.texts.vaultSection })"))
+            container.createEl("h3", json("text" to texts.vaultSection))
 
             var rootFolderInput = currentSettings.rootFolder
             Setting(container)
@@ -163,7 +169,7 @@ class MimirSettingTab(
 
         // 3. Блок Синхронизация (активен, если готова папка и есть ключ)
         if (currentTokens != null && hasKey && currentSettings.rootFolder.isNotEmpty()) {
-            container.createEl("h3", js("({ text: this.texts.syncSection })"))
+            container.createEl("h3", json("text" to texts.syncSection))
 
             Setting(container)
                 .setName(texts.parallelismLabel)

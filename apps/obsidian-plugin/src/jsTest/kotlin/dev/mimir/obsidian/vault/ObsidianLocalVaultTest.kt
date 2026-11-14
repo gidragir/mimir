@@ -3,9 +3,12 @@ package dev.mimir.obsidian.vault
 import dev.mimir.core.VaultChange
 import dev.mimir.core.VaultFileId
 import dev.mimir.core.fs.EchoFilter
+import dev.mimir.core.testing.TestClock
 import dev.mimir.obsidian.fakes.FakeVaultFs
+import dev.mimir.obsidian.platform.FsStat
 import dev.mimir.obsidian.platform.ResourceStreamFn
 import dev.mimir.obsidian.platform.VaultEvent
+import dev.mimir.obsidian.platform.VaultFs
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
@@ -23,20 +26,62 @@ import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
-import kotlin.time.Clock
-import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 
-private class TestClock(var current: Instant = Instant.fromEpochMilliseconds(1000L)) : Clock {
-    override fun now(): Instant = current
-    fun advance(duration: Duration) { current += duration }
+private class CountingVaultFs(private val delegate: FakeVaultFs) : VaultFs by delegate {
+    var statCalls = 0
+        private set
+
+    override suspend fun stat(path: String): FsStat? {
+        statCalls++
+        return delegate.stat(path)
+    }
 }
 
 class ObsidianLocalVaultTest {
 
-    private val testClock = TestClock()
+    private val testClock = TestClock(Instant.fromEpochMilliseconds(1000L))
     private val echo = EchoFilter(ttl = 5.seconds, clock = testClock)
+
+    @Test
+    fun writeCallsStatOnce() = runTest {
+        val delegate = FakeVaultFs()
+        val fs = CountingVaultFs(delegate)
+        val vault = ObsidianLocalVault(
+            fs = fs,
+            resources = { Buffer() },
+            configDir = ".obsidian",
+            events = MutableSharedFlow(),
+            echo = echo,
+            clock = testClock,
+        )
+
+        val entry = vault.write("note.md", Buffer().apply { write("hello".encodeToByteArray()) })
+        assertEquals("note.md", entry.relativePath)
+        assertEquals(5L, entry.size)
+        assertEquals(1, fs.statCalls)
+    }
+
+    @Test
+    fun listBatchesStatAcrossMoreThan64Files() = runTest {
+        val fs = FakeVaultFs()
+        fs.mkdir("notes")
+        for (i in 0 until 130) {
+            fs.writeBinary("notes/n-$i.md", "body-$i".encodeToByteArray())
+        }
+        val vault = ObsidianLocalVault(
+            fs = fs,
+            resources = { Buffer() },
+            configDir = ".obsidian",
+            events = MutableSharedFlow(),
+            echo = echo,
+            clock = testClock,
+        )
+
+        val entries = vault.list()
+        assertEquals(130, entries.size)
+    }
 
     @Test
     fun listsFilesRecursivelyWithSizeAndMtime() = runTest {

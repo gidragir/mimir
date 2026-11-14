@@ -1,15 +1,14 @@
 package dev.mimir.obsidian.sync
 
-import dev.mimir.core.RemoteUnavailableException
 import dev.mimir.core.sync.SyncIndex
+import dev.mimir.core.sync.SyncStateStore
 import dev.mimir.drive.auth.GoogleAuthClient
 import dev.mimir.drive.auth.GoogleClientCredentials
 import dev.mimir.drive.auth.GoogleClientKind
 import dev.mimir.drive.client.DriveAuthException
 import dev.mimir.obsidian.PluginBuildConfig
-import dev.mimir.obsidian.net.NetworkUnavailableException
+import dev.mimir.obsidian.net.isNetworkError
 import dev.mimir.obsidian.state.DeviceSecretStore
-import dev.mimir.obsidian.state.ObsidianSyncStateStore
 import dev.mimir.obsidian.state.PluginSettings
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.CancellationException
@@ -96,7 +95,7 @@ class DeviceSignIn(
             _state.value = SignInState.Idle
             throw e
         } catch (e: Throwable) {
-            if (isNetworkError(e)) {
+            if (e.isNetworkError()) {
                 _state.value = SignInState.Offline
             } else {
                 _state.value = SignInState.Failed(e.message ?: "Failed to request device code")
@@ -146,7 +145,7 @@ class DeviceSignIn(
                 _state.value = SignInState.Failed(e.message ?: "Authentication failed")
                 return
             } catch (e: Throwable) {
-                if (isNetworkError(e)) {
+                if (e.isNetworkError()) {
                     _state.value = SignInState.Offline
                 } else {
                     _state.value = SignInState.Failed(e.message ?: "Authentication failed")
@@ -157,20 +156,19 @@ class DeviceSignIn(
             tokens.save(oauthTokens)
             val email = try {
                 client.fetchAccount(oauthTokens.accessToken).email.ifBlank { null }
+            } catch (e: CancellationException) {
+                throw e
             } catch (_: Throwable) {
                 null
+            }
+            if (email != null) {
+                tokens.saveEmail(email)
             }
             _state.value = SignInState.Success(email)
             return
         }
 
         _state.value = SignInState.Expired
-    }
-
-    private fun isNetworkError(e: Throwable): Boolean {
-        if (e is NetworkUnavailableException || e is RemoteUnavailableException || e is kotlinx.io.IOException) return true
-        val msg = e.message.orEmpty()
-        return "Network is down" in msg || "net::" in msg || "Failed to fetch" in msg
     }
 }
 
@@ -180,17 +178,31 @@ class DeviceSignIn(
 suspend fun signOut(
     client: GoogleAuthClient?,
     tokens: DeviceSecretStore,
-    state: ObsidianSyncStateStore,
+    state: SyncStateStore,
 ) {
     val currentTokens = tokens.load()
     if (client != null && currentTokens != null) {
         val tokenToRevoke = currentTokens.refreshToken ?: currentTokens.accessToken
         try {
             client.revokeToken(tokenToRevoke)
+        } catch (e: CancellationException) {
+            throw e
         } catch (_: Throwable) {
             // Ошибка отзыва не мешает очистке
         }
     }
     tokens.clearAll()
     state.save(SyncIndex())
+}
+
+internal suspend fun disconnectAccount(
+    client: GoogleAuthClient?,
+    tokens: DeviceSecretStore,
+    state: SyncStateStore,
+    assembler: SyncAssembler,
+    controller: PluginSyncController?,
+) {
+    signOut(client, tokens, state)
+    assembler.clearKey()
+    controller?.resetOnDisconnect()
 }

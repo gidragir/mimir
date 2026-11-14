@@ -9,7 +9,7 @@ import dev.mimir.core.SyncProblem
 import dev.mimir.drive.client.DriveAuthException
 import dev.mimir.obsidian.daemon.DaemonPresence
 import dev.mimir.obsidian.daemon.DaemonProbe
-import dev.mimir.obsidian.net.NetworkUnavailableException
+import dev.mimir.obsidian.net.isNetworkError
 import dev.mimir.obsidian.platform.VaultEvent
 import dev.mimir.obsidian.state.DeviceSecretStore
 import dev.mimir.obsidian.state.PluginSettingsStore
@@ -97,14 +97,27 @@ class PluginSyncController(
         vaultDebounceJob = null
         timerJob?.cancel()
         timerJob = null
+        cancelActiveSync()
+    }
+
+    fun resetOnDisconnect() {
+        lastUpToDate = null
+        hasLocalChanges = false
+        cancelActiveSync()
+        _state.value = PluginState.NotConnected
+    }
+
+    private fun cancelActiveSync() {
         val curJob = activeSyncJob
         val curEngine = activeEngine
-        curJob?.cancel()
         activeSyncJob = null
         activeEngine = null
+        curJob?.cancel()
         scope.launch {
             try {
                 curEngine?.stop()
+            } catch (e: CancellationException) {
+                throw e
             } catch (_: Throwable) {}
         }
     }
@@ -296,7 +309,7 @@ class PluginSyncController(
         } catch (e: SyncAbortedException) {
             _state.value = PluginState.Error(ABORTED_MESSAGE)
         } catch (e: Throwable) {
-            if (isNetworkError(e)) {
+            if (e.isNetworkError()) {
                 _state.value = PluginState.Offline
             } else {
                 _state.value = PluginState.Error(e.message ?: "Sync error")
@@ -304,11 +317,5 @@ class PluginSyncController(
         } finally {
             progressJob.cancel()
         }
-    }
-
-    private fun isNetworkError(e: Throwable): Boolean {
-        if (e is NetworkUnavailableException || e is RemoteUnavailableException || e is kotlinx.io.IOException) return true
-        val msg = e.message.orEmpty()
-        return "Network is down" in msg || "net::" in msg || "Failed to fetch" in msg
     }
 }

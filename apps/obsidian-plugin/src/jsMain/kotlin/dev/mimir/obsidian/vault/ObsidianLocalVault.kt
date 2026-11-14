@@ -10,6 +10,9 @@ import dev.mimir.obsidian.platform.ResourceStreamFn
 import dev.mimir.obsidian.platform.VaultEvent
 import dev.mimir.obsidian.platform.VaultFs
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.withContext
@@ -49,7 +52,7 @@ class ObsidianLocalVault(
         if (normalizedConfigDir.isEmpty()) emptySet() else setOf(normalizedConfigDir)
 
     override suspend fun list(): List<LocalEntry> {
-        val result = mutableListOf<LocalEntry>()
+        val pendingFiles = mutableListOf<String>()
         val queue = ArrayDeque<String>()
         queue.add("")
 
@@ -60,17 +63,7 @@ class ObsidianLocalVault(
             for (file in files) {
                 val norm = file.trim('/')
                 if (!isExcluded(norm)) {
-                    val stat = fs.stat(norm)
-                    if (stat != null && stat.type == "file") {
-                        result.add(
-                            LocalEntry(
-                                id = VaultFileId(norm),
-                                relativePath = norm,
-                                size = stat.size,
-                                modifiedAt = Instant.fromEpochMilliseconds(stat.mtime),
-                            ),
-                        )
-                    }
+                    pendingFiles.add(norm)
                 }
             }
 
@@ -78,6 +71,32 @@ class ObsidianLocalVault(
                 val norm = folder.trim('/')
                 if (!isExcluded(norm)) {
                     queue.add(norm)
+                }
+            }
+        }
+
+        val result = ArrayList<LocalEntry>(pendingFiles.size)
+        for (batch in pendingFiles.chunked(STAT_BATCH_SIZE)) {
+            val entries = coroutineScope {
+                batch.map { norm ->
+                    async {
+                        val stat = fs.stat(norm)
+                        if (stat != null && stat.type == "file") {
+                            LocalEntry(
+                                id = VaultFileId(norm),
+                                relativePath = norm,
+                                size = stat.size,
+                                modifiedAt = Instant.fromEpochMilliseconds(stat.mtime),
+                            )
+                        } else {
+                            null
+                        }
+                    }
+                }.awaitAll()
+            }
+            for (entry in entries) {
+                if (entry != null) {
+                    result.add(entry)
                 }
             }
         }
@@ -145,11 +164,12 @@ class ObsidianLocalVault(
             }
         }
 
-        return getEntry(norm) ?: LocalEntry(
+        val stat = if (isExcluded(norm)) null else fs.stat(norm)?.takeIf { it.type == "file" }
+        return LocalEntry(
             id = VaultFileId(norm),
             relativePath = norm,
-            size = fs.stat(norm)?.size ?: 0L,
-            modifiedAt = fs.stat(norm)?.let { Instant.fromEpochMilliseconds(it.mtime) } ?: clock.now(),
+            size = stat?.size ?: 0L,
+            modifiedAt = stat?.let { Instant.fromEpochMilliseconds(it.mtime) } ?: clock.now(),
         )
     }
 
@@ -237,5 +257,9 @@ class ObsidianLocalVault(
             readTotal += read
         }
         return buffer.readByteArray()
+    }
+
+    private companion object {
+        const val STAT_BATCH_SIZE = 64
     }
 }
