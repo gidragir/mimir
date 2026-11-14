@@ -7,13 +7,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends libatomic1 && r
 
 # glibc-образ (не alpine): Kotlin/JS скачивает Node.js для linux-x64 (glibc) при сборке wasm web UI.
 # Android SDK в образе нет: Android-таргеты пропускаются, секреты не нужны.
-# Слой 1: обёртка Gradle и скрипты конфигурации. Меняется редко, поэтому загрузка дистрибутива Gradle
-# кэшируется отдельно от исходников libs/ и apps/.
+# Слой 1: обёртка Gradle и build-logic. Меняются редко, поэтому загрузка дистрибутива Gradle и компиляция
+# convention-плагинов кэшируются отдельно от исходников libs/ и apps/.
 COPY gradlew settings.gradle.kts build.gradle.kts gradle.properties ./
 COPY gradle ./gradle
 COPY build-logic ./build-logic
 RUN --mount=type=cache,target=/root/.gradle \
-    ./gradlew --version --no-daemon --console=plain
+    ./gradlew -p build-logic classes --no-daemon --console=plain
 
 # Слой 2: все модули копируются целиком: settings.gradle.kts подключает их все, и Gradle требует их каталоги.
 COPY . .

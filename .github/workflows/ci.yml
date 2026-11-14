@@ -93,6 +93,7 @@ jobs:
               - 'gradlew.bat'
               - 'packaging/arch/build-arch.sh'
               - '.github/workflows/**'
+              - '.github/actions/**'
             msi_packaging:
               - 'apps/desktop/**'
               - 'apps/daemon/**'
@@ -106,6 +107,7 @@ jobs:
               - 'gradlew'
               - 'gradlew.bat'
               - '.github/workflows/ci.yml'
+              - '.github/actions/**'
             desktop:
               - 'apps/desktop/**'
               - 'apps/daemon/**'

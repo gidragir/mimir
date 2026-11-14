@@ -22,10 +22,14 @@ kotlin {
         }
     }
     // Библиотеки не трогают DOM: JS-тесты идут в Node.js без Karma и Chromium.
+    // scrypt (N=16384, r=8) в RcloneCipherTest на JS требует повышенного таймаута Mocha (по умолчанию 2 с).
     js {
         nodejs {
             testTask {
-                timeout.set(Duration.ofMinutes(1))
+                useMocha {
+                    timeout = "120s"
+                }
+                timeout.set(Duration.ofMinutes(2))
             }
         }
     }
