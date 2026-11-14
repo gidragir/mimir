@@ -8,6 +8,23 @@ repo_root=$(cd "$here/../../.." && pwd)
 passed=0
 failed=0
 
+# Шаблонный git-репозиторий создаётся один раз; make_repo копирует его через cp -a.
+WINVM_TEST_TEMPLATE_REPO=$(mktemp -d)
+trap 'rm -rf "$WINVM_TEST_TEMPLATE_REPO"' EXIT
+export WINVM_TEST_TEMPLATE_REPO
+(
+  cd "$WINVM_TEST_TEMPLATE_REPO"
+  mkdir -p build docs scripts/win-vm/guest
+  git init -q -b main
+  echo agent >scripts/win-vm/guest/agent.ps1
+  echo tracked >a.txt
+  echo secret >mise.local.toml
+  echo out >build/x
+  echo "build/" >.gitignore
+  git add a.txt .gitignore scripts
+  echo untracked >new.txt
+)
+
 run_one() {
   local file=$1 name=$2
   (
@@ -51,7 +68,7 @@ for file in "$here"/test_*.sh; do
       failed=$((failed + 1))
       printf 'FAIL %s\n' "$name"
     fi
-  done < <(grep -oE '^test_[A-Za-z0-9_]+' "$file")
+  done < <(rg -o '^test_[A-Za-z0-9_]+' "$file")
 done
 
 printf '%d passed, %d failed\n' "$passed" "$failed"
