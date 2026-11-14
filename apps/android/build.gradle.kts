@@ -24,12 +24,12 @@ val signingStoreFile: File? = signingStorePath?.let { project.file(it) }
 
 android {
     namespace = "${providers.gradleProperty("mimir.group").get()}.android"
-    compileSdk = 37
+    compileSdk = libs.versions.androidCompileSdk.get().toInt()
 
     defaultConfig {
         applicationId = appId
-        minSdk = 26
-        targetSdk = 36
+        minSdk = libs.versions.androidMinSdk.get().toInt()
+        targetSdk = libs.versions.androidTargetSdk.get().toInt()
         versionCode = dev.mimir.build.VersionCode.versionCodeOf(appVersion)
         versionName = appVersion
         resValue("string", "app_name", appName)
@@ -142,6 +142,8 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
 }
 
 tasks.withType<Test>().configureEach {
+    maxParallelForks = 2
+    forkEvery = 0
     systemProperty("org.objectweb.asm.experimental", "true")
     // Conscrypt грузит нативную библиотеку, Robolectric использует sun.misc.Unsafe: на JDK 27 иначе предупреждения.
     jvmArgs("--enable-native-access=ALL-UNNAMED", "--sun-misc-unsafe-memory-access=allow")

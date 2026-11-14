@@ -21,16 +21,11 @@ kotlin {
             jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_26)
         }
     }
+    // Библиотеки не трогают DOM: JS-тесты идут в Node.js без Karma и Chromium.
     js {
-        browser {
+        nodejs {
             testTask {
-                useKarma {
-                    useChromeHeadless()
-                    useConfigDirectory(rootProject.file("gradle/karma.config.d"))
-                }
-                if (System.getenv("CHROME_BIN") == null && file("/usr/bin/chromium").exists()) {
-                    environment("CHROME_BIN", "/usr/bin/chromium")
-                }
+                timeout.set(Duration.ofMinutes(1))
             }
         }
     }
@@ -50,4 +45,8 @@ kotlin {
             implementation(kotlin("test"))
         }
     }
+}
+
+tasks.withType<Test>().configureEach {
+    maxParallelForks = (Runtime.getRuntime().availableProcessors() / 2).coerceAtLeast(1)
 }
