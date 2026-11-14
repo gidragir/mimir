@@ -1,6 +1,12 @@
 package dev.mimir.desktop
 
+import dev.mimir.core.update.TargetPlatform
+import dev.mimir.core.update.UpdateHttpClient
+import dev.mimir.core.update.UpdateHttpResponse
 import dev.mimir.daemon.DaemonConfig
+import dev.mimir.desktop.update.DesktopNotifyApplier
+import dev.mimir.desktop.update.HostLifecycle
+import dev.mimir.desktop.update.WindowsMsiApplier
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.request.get
@@ -38,30 +44,39 @@ class DaemonServiceFactoryTest {
     @Test
     fun `runs the daemon in process and serves the API when the port is free`() = runBlocking<Unit> {
         val port = freePort()
-        val backend = DaemonServiceFactory.create(config(port)).also { closers += it::close }
+        val backend = DaemonServiceFactory.create(
+            config(port),
+            platform = TargetPlatform.WINDOWS_X64,
+            updateTempDir = configDir.resolve("updates"),
+        ).also { closers += it::close }
 
         assertEquals(DesktopBackend.Mode.InProcess, backend.mode)
+        assertIs<WindowsMsiApplier>(backend.updateApplier)
         val health = HttpClient(CIO).use { it.get("http://127.0.0.1:$port/health").bodyAsText() }
         assertTrue("\"status\":\"ok\"" in health, health)
     }
 
     @Test
-    fun `embedded daemon is wired with the MSI applier on Windows x64 and the notify applier elsewhere`() = runBlocking<Unit> {
+    fun `embedded daemon selects the MSI applier on Windows x64 and the notify applier elsewhere`() {
         val tmp = Files.createTempDirectory("mimir-fac-updates")
         closers += { tmp.toFile().deleteRecursively() }
+        val noopClient = object : UpdateHttpClient {
+            override suspend fun get(url: String, headers: Map<String, String>) = UpdateHttpResponse(200, emptyMap(), "")
+            override suspend fun downloadStream(url: String, headers: Map<String, String>, onChunk: suspend (ByteArray, Long, Long) -> Unit) = Result.success(Unit)
+        }
+        val noopHost = object : HostLifecycle {
+            override suspend fun quiesce() = true
+            override suspend fun resume() = Unit
+            override suspend fun shutdown() = Unit
+        }
         val expected = mapOf(
-            dev.mimir.core.update.TargetPlatform.WINDOWS_X64 to dev.mimir.desktop.update.WindowsMsiApplier::class,
-            dev.mimir.core.update.TargetPlatform.WINDOWS_ARM64 to dev.mimir.desktop.update.DesktopNotifyApplier::class,
-            dev.mimir.core.update.TargetPlatform.LINUX_X64 to dev.mimir.desktop.update.DesktopNotifyApplier::class,
+            TargetPlatform.WINDOWS_X64 to WindowsMsiApplier::class,
+            TargetPlatform.WINDOWS_ARM64 to DesktopNotifyApplier::class,
+            TargetPlatform.LINUX_X64 to DesktopNotifyApplier::class,
         )
         for ((platform, type) in expected) {
-            val backend = DaemonServiceFactory.create(config(freePort()), platform = platform, updateTempDir = tmp)
-            try {
-                assertEquals(DesktopBackend.Mode.InProcess, backend.mode)
-                assertEquals(type, backend.updateApplier!!::class, "$platform")
-            } finally {
-                backend.close()
-            }
+            val applier = DaemonServiceFactory.createUpdateApplier(platform, tmp, { noopClient }, noopHost)
+            assertEquals(type, applier::class, "$platform")
         }
     }
 
@@ -85,7 +100,12 @@ class DaemonServiceFactoryTest {
         val foreign = ServerSocket(0, 50, InetAddress.getByName("127.0.0.1"))
         closers += { foreign.close() }
 
-        val backend = DaemonServiceFactory.create(config(foreign.localPort)).also { closers += it::close }
+        val backend = DaemonServiceFactory.create(
+            config(foreign.localPort),
+            platform = TargetPlatform.LINUX_X64,
+            updateTempDir = configDir.resolve("updates"),
+        ).also { closers += it::close }
         assertEquals(DesktopBackend.Mode.InProcessWithoutApi, backend.mode)
+        assertIs<DesktopNotifyApplier>(backend.updateApplier)
     }
 }

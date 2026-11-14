@@ -19,9 +19,11 @@ kotlin {
     sourceSets {
         wasmJsMain.dependencies {
             implementation(project(":libs:ui"))
-            implementation(project(":libs:core"))
+            implementation(project(":libs:client"))
             implementation(libs.compose.runtime)
             implementation(libs.compose.ui)
+            implementation(libs.ktor.client.core)
+            implementation(libs.ktor.client.js)
             implementation(npm("@js-joda/core", libs.versions.jsJodaCore.get()))
         }
     }

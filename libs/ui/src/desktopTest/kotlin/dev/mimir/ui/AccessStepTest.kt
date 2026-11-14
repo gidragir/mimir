@@ -6,36 +6,12 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
 import dev.mimir.ui.platform.LocalStorageAccess
-import dev.mimir.ui.platform.StorageAccess
 import dev.mimir.ui.screens.setup.AccessStep
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalTestApi::class)
 class AccessStepTest {
-
-    private class FakeStorageAccess(
-        initialGranted: Boolean = false,
-        private val refuseNotifications: Boolean = false,
-    ) : StorageAccess {
-        val grantedFlow = MutableStateFlow(initialGranted)
-        override val granted: StateFlow<Boolean> = grantedFlow
-        var requestAllFilesCalled = false
-        var requestNotificationsCalled = false
-
-        override fun requestAllFiles() {
-            requestAllFilesCalled = true
-        }
-
-        override fun requestNotifications() {
-            requestNotificationsCalled = true
-            if (refuseNotifications) {
-                // Simulates notification permission denial / refusal
-            }
-        }
-    }
 
     @Test
     fun `shows grant button when access missing`() = runComposeUiTest {

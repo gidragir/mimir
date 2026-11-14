@@ -13,6 +13,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.io.File
 import kotlin.test.assertEquals
+import kotlin.test.assertSame
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], application = MimirApplication::class)
@@ -30,6 +31,11 @@ class MimirApplicationTest {
     @Test
     fun `application initializes without crash`() {
         assertEquals(app, ApplicationProvider.getApplicationContext())
+    }
+
+    @Test
+    fun `workScheduler is lazily cached per application instance`() {
+        assertSame(app.workScheduler, app.workScheduler)
     }
 
     @Test

@@ -22,19 +22,23 @@ import dev.mimir.ui.picker.LocalFolderPicker
 import dev.mimir.ui.picker.FakeFolderPicker
 import dev.mimir.ui.platform.LocalStorageAccess
 import dev.mimir.ui.platform.LocalVaultDiscovery
-import dev.mimir.ui.platform.StorageAccess
 import dev.mimir.ui.platform.VaultDiscovery
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.flow.MutableStateFlow
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.Clipboard
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.NativeClipboard
 import androidx.compose.ui.platform.UriHandler
 import dev.mimir.ui.screens.SetupWizardScreen
+import dev.mimir.ui.screens.setup.DeviceCodeStep
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-@OptIn(ExperimentalTestApi::class)
+@OptIn(ExperimentalTestApi::class, ExperimentalComposeUiApi::class)
 class SetupWizardScreenTest {
     @Test
     fun `step 1 allows entering vault path`() = runComposeUiTest {
@@ -338,11 +342,7 @@ class SetupWizardScreenTest {
     @Test
     fun `wizard starts on access step when storage access is not granted`() = runComposeUiTest {
         val model = FakeMimirUiModel()
-        val access = object : StorageAccess {
-            override val granted = MutableStateFlow(false)
-            override fun requestAllFiles() {}
-            override fun requestNotifications() {}
-        }
+        val access = FakeStorageAccess(initialGranted = false)
         setContent {
             CompositionLocalProvider(LocalStorageAccess provides access) {
                 SetupWizardScreen(model, onComplete = {})
@@ -353,18 +353,14 @@ class SetupWizardScreenTest {
         onNodeWithText("Предоставить доступ").assertExists()
         onNodeWithText("Путь к хранилищу Obsidian").assertDoesNotExist()
 
-        access.granted.value = true
+        access.grantedFlow.value = true
         waitUntilExactlyOneExists(hasText("Путь к хранилищу Obsidian"))
     }
 
     @Test
     fun `wizard skips access step when storage access is already granted`() = runComposeUiTest {
         val model = FakeMimirUiModel()
-        val access = object : StorageAccess {
-            override val granted = MutableStateFlow(true)
-            override fun requestAllFiles() {}
-            override fun requestNotifications() {}
-        }
+        val access = FakeStorageAccess(initialGranted = true)
         setContent {
             CompositionLocalProvider(LocalStorageAccess provides access) {
                 SetupWizardScreen(model, onComplete = {})
@@ -446,5 +442,61 @@ class SetupWizardScreenTest {
 
         gate.complete("/notes/vault")
         waitUntilExactlyOneExists(hasText("Найдено заметок: 7"))
+    }
+
+    private class RecordingClipboard : Clipboard {
+        val entries = mutableListOf<ClipEntry?>()
+        override suspend fun getClipEntry(): ClipEntry? = entries.lastOrNull()
+        override suspend fun setClipEntry(clipEntry: ClipEntry?) {
+            entries += clipEntry
+        }
+        @Deprecated("Deprecated in Clipboard interface")
+        override val nativeClipboard: NativeClipboard
+            get() = error("unused in test")
+    }
+
+    @Test
+    fun `device code step copies user code via LocalClipboard and opens verification url`() = runComposeUiTest {
+        val clipboard = RecordingClipboard()
+        val handler = RecordingUriHandler()
+        val model = FakeMimirUiModel()
+        setContent {
+            CompositionLocalProvider(
+                LocalClipboard provides clipboard,
+                LocalUriHandler provides handler,
+            ) {
+                DeviceCodeStep(model = model, pollIntervalMillis = 10, onNext = {}, onBack = null)
+            }
+        }
+        waitUntilExactlyOneExists(hasText("ABCD-EFGH"))
+        onNodeWithText("Скопировать код и открыть ссылку").performClick()
+        waitUntil { clipboard.entries.isNotEmpty() }
+        assertEquals(listOf("https://www.google.com/device"), handler.opened)
+        val transferable = clipboard.entries.single()?.nativeClipEntry as? java.awt.datatransfer.Transferable
+        assertEquals("ABCD-EFGH", transferable?.getTransferData(java.awt.datatransfer.DataFlavor.stringFlavor))
+    }
+
+    @Test
+    fun `failing openUri copies auth link via LocalClipboard`() = runComposeUiTest {
+        val clipboard = RecordingClipboard()
+        val handler = object : UriHandler { override fun openUri(uri: String) = throw IllegalStateException("no browser") }
+        val model = FakeMimirUiModel(loginMethods = both, browserAuthUrl = "https://auth.example/login")
+        setContent {
+            CompositionLocalProvider(
+                LocalClipboard provides clipboard,
+                LocalUriHandler provides handler,
+            ) {
+                SetupWizardScreen(model, onComplete = {}, pollIntervalMillis = 10)
+            }
+        }
+        onNodeWithText("Введите путь к папке").performTextInput("/v")
+        onNodeWithText("Продолжить").performClick()
+        waitUntilExactlyOneExists(hasText("Войти через Google"))
+        onNodeWithText("Войти через Google").performClick()
+        waitUntilExactlyOneExists(hasText("Скопировать ссылку"))
+        onNodeWithText("Скопировать ссылку").performClick()
+        waitUntil { clipboard.entries.isNotEmpty() }
+        val transferable = clipboard.entries.single()?.nativeClipEntry as? java.awt.datatransfer.Transferable
+        assertEquals("https://auth.example/login", transferable?.getTransferData(java.awt.datatransfer.DataFlavor.stringFlavor))
     }
 }

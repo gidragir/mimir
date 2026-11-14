@@ -14,12 +14,12 @@ import dev.mimir.core.SyncStatus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlin.time.Duration
@@ -29,7 +29,7 @@ import kotlin.time.Instant
 
 /**
  * Превращает [DaemonService] в [MimirUiModel]. Свойства сервиса не реактивны, поэтому снимок обновляется
- * при смене статуса, после каждого действия и по таймеру [refreshInterval].
+ * реактивно при эмиссии потоков сервиса и после каждого действия.
  *
  * @param rememberPassword вызывается после успешной разблокировки с «Запомнить на этом устройстве»; `null` — не запоминать.
  */
@@ -37,7 +37,7 @@ class DaemonServiceUiModel(
     private val service: DaemonService,
     scope: CoroutineScope,
     private val rememberPassword: ((String) -> Unit)? = null,
-    refreshInterval: Duration = 500.milliseconds,
+    @Suppress("UNUSED_PARAMETER") refreshInterval: Duration = 500.milliseconds,
     override val backgroundSync: StateFlow<UiBackgroundSync?> = MutableStateFlow(null),
     /** Как часто спрашивать об обновлении, пока ничего не происходит (находку ищет планировщик демона). */
     private val updateIdleInterval: Duration = 30.seconds,
@@ -88,12 +88,13 @@ class DaemonServiceUiModel(
                 withTimeoutOrNull(interval) { updateKick.receive() }
             }
         }
-        scope.launch { service.status.collect { refresh() } }
         scope.launch {
-            while (true) {
-                delay(refreshInterval)
-                refresh()
-            }
+            merge(
+                service.status,
+                service.progress,
+                service.connectionStatus,
+                service.conflictsFlow,
+            ).collect { refresh() }
         }
     }
 
@@ -199,6 +200,7 @@ class DaemonServiceUiModel(
 
     override suspend fun inspectVault(): UiVaultInspection =
         service.inspectVault().let { UiVaultInspection(it.localFileCount, it.remoteFileCount, it.requiresStrategyConfirmation) }
+            .also { refresh() }
 
     override suspend fun unlock(password: String, rememberOnDevice: Boolean) {
         service.unlock(password)
@@ -209,6 +211,7 @@ class DaemonServiceUiModel(
     override suspend fun resolveConflict(originalPath: String, conflictPath: String, keepConflict: Boolean) {
         service.resolveConflict(originalPath, conflictPath, keepConflict)
         service.conflicts()
+        refresh()
     }
 
     override suspend fun loginMethods(): Set<UiLoginMethod> = service.loginMethods().mapTo(mutableSetOf()) { it.toUi() }

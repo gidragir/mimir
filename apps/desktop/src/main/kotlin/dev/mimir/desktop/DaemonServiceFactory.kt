@@ -6,6 +6,7 @@ import dev.mimir.daemon.DaemonService
 import dev.mimir.daemon.mimirRoutes
 import dev.mimir.core.update.TargetPlatform
 import dev.mimir.core.update.UpdateApplier
+import dev.mimir.core.update.UpdateHttpClient
 import dev.mimir.desktop.update.DesktopApplierFactory
 import dev.mimir.desktop.update.HostLifecycle
 import dev.mimir.desktop.update.sweepStaleUpdateFiles
@@ -95,12 +96,11 @@ object DaemonServiceFactory {
                 Thread({ closer.get()() }, "mimir-update-shutdown").apply { isDaemon = true }.start()
             }
         }
-        val applier = DesktopApplierFactory.create(
+        val applier = createUpdateApplier(
             platform = platform,
+            updateTempDir = updateTempDir,
             httpClient = { KtorUpdateHttpClient(updateHttp) },
-            tempDir = updateTempDir,
             host = host,
-            browserOpener = SystemBrowserOpener()::openUri,
         )
         withContext(Dispatchers.IO) { runCatching { sweepStaleUpdateFiles(updateTempDir) } }
         val runtime = createRuntime(config, updateApplier = applier, targetPlatform = platform)
@@ -123,6 +123,19 @@ object DaemonServiceFactory {
         closer.set(close)
         return DesktopBackend(runtime, mode, updateApplier = applier, onClose = close)
     }
+
+    internal fun createUpdateApplier(
+        platform: TargetPlatform,
+        updateTempDir: Path,
+        httpClient: () -> UpdateHttpClient,
+        host: HostLifecycle,
+    ): UpdateApplier = DesktopApplierFactory.create(
+        platform = platform,
+        httpClient = httpClient,
+        tempDir = updateTempDir,
+        host = host,
+        browserOpener = SystemBrowserOpener()::openUri,
+    )
 
     private fun probeUrl(config: DaemonConfig): String {
         val host = if (config.bind == "0.0.0.0" || config.bind == "::") "127.0.0.1" else config.bind

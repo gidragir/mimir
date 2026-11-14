@@ -17,8 +17,10 @@ import dev.mimir.core.SyncProblem
 import dev.mimir.core.SyncProblemKind
 import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncStatus
+import dev.mimir.core.testing.TestClock
 import dev.mimir.ui.model.FakeMimirUiModel
 import dev.mimir.ui.screens.StatusScreen
+import dev.mimir.ui.screens.StatusSyncProgressSection
 import dev.mimir.ui.model.UiConflictEntry
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlin.test.Test
@@ -261,5 +263,36 @@ class StatusScreenTest {
             }
         }
         onNodeWithTag("mimir_progress_bar").assertIsDisplayed()
+    }
+
+    @Test
+    fun `progress section updates reactively when progress flow emits`() = runComposeUiTest {
+        val clock = TestClock(Instant.fromEpochSeconds(1_700_000_600L))
+        val progressFlow = MutableStateFlow<SyncProgress?>(
+            SyncProgress(phase = SyncPhase.Scanning, startedAt = clock.now - 5.seconds, scanned = 10),
+        )
+        val lastSyncFlow = MutableStateFlow<Instant?>(null)
+        setContent {
+            MimirTheme {
+                StatusSyncProgressSection(
+                    status = SyncStatus.Syncing,
+                    progressFlow = progressFlow,
+                    lastSyncTimeFlow = lastSyncFlow,
+                    clock = clock,
+                )
+            }
+        }
+        onNodeWithText("Проверено 10 файлов").assertExists()
+
+        progressFlow.value = SyncProgress(
+            phase = SyncPhase.Applying,
+            startedAt = clock.now - 10.seconds,
+            done = 3,
+            total = 8,
+            current = SyncItem("notes/test.md", SyncItemAction.Upload),
+        )
+        waitForIdle()
+        onNodeWithText("3 из 8 файлов").assertExists()
+        onNodeWithText("⬆ Отправляю в Google Drive: notes/test.md").assertExists()
     }
 }
