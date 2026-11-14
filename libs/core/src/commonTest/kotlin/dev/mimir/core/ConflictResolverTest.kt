@@ -4,21 +4,19 @@ import dev.mimir.core.sync.ConflictDetails
 import dev.mimir.core.sync.ConflictResolver
 import dev.mimir.core.sync.DefaultConflictResolver
 import dev.mimir.core.sync.FileSyncRecord
+import dev.mimir.core.testing.TestClock
 import kotlinx.coroutines.test.runTest
 import kotlinx.io.Buffer
 import kotlinx.io.readByteArray
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
-import kotlin.time.Clock
 import kotlin.time.Instant
 
 class ConflictResolverTest {
 
     private val fixedInstant = Instant.parse("2026-10-23T23:15:30Z")
-    private val testClock = object : Clock {
-        override fun now(): Instant = fixedInstant
-    }
+    private val testClock = TestClock(fixedInstant)
 
     private fun bufferOf(text: String) = Buffer().also { it.write(text.encodeToByteArray()) }
 

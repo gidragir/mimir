@@ -5,6 +5,7 @@ import dev.mimir.core.sync.DefaultConflictResolver
 import dev.mimir.core.sync.DefaultSyncEngine
 import dev.mimir.core.sync.InMemorySyncStateStore
 import dev.mimir.core.testing.InMemoryLocalVault
+import dev.mimir.core.testing.TestClock
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
@@ -24,7 +25,6 @@ import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
-import kotlin.time.Clock
 import kotlin.time.Instant
 
 class SyncEngineProgressTest {
@@ -282,9 +282,7 @@ class SyncEngineProgressTest {
     @Test
     fun failedConflictCopyWriteDoesNotLoseLocalEdit() = runTest {
         val now = Instant.parse("2026-10-24T12:00:00Z")
-        val fixedClock = object : Clock {
-            override fun now(): Instant = now
-        }
+        val fixedClock = TestClock(now)
         val f = Fixture(conflictResolver = DefaultConflictResolver(fixedClock))
         f.vault.write("a.md", bufferOf("base"))
         f.engine.syncNow()

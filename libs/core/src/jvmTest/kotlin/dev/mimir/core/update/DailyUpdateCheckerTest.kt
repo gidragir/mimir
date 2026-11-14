@@ -1,11 +1,12 @@
 package dev.mimir.core.update
 
+import dev.mimir.core.testing.TestClock
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNull
-import kotlin.time.Clock
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 
 class DailyUpdateCheckerTest {
@@ -18,8 +19,7 @@ class DailyUpdateCheckerTest {
         }
     }
 
-    private var now = Instant.fromEpochSeconds(1_000_000)
-    private val clock = object : Clock { override fun now() = now }
+    private val clock = TestClock(Instant.fromEpochSeconds(1_000_000))
     private var stored: Long? = null
     private val v1 = SemVer.parse("1.0.0")
 
@@ -34,10 +34,10 @@ class DailyUpdateCheckerTest {
         val c = checker(channel)
         assertIs<UpdateCheckResult.NoUpdate>(c.checkIfDue())
         assertEquals(1_000_000L, stored)
-        now = Instant.fromEpochSeconds(1_000_000 + 3600)
+        clock.advanceBy(3600.seconds)
         assertNull(c.checkIfDue())
         assertEquals(1, channel.calls)
-        now = Instant.fromEpochSeconds(1_000_000 + 24 * 3600)
+        clock.advanceBy((24 * 3600 - 3600).seconds)
         assertIs<UpdateCheckResult.NoUpdate>(c.checkIfDue())
         assertEquals(2, channel.calls)
     }

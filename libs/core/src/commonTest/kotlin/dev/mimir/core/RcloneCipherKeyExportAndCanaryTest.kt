@@ -1,7 +1,10 @@
 package dev.mimir.core
 
+import dev.mimir.core.testing.TestCiphers as CachedTestCiphers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import kotlinx.io.Buffer
+import kotlinx.io.Source
 import kotlinx.io.readString
 import kotlinx.io.writeString
 import kotlin.test.Test
@@ -12,7 +15,7 @@ import kotlin.test.assertIs
 class RcloneCipherKeyExportAndCanaryTest {
     @Test
     fun exportedKeyHexRestoresIdenticalCipherWithoutScrypt() = runTest {
-        val original = RcloneCipher.create("correct-horse-battery-staple")
+        val original = CachedTestCiphers.forPassword("correct-horse-battery-staple")
         val hex = original.exportKeyHex()
         assertEquals(160, hex.length)
 
@@ -37,8 +40,8 @@ class RcloneCipherKeyExportAndCanaryTest {
 
     @Test
     fun canaryVerifierRejectsWrongPasswordLocallyWhenKnownHashProvided() = runTest {
-        val rightCipher = RcloneCipher.create("secret-1")
-        val wrongCipher = RcloneCipher.create("secret-2")
+        val rightCipher = CachedTestCiphers.forPassword("secret-1")
+        val wrongCipher = CachedTestCiphers.forPassword("secret-2")
         val knownHash = CanaryVerifier.computeCanaryHash(rightCipher)
         val remote = CountingRemoteStorage(InMemoryRemoteStorage())
 
@@ -49,8 +52,8 @@ class RcloneCipherKeyExportAndCanaryTest {
 
     @Test
     fun canaryVerifierValidatesRemoteCanaryFileAndRejectsWrongCipher() = runTest {
-        val rightCipher = RcloneCipher.create("vault-pass")
-        val wrongCipher = RcloneCipher.create("wrong-pass")
+        val rightCipher = CachedTestCiphers.forPassword("vault-pass")
+        val wrongCipher = CachedTestCiphers.forPassword("wrong-pass")
         val remote = InMemoryRemoteStorage()
         val body = Buffer().apply { writeString("""{"magic":"mimir-vault-canary","version":1}""") }
         remote.write(RemotePath(CanaryVerifier.CANARY_FILENAME), rightCipher.encrypt(body))
@@ -65,13 +68,45 @@ class RcloneCipherKeyExportAndCanaryTest {
 
     @Test
     fun canaryVerifierHandlesLegacyVaultWithoutCanaryFileByTestingEntryNames() = runTest {
-        val rightCipher = RcloneCipher.create("legacy-pass")
-        val wrongCipher = RcloneCipher.create("wrong-pass")
+        val rightCipher = CachedTestCiphers.forPassword("legacy-pass")
+        val wrongCipher = CachedTestCiphers.forPassword("wrong-pass")
         val remote = InMemoryRemoteStorage()
         val encName = rightCipher.encryptName("Заметка.md")
         remote.write(RemotePath(encName), rightCipher.encrypt(Buffer().apply { writeString("hello") }))
 
         assertIs<CanaryVerifier.CanaryVerifyResult.Valid>(CanaryVerifier.verifyReadOnly(remote, rightCipher))
         assertIs<CanaryVerifier.CanaryVerifyResult.Invalid>(CanaryVerifier.verifyReadOnly(remote, wrongCipher))
+    }
+
+    @Test
+    fun verifyReadOnlyRethrowsCancellationException() = runTest {
+        val cipher = CachedTestCiphers.forPassword("cancel-pass")
+        val raw = InMemoryRemoteStorage()
+        raw.write(RemotePath(CanaryVerifier.CANARY_FILENAME), cipher.encrypt(Buffer().apply { writeString(CanaryVerifier.CANARY_BODY) }))
+        val cancellingRemote = object : RemoteStorage by raw {
+            override suspend fun read(path: RemotePath): Source = throw CancellationException("cancelled")
+        }
+        assertFailsWith<CancellationException> {
+            CanaryVerifier.verifyReadOnly(cancellingRemote, cipher)
+        }
+    }
+
+    @Test
+    fun verifyOrInitWritesCanaryOnEmptyVaultAndRejectsWrongKnownHashWithoutNetwork() = runTest {
+        val rightCipher = CachedTestCiphers.forPassword("init-pass")
+        val wrongCipher = CachedTestCiphers.forPassword("wrong-init-pass")
+        val raw = InMemoryRemoteStorage()
+        val counting = CountingRemoteStorage(raw)
+
+        val initResult = CanaryVerifier.verifyOrInit(counting, rightCipher)
+        val valid = assertIs<CanaryVerifier.CanaryVerifyResult.Valid>(initResult)
+        assertEquals(CanaryVerifier.computeCanaryHash(rightCipher), valid.canaryHash)
+        assertEquals(1, counting.writeCalls)
+
+        // Проверка с неверным knownCanaryHash без сетевых вызовов
+        val beforeCalls = counting.statCalls + counting.readCalls + counting.listCalls + counting.writeCalls
+        val rejected = CanaryVerifier.verifyOrInit(counting, wrongCipher, knownCanaryHash = valid.canaryHash)
+        assertIs<CanaryVerifier.CanaryVerifyResult.Invalid>(rejected)
+        assertEquals(beforeCalls, counting.statCalls + counting.readCalls + counting.listCalls + counting.writeCalls)
     }
 }
