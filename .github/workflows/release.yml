@@ -65,7 +65,6 @@ jobs:
     timeout-minutes: 45
     permissions:
       contents: read
-      checks: read
     strategy:
       fail-fast: false
       matrix:
@@ -92,26 +91,18 @@ jobs:
       run:
         shell: bash
     steps:
-      - name: Configure Windows environment (Developer Mode, symlinks, long paths)
+      # git-настройки нужны уже при checkout (symlinks/длинные пути); остальное делает setup-mimir.
+      - name: Configure git for Windows checkout
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock" /t REG_DWORD /f /v "AllowDevelopmentWithoutDevLicense" /d "1"
-          reg add "HKLM\SYSTEM\CurrentControlSet\Control\FileSystem" /v "LongPathsEnabled" /t REG_DWORD /d 1 /f
           git config --global core.symlinks true
           git config --global core.longpaths true
       - uses: actions/checkout@v7
         with:
           ref: ${{ env.SOURCE_REF }}
           persist-credentials: false
-      - uses: jdx/mise-action@v5
-      - name: Configure Java environment from mise
-        run: |
-          java_home=$(mise where java | tr '\134' '/')
-          echo "JAVA_HOME=$java_home" >> "$GITHUB_ENV"
-          echo "$java_home/bin" >> "$GITHUB_PATH"
-      # Android SDK и лицензии уже есть в образе ubuntu-latest (ANDROID_HOME), платформу и build-tools скачает AGP.
-      - uses: gradle/actions/setup-gradle@v6
+      - uses: ./.github/actions/setup-mimir
       - name: Decode Android keystore
         if: matrix.android
         env:

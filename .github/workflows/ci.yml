@@ -62,7 +62,7 @@ jobs:
       # Только node, jactionlint и shellcheck из mise.toml: JDK этой джобе не нужен.
       - uses: jdx/mise-action@v5
         with:
-          install_args: node jactionlint shellcheck
+          install_args: node jactionlint shellcheck jq
       - name: Verify design tokens are in sync
         env:
           MISE_TASK_RUN_AUTO_INSTALL: "false"
@@ -71,6 +71,10 @@ jobs:
         env:
           MISE_TASK_RUN_AUTO_INSTALL: "false"
         run: mise run skills:check
+      - name: Verify Windows VM host CLI tests
+        env:
+          MISE_TASK_RUN_AUTO_INSTALL: "false"
+        run: mise run win:test
       - name: Lint GitHub Actions workflows
         run: jactionlint --profile correctness
       - uses: dorny/paths-filter@v4
@@ -110,6 +114,10 @@ jobs:
               - 'packaging/docker/**'
             android:
               - 'apps/android/**'
+            scripts_or_skills:
+              - 'scripts/**'
+              - '.agents/**'
+              - '.claude/**'
             js_or_web:
               - 'apps/web-ui/**'
               - 'apps/obsidian-plugin/**'
@@ -123,6 +131,9 @@ jobs:
           RUN_MACOS: ${{ inputs.run_macos }}
           CORE_OR_LIBS: ${{ steps.filter.outputs.core_or_libs }}
           DESKTOP: ${{ steps.filter.outputs.desktop }}
+          ANDROID: ${{ steps.filter.outputs.android }}
+          JS_OR_WEB: ${{ steps.filter.outputs.js_or_web }}
+          SCRIPTS_OR_SKILLS: ${{ steps.filter.outputs.scripts_or_skills }}
           MSI_PACKAGING: ${{ steps.filter.outputs.msi_packaging }}
           COMMIT_SUBJECT: ${{ github.event.head_commit.message }}
         run: |
@@ -151,6 +162,9 @@ jobs:
               fi
               if [ "$CORE_OR_LIBS" = "true" ] || [ "$DESKTOP" = "true" ]; then
                 echo 'os_matrix=["ubuntu-latest","windows-latest"]'
+              elif [ "$ANDROID" != "true" ] && [ "$JS_OR_WEB" != "true" ] && [ "$SCRIPTS_OR_SKILLS" = "true" ]; then
+                # Только scripts/.agents/.claude: их проверяют шаги detect-changes (win:test, skills:check), сборка не нужна.
+                echo 'os_matrix=[]'
               else
                 echo 'os_matrix=["ubuntu-latest"]'
               fi
@@ -160,6 +174,7 @@ jobs:
   build:
     name: build (${{ matrix.os }})
     needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.os_matrix != '[]' }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     strategy:
@@ -170,25 +185,17 @@ jobs:
       run:
         shell: bash
     steps:
-      - name: Configure Windows environment (Developer Mode, symlinks, long paths)
+      # git-настройки нужны уже при checkout (symlinks/длинные пути); остальное делает setup-mimir.
+      - name: Configure git for Windows checkout
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock" /t REG_DWORD /f /v "AllowDevelopmentWithoutDevLicense" /d "1"
-          reg add "HKLM\SYSTEM\CurrentControlSet\Control\FileSystem" /v "LongPathsEnabled" /t REG_DWORD /d 1 /f
           git config --global core.symlinks true
           git config --global core.longpaths true
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@v5
-      - name: Configure Java environment from mise
-        run: |
-          java_home=$(mise where java | tr '\134' '/')
-          echo "JAVA_HOME=$java_home" >> "$GITHUB_ENV"
-          echo "$java_home/bin" >> "$GITHUB_PATH"
-      # Android SDK и лицензии уже есть в образе ubuntu-latest (ANDROID_HOME), платформу и build-tools скачает AGP.
-      - uses: gradle/actions/setup-gradle@v6
+      - uses: ./.github/actions/setup-mimir
       # Разделение обязанностей по ОС и затронутым подсистемам без секретов:
       # - Release Please PR: быстрая валидация версии в gradle.properties и build-logic
       # - Windows: только десктопные тесты и упаковка MSI (без дублирования KMP/JS Karma-тестов)
@@ -196,8 +203,9 @@ jobs:
       # - Linux (только Android): юнит-тесты и сборка Android APK
       # - Linux (только JS/Web/Design): плагин Obsidian, расширение браузера, Wasm Web-UI и UI-тесты
       # - Linux (ядро/десктоп/всё остальное): полный прогон mise run build
+      # На Linux JVM-тесты входят в `build --continue`/целевые задачи ниже, отдельный ciJvmTests дублировал бы их.
       - name: Fast JVM tests (ciJvmTests)
-        if: ${{ needs.detect-changes.outputs.is_release_pr != 'true' && (github.event_name == 'schedule' || needs.detect-changes.outputs.core_or_libs == 'true' || needs.detect-changes.outputs.desktop == 'true' || (needs.detect-changes.outputs.android != 'true' && needs.detect-changes.outputs.js_or_web != 'true') || runner.os != 'Linux') }}
+        if: ${{ needs.detect-changes.outputs.is_release_pr != 'true' && runner.os != 'Linux' }}
         run: ./gradlew ciJvmTests
       - name: Full build and packaging
         env:
@@ -209,7 +217,7 @@ jobs:
           JS_OR_WEB: ${{ needs.detect-changes.outputs.js_or_web }}
         run: |
           if [ "$IS_RELEASE_PR" = "true" ]; then
-            env -u ANDROID_HOME -u ANDROID_SDK_ROOT ./gradlew -p build-logic test && env -u ANDROID_HOME -u ANDROID_SDK_ROOT ./gradlew :apps:desktop:help
+            env -u ANDROID_HOME -u ANDROID_SDK_ROOT ./gradlew :build-logic:test :apps:desktop:help
           elif [ "${{ runner.os }}" = "Windows" ]; then
             if [ "$PACKAGE_MSI" = "true" ]; then
               ./gradlew :apps:desktop:packageMsi -Pmimir.bundleWebUi=true
@@ -219,9 +227,9 @@ jobs:
           elif [ "${{ runner.os }}" = "macOS" ]; then
             ./gradlew :apps:desktop:packageUberJarForCurrentOS -Pmimir.bundleWebUi=true
           elif [ "$CORE_OR_LIBS" != "true" ] && [ "$DESKTOP" != "true" ] && [ "$JS_OR_WEB" != "true" ] && [ "$ANDROID" = "true" ]; then
-            ./gradlew -p build-logic test && ./gradlew :apps:android:testDebugUnitTest :apps:android:assembleDebug
+            ./gradlew :build-logic:test :apps:android:testDebugUnitTest :apps:android:assembleDebug
           elif [ "$CORE_OR_LIBS" != "true" ] && [ "$DESKTOP" != "true" ] && [ "$ANDROID" != "true" ] && [ "$JS_OR_WEB" = "true" ]; then
-            env -u ANDROID_HOME -u ANDROID_SDK_ROOT ./gradlew -p build-logic test && env -u ANDROID_HOME -u ANDROID_SDK_ROOT ./gradlew :apps:obsidian-plugin:checkPlugin :apps:browser-extension:checkExtension :apps:web-ui:wasmJsBrowserDistribution :libs:ui:desktopTest
+            env -u ANDROID_HOME -u ANDROID_SDK_ROOT ./gradlew :build-logic:test :apps:obsidian-plugin:checkPlugin :apps:browser-extension:checkExtension :apps:web-ui:wasmJsBrowserDistribution :libs:ui:desktopTest
           else
             ./gradlew build --continue
           fi
