@@ -137,18 +137,24 @@ data class DaemonVaultInspectionDto(
     val requiresStrategyConfirmation: Boolean,
 )
 
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 data class DaemonDeviceCodeDto(
     @kotlinx.serialization.SerialName("device_code")
+    @kotlinx.serialization.json.JsonNames("deviceCode")
     val deviceCode: String,
     @kotlinx.serialization.SerialName("user_code")
+    @kotlinx.serialization.json.JsonNames("userCode")
     val userCode: String,
     @kotlinx.serialization.SerialName("verification_url")
+    @kotlinx.serialization.json.JsonNames("verificationUrl")
     val verificationUrl: String,
     @kotlinx.serialization.SerialName("expires_in")
-    val expiresInSeconds: Long,
+    @kotlinx.serialization.json.JsonNames("expiresInSeconds")
+    val expiresInSeconds: Long = 1800L,
     @kotlinx.serialization.SerialName("interval")
-    val intervalSeconds: Long,
+    @kotlinx.serialization.json.JsonNames("intervalSeconds")
+    val intervalSeconds: Long = 5L,
 )
 
 @Serializable

@@ -1,15 +1,23 @@
 package dev.mimir.daemon
 
-import dev.mimir.runtime.SyncNotConfiguredException
-
-import dev.mimir.runtime.InvalidPasswordException
-
-import dev.mimir.client.*
+import dev.mimir.client.DaemonConflictItemDto
+import dev.mimir.client.DaemonConflictsResponse
+import dev.mimir.client.DaemonErrorBody
+import dev.mimir.client.DaemonResolveConflictRequest
+import dev.mimir.client.DaemonResolveConflictResponse
+import dev.mimir.client.DaemonStatusDto
+import dev.mimir.client.DaemonStatusOnlyResponse
+import dev.mimir.client.DaemonUnlockRequest
+import dev.mimir.client.DaemonVaultConfigResponse
+import dev.mimir.client.DaemonVaultRequest
+import dev.mimir.client.InvalidPasswordException
+import dev.mimir.client.SyncNotConfiguredException
 import dev.mimir.core.BuildConfig
 import dev.mimir.core.SyncStatus
 import dev.mimir.core.label
 import dev.mimir.core.update.UpdateManager
-import dev.mimir.drive.client.DriveHttpException
+import io.ktor.http.CacheControl
+import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
@@ -21,32 +29,31 @@ import io.ktor.server.http.content.staticResources
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.plugins.cors.routing.CORS
 import io.ktor.server.request.receive
+import io.ktor.server.response.cacheControl
 import io.ktor.server.response.respond
+import io.ktor.server.response.respondBytesWriter
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
+import io.ktor.utils.io.writeByteArray
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import java.security.MessageDigest
+import kotlin.time.Clock
+import kotlin.time.Duration.Companion.seconds
 
 @Serializable
 private data class Health(val status: String, val version: String)
 
-private typealias StatusResponse = DaemonStatusDto
-private typealias StatusOnly = DaemonStatusOnlyResponse
-private typealias ErrorBody = DaemonErrorBody
-private typealias ConflictsResponse = DaemonConflictsResponse
-private typealias ConflictItem = DaemonConflictItemDto
-private typealias ResolveRequest = DaemonResolveConflictRequest
-private typealias ResolveResponse = DaemonResolveConflictResponse
-private typealias AuthorizedResponse = DaemonAuthorizedResponse
-private typealias ExpiredResponse = DaemonExpiredResponse
-private typealias MethodsResponse = DaemonMethodsResponse
-private typealias AuthUrlResponse = DaemonAuthUrlResponse
-private typealias FailedResponse = DaemonFailedResponse
-private typealias VaultRequest = DaemonVaultRequest
-private typealias VaultConfigResponse = DaemonVaultConfigResponse
-private typealias UnlockRequest = DaemonUnlockRequest
+private val sseJson = Json
 
 private fun SyncStatus.code(): String = when (this) {
     SyncStatus.NotConfigured -> "not_connected"
@@ -54,6 +61,20 @@ private fun SyncStatus.code(): String = when (this) {
     SyncStatus.Syncing -> "syncing"
     SyncStatus.Offline -> "offline"
     is SyncStatus.Error -> "error"
+}
+
+private fun DaemonService.toStatusDto(): DaemonStatusDto {
+    val currentStatus = status.value
+    return DaemonStatusDto(
+        status = currentStatus.code(),
+        label = currentStatus.label(),
+        vaultPath = vaultPath,
+        lastSyncAt = lastSyncTime?.toString(),
+        isLocked = isLocked,
+        activeConflicts = conflictsFlow.value.size,
+        accountEmail = accountEmail,
+        progress = progress.value?.toDto(Clock.System.now()),
+    )
 }
 
 private fun tokensEqual(expected: String, actual: String?): Boolean =
@@ -69,7 +90,7 @@ private val MimirTokenAuth = createRouteScopedPlugin("MimirTokenAuth", ::TokenAu
         val authorization = call.request.headers[HttpHeaders.Authorization]
         val bearer = authorization?.takeIf { it.startsWith("Bearer ") }?.removePrefix("Bearer ")
         if (!tokensEqual(expected, bearer ?: call.request.headers["X-Mimir-Token"])) {
-            call.respond(HttpStatusCode.Unauthorized, ErrorBody("Unauthorized"))
+            call.respond(HttpStatusCode.Unauthorized, DaemonErrorBody("Unauthorized"))
         }
     }
 }
@@ -98,162 +119,148 @@ fun Application.mimirRoutes(service: DaemonService, config: DaemonConfig, update
             config.token?.let { install(MimirTokenAuth) { token = it } }
 
             updateRoutes(service, config, updateManager)
+            authRoutes(service)
 
             get("/status") {
-                val status = service.status.value
-                call.respond(
-                    StatusResponse(
-                        status = status.code(),
-                        label = status.label(),
-                        vaultPath = service.vaultPath,
-                        lastSyncAt = service.lastSyncTime?.toString(),
-                        isLocked = service.isLocked,
-                        activeConflicts = service.conflictsFlow.value.size,
-                        accountEmail = service.accountEmail,
-                        progress = service.progress.value?.toDto(kotlin.time.Clock.System.now()),
-                    ),
-                )
+                call.respond(service.toStatusDto())
+            }
+
+            get("/events") {
+                call.response.cacheControl(CacheControl.NoCache(null))
+                call.respondBytesWriter(contentType = ContentType.Text.EventStream) {
+                    suspend fun sendStatus() {
+                        val payload = sseJson.encodeToString(DaemonStatusDto.serializer(), service.toStatusDto())
+                        writeByteArray("event: status\ndata: $payload\n\n".encodeToByteArray())
+                        flush()
+                    }
+                    val dirty = Channel<Unit>(Channel.CONFLATED)
+                    // UNDISPATCHED регистрирует подписчиков StateFlow и сбрасывает их начальные значения до первого sendStatus(),
+                    // чтобы изменения сразу после отправки стартового кадра не терялись.
+                    val collector = launch(start = CoroutineStart.UNDISPATCHED) {
+                        merge(
+                            service.status.drop(1).map { },
+                            service.progress.drop(1).map { },
+                            service.conflictsFlow.drop(1).map { },
+                        ).collect { dirty.trySend(Unit) }
+                    }
+                    sendStatus()
+                    try {
+                        while (!isClosedForWrite) {
+                            val changed = withTimeoutOrNull(15.seconds) {
+                                dirty.receive()
+                                true
+                            } ?: false
+                            if (isClosedForWrite) break
+                            if (changed) {
+                                sendStatus()
+                            } else {
+                                // Keep-alive комментарий обнаруживает закрытый сокет даже в простое.
+                                writeByteArray(": ping\n\n".encodeToByteArray())
+                                flush()
+                            }
+                        }
+                    } finally {
+                        collector.cancel()
+                        dirty.close()
+                    }
+                }
             }
 
             post("/sync") {
                 try {
                     if (service.triggerSync()) {
-                        call.respond(HttpStatusCode.Accepted, StatusOnly("started"))
+                        call.respond(HttpStatusCode.Accepted, DaemonStatusOnlyResponse("started"))
                     } else {
-                        call.respond(HttpStatusCode.Conflict, StatusOnly("already_running"))
+                        call.respond(HttpStatusCode.Conflict, DaemonStatusOnlyResponse("already_running"))
                     }
                 } catch (_: SyncNotConfiguredException) {
                     call.respond(
                         HttpStatusCode.PreconditionFailed,
-                        ErrorBody("Vault path, encryption password or cloud storage not configured"),
+                        DaemonErrorBody("Vault path, encryption password or cloud storage not configured"),
                     )
                 }
             }
 
             get("/conflicts") {
                 call.respond(
-                    ConflictsResponse(service.conflicts().map { ConflictItem(it.originalPath, it.conflictPath, it.createdAt.toString()) }),
+                    DaemonConflictsResponse(
+                        service.conflicts().map {
+                            DaemonConflictItemDto(it.originalPath, it.conflictPath, it.createdAt.toString())
+                        },
+                    ),
                 )
             }
 
             post("/conflicts/resolve") {
                 val request = try {
-                    call.receive<ResolveRequest>()
+                    call.receive<DaemonResolveConflictRequest>()
                 } catch (_: Exception) {
-                    return@post call.respond(HttpStatusCode.BadRequest, ErrorBody("Expected originalPath, conflictPath and resolution"))
+                    return@post call.respond(
+                        HttpStatusCode.BadRequest,
+                        DaemonErrorBody("Expected originalPath, conflictPath and resolution"),
+                    )
                 }
                 val keepConflict = when (request.resolution) {
                     "keep_conflict" -> true
                     "keep_original" -> false
-                    else -> return@post call.respond(HttpStatusCode.BadRequest, ErrorBody("resolution must be keep_original or keep_conflict"))
+                    else -> return@post call.respond(
+                        HttpStatusCode.BadRequest,
+                        DaemonErrorBody("resolution must be keep_original or keep_conflict"),
+                    )
                 }
                 try {
                     service.resolveConflict(request.originalPath, request.conflictPath, keepConflict)
-                    call.respond(ResolveResponse("resolved", request.originalPath))
+                    call.respond(DaemonResolveConflictResponse("resolved", request.originalPath))
                 } catch (e: IllegalArgumentException) {
-                    call.respond(HttpStatusCode.BadRequest, ErrorBody(e.message ?: "Invalid request"))
+                    call.respond(HttpStatusCode.BadRequest, DaemonErrorBody(e.message ?: "Invalid request"))
                 } catch (e: NoSuchElementException) {
-                    call.respond(HttpStatusCode.NotFound, ErrorBody(e.message ?: "Not found"))
+                    call.respond(HttpStatusCode.NotFound, DaemonErrorBody(e.message ?: "Not found"))
                 } catch (_: SyncNotConfiguredException) {
-                    call.respond(HttpStatusCode.PreconditionFailed, ErrorBody("Vault path not configured"))
-                }
-            }
-
-            // JSON маршрутов входа неизменен: им пользуются плагин и web-ui.
-            post("/auth/device/start") {
-                try {
-                    val start = service.startLogin(LoginMethod.DeviceCode)
-                    val code = (start as? DaemonLoginStart.ShowDeviceCode)?.code
-                        ?: return@post call.respond(HttpStatusCode.InternalServerError, ErrorBody("Unexpected sign-in start: $start"))
-                    call.respond(code)
-                } catch (e: SyncNotConfiguredException) {
-                    call.respond(HttpStatusCode.PreconditionFailed, ErrorBody(e.message ?: "Not configured"))
-                } catch (e: DriveHttpException) {
-                    call.respond(HttpStatusCode.BadGateway, ErrorBody(e.message ?: "Google request failed"))
-                }
-            }
-
-            get("/auth/device/poll") {
-                // Код устройства обязателен по контракту API; опрашивается попытка, начатая через /auth/device/start.
-                call.request.queryParameters["device_code"]
-                    ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorBody("device_code is required"))
-                try {
-                    when (val result = service.pollLogin()) {
-                        DaemonLoginPoll.Pending -> call.respond(StatusOnly("pending"))
-                        is DaemonLoginPoll.Authorized -> call.respond(AuthorizedResponse("authorized", result.email))
-                        is DaemonLoginPoll.Failed -> call.respond(HttpStatusCode.BadRequest, ExpiredResponse("expired", "Code has expired"))
-                    }
-                } catch (e: SyncNotConfiguredException) {
-                    call.respond(HttpStatusCode.PreconditionFailed, ErrorBody(e.message ?: "Not configured"))
-                } catch (e: DriveHttpException) {
-                    call.respond(HttpStatusCode.BadGateway, ErrorBody(e.message ?: "Google request failed"))
-                }
-            }
-
-            get("/auth/methods") {
-                call.respond(MethodsResponse(service.loginMethods().sorted().map { it.wireName }))
-            }
-
-            post("/auth/browser/start") {
-                try {
-                    val start = service.startLogin(LoginMethod.Browser)
-                    val url = (start as? DaemonLoginStart.OpenUrl)?.url
-                        ?: return@post call.respond(HttpStatusCode.InternalServerError, ErrorBody("Unexpected sign-in start: $start"))
-                    call.respond(AuthUrlResponse(url))
-                } catch (_: SyncNotConfiguredException) {
-                    call.respond(HttpStatusCode.Conflict, ErrorBody("Browser sign-in is not available"))
-                }
-            }
-
-            get("/auth/browser/poll") {
-                when (val result = service.pollLogin()) {
-                    DaemonLoginPoll.Pending -> call.respond(StatusOnly("pending"))
-                    is DaemonLoginPoll.Authorized -> call.respond(AuthorizedResponse("authorized", result.email))
-                    is DaemonLoginPoll.Failed -> call.respond(FailedResponse("failed", result.reason))
+                    call.respond(HttpStatusCode.PreconditionFailed, DaemonErrorBody("Vault path not configured"))
                 }
             }
 
             post("/vault") {
                 val request = try {
-                    call.receive<VaultRequest>()
+                    call.receive<DaemonVaultRequest>()
                 } catch (_: Exception) {
-                    return@post call.respond(HttpStatusCode.BadRequest, ErrorBody("Expected {\"vaultPath\": \"...\"}"))
+                    return@post call.respond(HttpStatusCode.BadRequest, DaemonErrorBody("Expected {\"vaultPath\": \"...\"}"))
                 }
                 try {
                     val fileCount = service.configureVault(request.vaultPath)
-                    call.respond(VaultConfigResponse(service.vaultPath ?: request.vaultPath, fileCount))
+                    call.respond(DaemonVaultConfigResponse(service.vaultPath ?: request.vaultPath, fileCount))
                 } catch (e: IllegalArgumentException) {
-                    call.respond(HttpStatusCode.BadRequest, ErrorBody(e.message ?: "Invalid vault path"))
+                    call.respond(HttpStatusCode.BadRequest, DaemonErrorBody(e.message ?: "Invalid vault path"))
                 }
             }
 
             get("/vault/inspect") {
                 if (service.isLocked) {
-                    return@get call.respond(HttpStatusCode.Forbidden, ErrorBody("Vault is locked"))
+                    return@get call.respond(HttpStatusCode.Forbidden, DaemonErrorBody("Vault is locked"))
                 }
                 try {
                     call.respond(service.inspectVault())
                 } catch (e: SyncNotConfiguredException) {
-                    call.respond(HttpStatusCode.PreconditionFailed, ErrorBody(e.message ?: "Not configured"))
+                    call.respond(HttpStatusCode.PreconditionFailed, DaemonErrorBody(e.message ?: "Not configured"))
                 }
             }
 
             post("/unlock") {
                 val request = try {
-                    call.receive<UnlockRequest>()
+                    call.receive<DaemonUnlockRequest>()
                 } catch (_: Exception) {
-                    return@post call.respond(HttpStatusCode.BadRequest, ErrorBody("Expected {\"password\": \"...\"}"))
+                    return@post call.respond(HttpStatusCode.BadRequest, DaemonErrorBody("Expected {\"password\": \"...\"}"))
                 }
                 if (request.password.isEmpty()) {
-                    return@post call.respond(HttpStatusCode.BadRequest, ErrorBody("Password must not be empty"))
+                    return@post call.respond(HttpStatusCode.BadRequest, DaemonErrorBody("Password must not be empty"))
                 }
                 try {
                     service.unlock(request.password)
-                    call.respond(StatusOnly("unlocked"))
+                    call.respond(DaemonStatusOnlyResponse("unlocked"))
                 } catch (e: InvalidPasswordException) {
-                    call.respond(HttpStatusCode.Forbidden, ErrorBody(e.message ?: "Invalid encryption password"))
+                    call.respond(HttpStatusCode.Forbidden, DaemonErrorBody(e.message ?: "Invalid encryption password"))
                 } catch (e: SyncNotConfiguredException) {
-                    call.respond(HttpStatusCode.PreconditionFailed, ErrorBody(e.message ?: "Not configured"))
+                    call.respond(HttpStatusCode.PreconditionFailed, DaemonErrorBody(e.message ?: "Not configured"))
                 }
             }
         }

@@ -1,17 +1,26 @@
 package dev.mimir.daemon
 
 import dev.mimir.core.SyncStatus
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.cio.CIO as ClientCIO
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
+import io.ktor.client.request.prepareGet
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
+import io.ktor.server.cio.CIO as ServerCIO
+import io.ktor.server.engine.embeddedServer
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
+import io.ktor.utils.io.readLine
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonNull
@@ -179,5 +188,45 @@ class RoutesTest {
         val json = client.get("/api/v1/status").json()
         assertEquals("offline", json.getValue("status").jsonPrimitive.content)
         assertEquals("Mimir: waiting for network", json.getValue("label").jsonPrimitive.content)
+    }
+
+    @Test
+    fun `events streams status as server-sent events`() = runBlocking {
+        service.status.value = SyncStatus.Idle
+        service.vaultPath = "/home/u/vault"
+        service.isLocked = false
+
+        val server = embeddedServer(ServerCIO, host = "127.0.0.1", port = 0) {
+            mimirRoutes(service, DaemonConfig())
+        }.start(wait = false)
+        val port = server.engine.resolvedConnectors().first().port
+        val http = HttpClient(ClientCIO)
+        try {
+            http.prepareGet("http://127.0.0.1:$port/api/v1/events").execute { response ->
+                assertEquals(HttpStatusCode.OK, response.status)
+                assertEquals(ContentType.Text.EventStream, response.contentType()?.withoutParameters())
+                val channel = response.bodyAsChannel()
+                suspend fun nextDataJson(): JsonObject = withTimeout(5_000) {
+                    var dataLine: String? = null
+                    while (dataLine == null) {
+                        val line = channel.readLine() ?: error("SSE stream ended before event")
+                        if (line.startsWith("data:")) dataLine = line.removePrefix("data:").trim()
+                    }
+                    Json.parseToJsonElement(dataLine).jsonObject
+                }
+
+                val first = nextDataJson()
+                assertEquals("idle", first.getValue("status").jsonPrimitive.content)
+                assertEquals("/home/u/vault", first.getValue("vaultPath").jsonPrimitive.content)
+
+                service.status.value = SyncStatus.Syncing
+                val second = nextDataJson()
+                assertEquals("syncing", second.getValue("status").jsonPrimitive.content)
+                channel.cancel(null)
+            }
+        } finally {
+            http.close()
+            server.stop(50, 200)
+        }
     }
 }

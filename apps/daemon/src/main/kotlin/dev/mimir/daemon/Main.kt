@@ -108,16 +108,16 @@ fun createRuntime(
 }
 
 // Ktor CIO пробрасывает ошибку bind из фонового потока (со стектрейсом), поэтому порт проверяем до старта.
-private fun isPortFree(config: DaemonConfig): Boolean =
+fun DaemonConfig.isPortFree(): Boolean =
     try {
-        ServerSocket().use { it.bind(InetSocketAddress(config.bind, config.port)) }
+        ServerSocket().use { it.bind(InetSocketAddress(bind, port)) }
         true
     } catch (_: BindException) {
         false
     }
 
 fun runDaemon(config: DaemonConfig, updateApplier: UpdateApplier = DockerLogNotifyApplier()): Int {
-    if (!isPortFree(config)) {
+    if (!config.isPortFree()) {
         System.err.println("Port ${config.port} on ${config.bind} is already in use")
         return EXIT_PORT_IN_USE
     }

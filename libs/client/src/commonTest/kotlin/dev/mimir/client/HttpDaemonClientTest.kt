@@ -20,6 +20,7 @@ import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -371,5 +372,106 @@ class HttpDaemonClientTest {
         val unknown = MockEngine { respond("""{"error":"x","code":"SOMETHING_NEW"}""", HttpStatusCode.Conflict, jsonHeaders) }
         val other = HttpDaemonClient("http://127.0.0.1:1", scope = backgroundScope, httpClient = HttpClient(unknown))
         assertFailsWith<IllegalStateException> { other.downloadUpdate() }
+    }
+
+    @Test
+    fun conflictsFetchedOnlyWhenActiveConflictsOrLastSyncAtChanges() = runTest {
+        var statusCalls = 0
+        var conflictCalls = 0
+        var currentLastSyncAt = "2026-10-24T10:00:00Z"
+
+        val mockEngine = MockEngine { request ->
+            when ("${request.method.value} ${request.url.encodedPath}") {
+                "GET /api/v1/status" -> {
+                    statusCalls++
+                    respond(
+                        """{"status":"idle","label":"Mimir: idle","vaultPath":"/v","lastSyncAt":"$currentLastSyncAt","isLocked":false,"activeConflicts":1,"accountEmail":"me@x"}""",
+                        HttpStatusCode.OK,
+                        jsonHeaders,
+                    )
+                }
+                "GET /api/v1/conflicts" -> {
+                    conflictCalls++
+                    respond(
+                        """{"conflicts":[{"originalPath":"A.md","conflictPath":"A (conflicted copy 2026-10-24-101010).md","createdAt":"2026-10-24T10:10:10Z"}]}""",
+                        HttpStatusCode.OK,
+                        jsonHeaders,
+                    )
+                }
+                else -> respond("""{"error":"not found"}""", HttpStatusCode.NotFound, jsonHeaders)
+            }
+        }
+
+        val client = HttpDaemonClient(
+            baseUrl = "http://127.0.0.1:1",
+            scope = backgroundScope,
+            httpClient = HttpClient(mockEngine),
+            pollInterval = 20.milliseconds,
+        )
+
+        withTimeout(5_000) {
+            while (statusCalls < 4 || client.conflictsFlow.value.isEmpty()) delay(20)
+        }
+        assertEquals(1, conflictCalls)
+
+        currentLastSyncAt = "2026-10-24T10:05:00Z"
+        val afterSecondSync = statusCalls + 3
+        withTimeout(5_000) {
+            while (client.lastSyncTime != Instant.parse("2026-10-24T10:05:00Z") || statusCalls < afterSecondSync) delay(20)
+        }
+        assertEquals(2, conflictCalls)
+    }
+
+    @Test
+    fun sseEventsUpdateStatusAndAvoidRedundantConflictFetches() = runTest {
+        var conflictCalls = 0
+        val stream = buildString {
+            append("event: status\n")
+            append("""data: {"status":"syncing","label":"Mimir: syncing","vaultPath":"/v","lastSyncAt":"2026-10-24T10:00:00Z","isLocked":false,"activeConflicts":1,"accountEmail":"me@x"}""")
+            append("\n\n")
+            append("event: status\n")
+            append("""data: {"status":"idle","label":"Mimir: idle","vaultPath":"/v","lastSyncAt":"2026-10-24T10:00:00Z","isLocked":false,"activeConflicts":1,"accountEmail":"me@x"}""")
+            append("\n\n")
+        }
+        val mockEngine = MockEngine { request ->
+            when ("${request.method.value} ${request.url.encodedPath}") {
+                "GET /api/v1/events" -> respond(
+                    content = stream,
+                    status = HttpStatusCode.OK,
+                    headers = headersOf(HttpHeaders.ContentType, "text/event-stream"),
+                )
+                "GET /api/v1/conflicts" -> {
+                    conflictCalls++
+                    respond(
+                        """{"conflicts":[{"originalPath":"A.md","conflictPath":"A (conflicted).md","createdAt":"2026-10-24T10:10:10Z"}]}""",
+                        HttpStatusCode.OK,
+                        jsonHeaders,
+                    )
+                }
+                else -> respond("""{"error":"unexpected"}""", HttpStatusCode.NotFound, jsonHeaders)
+            }
+        }
+        val client = HttpDaemonClient(
+            baseUrl = "http://127.0.0.1:1",
+            scope = backgroundScope,
+            httpClient = HttpClient(mockEngine),
+            pollInterval = 60_000.milliseconds,
+        )
+
+        withTimeout(5_000) {
+            while (client.status.value != SyncStatus.Idle || client.conflictsFlow.value.isEmpty()) delay(20)
+        }
+        assertEquals(DaemonConnectionStatus.Connected, client.connectionStatus.value)
+        assertEquals(Instant.parse("2026-10-24T10:00:00Z"), client.lastSyncTime)
+        assertEquals(1, conflictCalls)
+    }
+
+    @Test
+    fun deviceCodeDtoAcceptsSnakeCaseAndCamelCaseViaJsonNames() {
+        val parser = Json { ignoreUnknownKeys = true }
+        val camel = parser.decodeFromString<DaemonDeviceCodeDto>(
+            """{"deviceCode":"dc","userCode":"UC","verificationUrl":"https://g/device","expiresInSeconds":900,"intervalSeconds":7}""",
+        )
+        assertEquals(DaemonDeviceCodeDto("dc", "UC", "https://g/device", 900, 7), camel)
     }
 }
