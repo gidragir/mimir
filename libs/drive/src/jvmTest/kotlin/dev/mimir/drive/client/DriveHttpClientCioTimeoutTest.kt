@@ -18,7 +18,7 @@ import kotlin.test.assertContentEquals
 /**
  * У движка CIO свой `requestTimeout` (15 с по умолчанию) на весь вызов вместе с чтением тела; он действует,
  * пока на запросе нет плагина `HttpTimeout`. Файл Drive, который передаётся дольше, обрывался на каждой попытке.
- * Здесь тот же движок с таймаутом 300 мс и тело, которое идёт ~1 с.
+ * Здесь тот же движок с таймаутом 80 мс и тело, которое идёт ~200 мс.
  */
 class DriveHttpClientCioTimeoutTest {
     private object FixedToken : AccessTokenSource {
@@ -29,7 +29,7 @@ class DriveHttpClientCioTimeoutTest {
 
     @Test
     fun slowLargeDownloadOutlivesTheCioEngineRequestTimeout() = runBlocking<Unit> {
-        val payload = ByteArray(10 * 4096) { it.toByte() }
+        val payload = ByteArray(8 * 4096) { it.toByte() }
         ServerSocket(0, 1, InetAddress.getLoopbackAddress()).use { server ->
             val serving = thread(isDaemon = true) {
                 server.accept().use { socket ->
@@ -40,11 +40,11 @@ class DriveHttpClientCioTimeoutTest {
                     payload.toList().chunked(4096).forEach { part ->
                         out.write(part.toByteArray())
                         out.flush()
-                        Thread.sleep(100)
+                        Thread.sleep(25)
                     }
                 }
             }
-            val received = HttpClient(CIO) { engine { requestTimeout = 300 } }.use { http ->
+            val received = HttpClient(CIO) { engine { requestTimeout = 80 } }.use { http ->
                 val drive = DriveHttpClient(http, FixedToken)
                 drive.executeStreaming(
                     request = { token ->

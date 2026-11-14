@@ -13,17 +13,14 @@ import dev.mimir.core.update.UpdateRelease
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.advanceTimeBy
-import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.cancelAndJoin
-import kotlinx.coroutines.runBlocking
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
@@ -47,11 +44,8 @@ class ApkInstallApplierTest {
     private var launchError: Throwable? = null
     private var launchedPath: Path? = null
 
-    private val scope = CoroutineScope(Dispatchers.Default)
-
     @AfterTest
     fun cleanup() {
-        scope.cancel()
         root.toFile().deleteRecursively()
     }
 
@@ -73,8 +67,8 @@ class ApkInstallApplierTest {
         override suspend fun resume() { events += "resume" }
     }
 
-    private fun applier(client: UpdateHttpClient = ScriptedUpdateHttpClient(chunked())) =
-        ApkInstallApplier(client, dir, launcher, quiesce, Dispatchers.IO, scope)
+    private fun TestScope.applier(client: UpdateHttpClient = ScriptedUpdateHttpClient(chunked())) =
+        ApkInstallApplier(client, dir, launcher, quiesce, StandardTestDispatcher(testScheduler), backgroundScope)
 
     private fun asset(expected: String? = sha) =
         UpdateAsset("Mimir-0.2.0.apk", "https://example.test/Mimir-0.2.0.apk", content.size.toLong(), expected, TargetPlatform.ANDROID_ANY, AssetKind.APK)
@@ -85,16 +79,16 @@ class ApkInstallApplierTest {
 
     private fun leftovers() = if (Files.exists(dir)) Files.list(dir).use { it.toList() } else emptyList()
 
-    private suspend fun downloaded(a: ApkInstallApplier = applier()) =
+    private suspend fun TestScope.downloaded(a: ApkInstallApplier = applier()) =
         a.download(asset(), release) { _, _, _ -> }.getOrThrow() as DownloadedAsset.LocalFile
 
     @Test
-    fun `capability is download and launch`() {
+    fun `capability is download and launch`() = runTest {
         assertEquals(ApplierCapability.DOWNLOAD_AND_LAUNCH, applier().capability)
     }
 
     @Test
-    fun `downloads into the updates dir, verifies and launches after quiesce`() = runBlocking<Unit> {
+    fun `downloads into the updates dir, verifies and launches after quiesce`() = runTest {
         val a = applier()
         val local = downloaded(a)
         assertEquals(sha, local.actualSha256)
@@ -108,7 +102,7 @@ class ApkInstallApplierTest {
     }
 
     @Test
-    fun `missing checksum is refused without a download`() = runBlocking<Unit> {
+    fun `missing checksum is refused without a download`() = runTest {
         val client = ScriptedUpdateHttpClient(chunked())
         val r = applier(client).download(asset(null), release) { _, _, _ -> }
         assertTrue(r.exceptionOrNull()!!.message!!.contains("no checksum published"))
@@ -117,14 +111,14 @@ class ApkInstallApplierTest {
     }
 
     @Test
-    fun `hash mismatch deletes the apk`() = runBlocking<Unit> {
+    fun `hash mismatch deletes the apk`() = runTest {
         val r = applier().download(asset("0".repeat(64)), release) { _, _, _ -> }
         assertTrue(r.isFailure)
         assertTrue(leftovers().isEmpty())
     }
 
     @Test
-    fun `partial download is deleted on failure and on cancellation`() = runBlocking<Unit> {
+    fun `partial download is deleted on failure and on cancellation`() = runTest {
         val failing = ScriptedUpdateHttpClient(chunked().take(2), Result.failure(IOException("reset")))
         assertTrue(applier(failing).download(asset(), release) { _, _, _ -> }.isFailure)
         assertTrue(leftovers().isEmpty())
@@ -138,7 +132,7 @@ class ApkInstallApplierTest {
     }
 
     @Test
-    fun `tampered apk is deleted, never launched, and the runtime resumes`() = runBlocking<Unit> {
+    fun `tampered apk is deleted, never launched, and the runtime resumes`() = runTest {
         val a = applier()
         val local = downloaded(a)
         Files.write(Path.of(local.localPath), "evil".toByteArray())
@@ -150,7 +144,7 @@ class ApkInstallApplierTest {
     }
 
     @Test
-    fun `vanished apk fails and resumes`() = runBlocking<Unit> {
+    fun `vanished apk fails and resumes`() = runTest {
         val a = applier()
         val local = downloaded(a)
         Files.delete(Path.of(local.localPath))
@@ -159,7 +153,7 @@ class ApkInstallApplierTest {
     }
 
     @Test
-    fun `missing install-unknown-apps permission opens settings and fails with a human message`() = runBlocking<Unit> {
+    fun `missing install-unknown-apps permission opens settings and fails with a human message`() = runTest {
         val a = applier()
         val local = downloaded(a)
         canInstall = false
@@ -171,7 +165,7 @@ class ApkInstallApplierTest {
     }
 
     @Test
-    fun `launch exception yields Failed and resumes`() = runBlocking<Unit> {
+    fun `launch exception yields Failed and resumes`() = runTest {
         val a = applier()
         val local = downloaded(a)
         launchError = IllegalStateException("no activity")
@@ -182,7 +176,7 @@ class ApkInstallApplierTest {
     }
 
     @Test
-    fun `sync still running fails without hashing or launching`() = runBlocking<Unit> {
+    fun `sync still running fails without hashing or launching`() = runTest {
         val a = applier()
         val local = downloaded(a)
         quiesceResult = false
@@ -194,7 +188,7 @@ class ApkInstallApplierTest {
     }
 
     @Test
-    fun `apk outside the updates dir and non-file downloads are rejected`() = runBlocking<Unit> {
+    fun `apk outside the updates dir and non-file downloads are rejected`() = runTest {
         val outside = root.resolve("other.apk").also { Files.write(it, content) }
         assertIs<UpdateApplyResult.Failed>(applier().apply(DownloadedAsset.LocalFile(outside.toString(), sha, asset())))
         assertIs<UpdateApplyResult.Failed>(applier().apply(DownloadedAsset.Virtual(asset())))
@@ -202,7 +196,7 @@ class ApkInstallApplierTest {
     }
 
     @Test
-    fun `settings screen failing to open gives an accurate message`() = runBlocking<Unit> {
+    fun `settings screen failing to open gives an accurate message`() = runTest {
         val a = applier()
         val local = downloaded(a)
         canInstall = false

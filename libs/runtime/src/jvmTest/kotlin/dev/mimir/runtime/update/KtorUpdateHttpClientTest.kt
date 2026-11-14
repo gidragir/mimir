@@ -99,11 +99,11 @@ class KtorUpdateHttpClientTest {
 
     /**
      * Корень бага на Windows: у движка CIO свой `requestTimeout` (15 с по умолчанию) на весь вызов, включая чтение
-     * тела, — MSI дольше 15 с обрывался. Здесь тот же движок с таймаутом 300 мс и тело, которое идёт ~1 с.
+     * тела, — MSI дольше 15 с обрывался. Здесь тот же движок с таймаутом 80 мс и тело, которое идёт ~200 мс.
      */
     @Test
     fun slowLargeDownloadOutlivesTheCioEngineRequestTimeout() = runBlocking<Unit> {
-        val payload = ByteArray(10 * 4096) { it.toByte() }
+        val payload = ByteArray(8 * 4096) { it.toByte() }
         ServerSocket(0, 1, InetAddress.getLoopbackAddress()).use { server ->
             val serving = thread(isDaemon = true) {
                 server.accept().use { socket ->
@@ -114,11 +114,11 @@ class KtorUpdateHttpClientTest {
                     payload.toList().chunked(4096).forEach { part ->
                         out.write(part.toByteArray())
                         out.flush()
-                        Thread.sleep(100)
+                        Thread.sleep(25)
                     }
                 }
             }
-            val engine = HttpClient(CIO) { engine { requestTimeout = 300 } }
+            val engine = HttpClient(CIO) { engine { requestTimeout = 80 } }
             val received = java.io.ByteArrayOutputStream()
             val result = engine.use {
                 KtorUpdateHttpClient(it).downloadStream("http://127.0.0.1:${server.localPort}/a.msi") { chunk, _, _ -> received.write(chunk) }

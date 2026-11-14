@@ -9,51 +9,35 @@ import dev.mimir.drive.api.GoogleDriveChangeList
 import dev.mimir.drive.api.GoogleDriveFile
 import dev.mimir.drive.api.GoogleDriveFileList
 import dev.mimir.drive.api.GoogleStartPageToken
+import dev.mimir.drive.api.toRemoteEntry
 import dev.mimir.drive.client.DriveHttpClient
 import dev.mimir.drive.client.DriveHttpException
 import dev.mimir.drive.path.DrivePathResolver
+import dev.mimir.drive.upload.DriveUploader
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
-import io.ktor.client.request.prepareGet
 import io.ktor.client.request.patch
 import io.ktor.client.request.setBody
-import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
-import io.ktor.utils.io.ByteChannel
-import io.ktor.utils.io.cancel
-import io.ktor.utils.io.copyTo
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
-import kotlinx.io.Buffer
 import kotlinx.io.Source
 import kotlinx.serialization.Serializable
-import kotlin.time.Clock
-import kotlin.time.Instant
 
 class GoogleDriveStorage(
-    private val client: DriveHttpClient? = null,
-    private val pathResolver: DrivePathResolver? = null,
+    private val client: DriveHttpClient,
+    private val pathResolver: DrivePathResolver,
     /** Если задан, файл качается кусками `Range` такого размера (для окружений без потокового тела). */
-    private val downloadChunkBytes: Long? = null,
+    downloadChunkBytes: Long? = null,
 ) : ChangeFeedStorage {
 
-    private fun ensureConfigured(): Pair<DriveHttpClient, DrivePathResolver> {
-        val c = client ?: throw NotImplementedError("Google Drive adapter is not configured")
-        val r = pathResolver ?: throw NotImplementedError("Google Drive adapter is not configured")
-        return c to r
-    }
+    private val downloader = DriveDownloader(client, pathResolver, downloadChunkBytes)
+    private val uploader = DriveUploader(client, pathResolver)
 
     override suspend fun getLatestChangeToken(): String {
-        val (client, _) = ensureConfigured()
         val response = client.executeWithRetry { token ->
             client.httpClient.get("https://www.googleapis.com/drive/v3/changes/startPageToken") {
                 header(HttpHeaders.Authorization, "Bearer $token")
@@ -67,7 +51,6 @@ class GoogleDriveStorage(
     }
 
     override suspend fun getChanges(sinceToken: String): RemoteChangesResult {
-        val (client, pathResolver) = ensureConfigured()
         val changes = mutableListOf<RemoteChange>()
         var pageToken: String? = sinceToken
         var newStartToken: String? = null
@@ -78,21 +61,20 @@ class GoogleDriveStorage(
                     header(HttpHeaders.Authorization, "Bearer $token")
                     parameter("pageToken", pageToken)
                     parameter("includeRemoved", "true")
+                    parameter("supportsAllDrives", "false")
+                    parameter("pageSize", 1000)
                     parameter("fields", "newStartPageToken,nextPageToken,changes(fileId,removed,file(id,name,mimeType,size,modifiedTime,md5Checksum,parents,trashed))")
                 }
             }
-
             if (!response.status.isSuccess()) {
                 throw DriveHttpException(response.status, "Failed to fetch changes for token: $pageToken")
             }
 
             val result = response.body<GoogleDriveChangeList>()
             newStartToken = result.newStartPageToken
-
             for (change in result.changes) {
                 val file = change.file
-                val isDeleted = change.removed || file?.trashed == true
-                if (isDeleted) {
+                if (change.removed || file?.trashed == true) {
                     val path = pathResolver.resolvePathById(change.fileId)
                         ?: pathResolver.invalidateById(change.fileId)
                         ?: RemotePath(change.fileId)
@@ -100,12 +82,10 @@ class GoogleDriveStorage(
                     pathResolver.invalidate(path)
                 } else if (file != null) {
                     val path = pathResolver.resolveRemotePathForFile(file) ?: RemotePath(file.name)
-                    val entry = toRemoteEntry(file, path)
-                    changes.add(RemoteChange(path, isDeleted = false, entry = entry))
+                    changes.add(RemoteChange(path, isDeleted = false, entry = file.toRemoteEntry(path)))
                     pathResolver.registerPath(path, file)
                 }
             }
-
             pageToken = result.nextPageToken
         } while (pageToken != null)
 
@@ -113,56 +93,28 @@ class GoogleDriveStorage(
     }
 
     override suspend fun list(dir: RemotePath): List<RemoteEntry> {
-        val (client, pathResolver) = ensureConfigured()
-        val folderId = if (dir.value.isEmpty()) {
-            pathResolver.resolveRootFolderId()
-        } else {
-            val folderFile = pathResolver.resolvePath(dir) ?: return emptyList()
-            if (!folderFile.isDirectory) return emptyList()
-            folderFile.id
-        }
-
+        val folderId = resolveFolderId(dir) ?: return emptyList()
         val result = mutableListOf<RemoteEntry>()
+        val registered = mutableListOf<Pair<RemotePath, GoogleDriveFile>>()
         var pageToken: String? = null
 
         do {
-            val response = client.executeWithRetry { token ->
-                client.httpClient.get("https://www.googleapis.com/drive/v3/files") {
-                    header(HttpHeaders.Authorization, "Bearer $token")
-                    parameter("q", "'$folderId' in parents and trashed = false")
-                    parameter("fields", "nextPageToken,files(id,name,mimeType,size,modifiedTime,md5Checksum,parents,trashed)")
-                    parameter("pageSize", 100)
-                    if (pageToken != null) {
-                        parameter("pageToken", pageToken)
-                    }
-                }
-            }
-
-            if (!response.status.isSuccess()) {
-                throw DriveHttpException(response.status, "Failed to list folder $folderId")
-            }
-
-            val list = response.body<GoogleDriveFileList>()
+            val list = fetchFilesPage("'$folderId' in parents and trashed = false", 100, pageToken, "Failed to list folder $folderId")
             val deduplicated = list.files
                 .filter { !it.trashed }
                 .groupBy { it.name }
-                .mapValues { (_, candidates) ->
-                    candidates.maxByOrNull { it.modifiedTime ?: "" } ?: candidates.first()
-                }.values
+                .mapValues { (_, candidates) -> candidates.maxByOrNull { it.modifiedTime ?: "" } ?: candidates.first() }
+                .values
 
             for (file in deduplicated) {
-                val childPath = if (dir.value.isEmpty()) {
-                    RemotePath(file.name)
-                } else {
-                    RemotePath("${dir.value}/${file.name}")
-                }
-                pathResolver.registerPath(childPath, file)
-                result.add(toRemoteEntry(file, childPath))
+                val childPath = if (dir.value.isEmpty()) RemotePath(file.name) else RemotePath("${dir.value}/${file.name}")
+                registered += childPath to file
+                result += file.toRemoteEntry(childPath)
             }
-
             pageToken = list.nextPageToken
         } while (pageToken != null)
 
+        pathResolver.registerPaths(registered)
         return result
     }
 
@@ -170,47 +122,20 @@ class GoogleDriveStorage(
      * Весь видимый приложению набор файлов (`drive.file`) одним постраничным запросом без фильтра по родителю,
      * затем дерево строится в памяти от папки [root]. Всё, что не происходит от неё (чужие папки, сироты,
      * циклы), отбрасывается. Дубликаты имён в одной папке — как в [list]: остаётся самый свежий по `modifiedTime`.
-     * Прогресс: после каждой страницы — всего увиденных (не удалённых) папок и файлов, ещё без проверки
-     * происхождения; в конце — точные числа для поддерева (папки включая сам [root]).
      */
     override suspend fun listAll(root: RemotePath, onProgress: (folders: Int, files: Int) -> Unit): List<RemoteEntry> {
-        val (client, pathResolver) = ensureConfigured()
-        val rootId = if (root.value.isEmpty()) {
-            pathResolver.resolveRootFolderId()
-        } else {
-            val folder = pathResolver.resolvePath(root) ?: return emptyList()
-            if (!folder.isDirectory) return emptyList()
-            folder.id
-        }
-        // Кэши заполняются заново из этого обхода (registerPath ниже). Пропавшее из списка
-        // больше не отдаётся из кэша: stat пойдёт живым запросом. Чистим всё, не только поддерево, —
-        // это проще и всегда корректно (лишь дороже для путей вне [root]).
+        val rootId = resolveFolderId(root) ?: return emptyList()
+        // Кэши заполняются заново из этого обхода (registerPaths ниже). Пропавшее из списка
+        // больше не отдаётся из кэша: stat пойдёт живым запросом.
         pathResolver.resetPathCaches()
 
-        // parentId -> (name -> выбранный кандидат); порядок первых появлений сохраняется
         val children = HashMap<String, LinkedHashMap<String, GoogleDriveFile>>()
         var foldersSeen = 0
         var filesSeen = 0
         var pageToken: String? = null
 
         do {
-            val response = client.executeWithRetry { token ->
-                client.httpClient.get("https://www.googleapis.com/drive/v3/files") {
-                    header(HttpHeaders.Authorization, "Bearer $token")
-                    parameter("q", "trashed = false")
-                    parameter("fields", "nextPageToken,files(id,name,mimeType,size,modifiedTime,md5Checksum,parents,trashed)")
-                    parameter("pageSize", 1000)
-                    if (pageToken != null) {
-                        parameter("pageToken", pageToken)
-                    }
-                }
-            }
-
-            if (!response.status.isSuccess()) {
-                throw DriveHttpException(response.status, "Failed to list Drive files")
-            }
-
-            val page = response.body<GoogleDriveFileList>()
+            val page = fetchFilesPage("trashed = false", 1000, pageToken, "Failed to list Drive files")
             for (file in page.files) {
                 if (file.trashed) continue
                 if (file.isDirectory) foldersSeen++ else filesSeen++
@@ -227,146 +152,45 @@ class GoogleDriveStorage(
         } while (pageToken != null)
 
         val result = mutableListOf<RemoteEntry>()
+        val registered = mutableListOf<Pair<RemotePath, GoogleDriveFile>>()
+        val visited = hashSetOf(rootId)
+        val queue = ArrayDeque<Pair<String, RemotePath>>()
+        queue.addLast(rootId to root)
         var folders = 1
-        val ancestors = mutableSetOf(rootId)
 
-        suspend fun walk(folderId: String, dir: RemotePath) {
-            val kids = children[folderId] ?: return
+        while (queue.isNotEmpty()) {
+            val (folderId, dir) = queue.removeFirst()
+            val kids = children[folderId] ?: continue
             for (file in kids.values) {
-                if (file.id in ancestors) continue // цикл
                 val childPath = if (dir.value.isEmpty()) RemotePath(file.name) else RemotePath("${dir.value}/${file.name}")
-                pathResolver.registerPath(childPath, file)
                 if (file.isDirectory) {
+                    if (!visited.add(file.id)) continue // цикл или уже обойдённая папка
                     folders++
-                    ancestors += file.id
-                    walk(file.id, childPath)
-                    ancestors -= file.id
+                    registered += childPath to file
+                    queue.addLast(file.id to childPath)
                 } else {
-                    result.add(toRemoteEntry(file, childPath))
+                    registered += childPath to file
+                    result += file.toRemoteEntry(childPath)
                 }
             }
         }
-        walk(rootId, root)
+        pathResolver.registerPaths(registered)
         onProgress(folders, result.size)
         return result
     }
 
-    override suspend fun stat(path: RemotePath): RemoteEntry? {
-        val (_, pathResolver) = ensureConfigured()
-        val file = pathResolver.resolvePath(path) ?: return null
-        return toRemoteEntry(file, path)
-    }
+    override suspend fun stat(path: RemotePath): RemoteEntry? =
+        pathResolver.resolvePath(path)?.toRemoteEntry(path)
 
-    private val streamScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    override suspend fun read(path: RemotePath): Source = downloader.read(path)
 
-    override suspend fun read(path: RemotePath): Source {
-        val (client, pathResolver) = ensureConfigured()
-        val file = pathResolver.resolvePath(path)
-            ?: throw NoSuchElementException("No such file in Drive: ${path.value}")
-
-        // Тело качается в фоне через ограниченный буфер канала: память не зависит от размера файла.
-        val channel = ByteChannel()
-        val started = CompletableDeferred<Unit>()
-        val pump = streamScope.launch {
-            try {
-                val chunk = downloadChunkBytes
-                if (chunk == null) {
-                    client.executeStreaming(
-                        request = { token ->
-                            client.httpClient.prepareGet("https://www.googleapis.com/drive/v3/files/${file.id}") {
-                                header(HttpHeaders.Authorization, "Bearer $token")
-                                parameter("alt", "media")
-                            }
-                        },
-                    ) { response ->
-                        if (!response.status.isSuccess()) {
-                            throw DriveHttpException(response.status, "Failed to read file ${file.id}")
-                        }
-                        started.complete(Unit)
-                        response.bodyAsChannel().copyTo(channel)
-                    }
-                } else {
-                    pumpRanged(client, file.id, chunk, channel, started)
-                }
-                channel.flushAndClose()
-            } catch (e: CancellationException) {
-                channel.cancel(e)
-                throw e
-            } catch (e: Exception) {
-                started.completeExceptionally(e)
-                channel.cancel(e)
-            }
-        }
-        try {
-            started.await()
-        } catch (e: CancellationException) {
-            pump.cancel()
-            throw e
-        }
-        return channel.toSource()
-    }
-
-    /** Скачивание кусками `Range`: каждый кусок — отдельный запрос с собственным refresh токена. */
-    private suspend fun pumpRanged(
-        client: DriveHttpClient,
-        fileId: String,
-        chunk: Long,
-        channel: ByteChannel,
-        started: CompletableDeferred<Unit>,
-    ) {
-        var from = 0L
-        while (true) {
-            var done = false
-            var received = 0L
-            var total: Long? = null
-            client.executeStreaming(
-                request = { token ->
-                    client.httpClient.prepareGet("https://www.googleapis.com/drive/v3/files/$fileId") {
-                        header(HttpHeaders.Authorization, "Bearer $token")
-                        header(HttpHeaders.Range, "bytes=$from-${from + chunk - 1}")
-                        parameter("alt", "media")
-                    }
-                },
-            ) { response ->
-                when {
-                    response.status.value == 416 -> {
-                        started.complete(Unit)
-                        done = true
-                    }
-                    !response.status.isSuccess() ->
-                        throw DriveHttpException(response.status, "Failed to read file $fileId")
-                    response.status.value != 206 -> {
-                        // Сервер проигнорировал Range и отдал всё тело.
-                        started.complete(Unit)
-                        response.bodyAsChannel().copyTo(channel, Long.MAX_VALUE)
-                        done = true
-                    }
-                    else -> {
-                        started.complete(Unit)
-                        total = response.headers[HttpHeaders.ContentRange]?.substringAfter('/')?.toLongOrNull()
-                        received = response.bodyAsChannel().copyTo(channel, Long.MAX_VALUE)
-                    }
-                }
-            }
-            if (done) return
-            from += received
-            val t = total
-            if (received == 0L || (t != null && from >= t) || (t == null && received < chunk)) return
-        }
-    }
-
-    override suspend fun write(path: RemotePath, data: Source): RemoteEntry {
-        val (client, pathResolver) = ensureConfigured()
-        val uploader = dev.mimir.drive.upload.DriveUploader(client, pathResolver)
-        return uploader.upload(path, data)
-    }
+    override suspend fun write(path: RemotePath, data: Source): RemoteEntry = uploader.upload(path, data)
 
     /** Файл переносится в корзину Drive, а не стирается: ошибочное удаление можно отменить в течение 30 дней. */
     override suspend fun delete(path: RemotePath) {
-        val (client, pathResolver) = ensureConfigured()
         val file = pathResolver.resolvePath(path) ?: return
         val response = client.executeWithRetry { token ->
-            client.httpClient.patch("https://www.googleapis.com/drive/v3/files/${file.id}") {
+            client.httpClient.patch("$FILES_URL/${file.id}") {
                 header(HttpHeaders.Authorization, "Bearer $token")
                 contentType(ContentType.Application.Json)
                 setBody(TrashRequest(trashed = true))
@@ -379,25 +203,38 @@ class GoogleDriveStorage(
         pathResolver.invalidateById(file.id)
     }
 
-    private fun toRemoteEntry(file: GoogleDriveFile, path: RemotePath): RemoteEntry {
-        val instant = file.modifiedTime?.let {
-            try {
-                Instant.parse(it)
-            } catch (_: Exception) {
-                Clock.System.now()
-            }
-        } ?: Clock.System.now()
+    private suspend fun resolveFolderId(dir: RemotePath): String? {
+        if (dir.value.isEmpty()) return pathResolver.resolveRootFolderId()
+        val folder = pathResolver.resolvePath(dir) ?: return null
+        return folder.id.takeIf { folder.isDirectory }
+    }
 
-        return RemoteEntry(
-            path = path,
-            size = file.size ?: 0L,
-            modifiedAt = instant,
-            // только md5 содержимого: у папок его нет, и это честное «ревизии нет» (план сравнит size+mtime)
-            revision = file.md5Checksum,
-            isDirectory = file.isDirectory,
-        )
+    private suspend fun fetchFilesPage(
+        query: String,
+        pageSize: Int,
+        pageToken: String?,
+        errorMessage: String,
+    ): GoogleDriveFileList {
+        val response = client.executeWithRetry { token ->
+            client.httpClient.get(FILES_URL) {
+                header(HttpHeaders.Authorization, "Bearer $token")
+                parameter("q", query)
+                parameter("fields", FILE_LIST_FIELDS)
+                parameter("pageSize", pageSize)
+                if (pageToken != null) parameter("pageToken", pageToken)
+            }
+        }
+        if (!response.status.isSuccess()) {
+            throw DriveHttpException(response.status, errorMessage)
+        }
+        return response.body()
     }
 
     @Serializable
     private data class TrashRequest(val trashed: Boolean)
+
+    private companion object {
+        const val FILES_URL = "https://www.googleapis.com/drive/v3/files"
+        const val FILE_LIST_FIELDS = "nextPageToken,files(id,name,mimeType,size,modifiedTime,md5Checksum,parents,trashed)"
+    }
 }

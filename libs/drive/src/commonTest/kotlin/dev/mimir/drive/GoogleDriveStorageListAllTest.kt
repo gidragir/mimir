@@ -24,6 +24,7 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.test.runTest
+import kotlinx.io.Buffer
 import kotlinx.io.readByteArray
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
@@ -109,6 +110,12 @@ class GoogleDriveStorageListAllTest {
                 respond(json.encodeToString(GoogleDriveFileList.serializer(), GoogleDriveFileList(listOf(folder("fA", "a", "mimir_root")))), HttpStatusCode.OK, jsonHeaders)
             request.url.parameters["alt"] == "media" ->
                 respond("hey".encodeToByteArray(), HttpStatusCode.OK)
+            request.url.parameters["uploadType"] == "multipart" ->
+                respond(
+                    """{"id":"doc_id","name":"doc.md","mimeType":"application/octet-stream","size":"5","modifiedTime":"2026-10-23T12:00:00.000Z","md5Checksum":"md5-doc"}""",
+                    HttpStatusCode.OK,
+                    jsonHeaders,
+                )
             else -> respond("""{"files":[]}""", HttpStatusCode.OK, jsonHeaders)
         }
     }
@@ -247,5 +254,16 @@ class GoogleDriveStorageListAllTest {
         val (drive, _) = storage(tree)
         // `list` по-прежнему ходит запросом с фильтром по родителю (мок отвечает пустым списком)
         assertEquals(emptyList(), drive.list(RemotePath("")))
+    }
+
+    @Test
+    fun writeRegistersPathInCacheSoStatNeedsNoFilesList() = runTest {
+        val (drive, rec) = storage(tree)
+        drive.write(RemotePath("doc.md"), Buffer().apply { write("hello".encodeToByteArray()) })
+        val afterWrite = rec.requests.size
+
+        val stat = assertNotNull(drive.stat(RemotePath("doc.md")))
+        assertEquals("md5-doc", stat.revision)
+        assertEquals(afterWrite, rec.requests.size, "stat after write must hit cached fileId without files.list")
     }
 }

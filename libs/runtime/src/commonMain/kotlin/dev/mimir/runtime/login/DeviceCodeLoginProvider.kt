@@ -5,10 +5,12 @@ import dev.mimir.client.DaemonLoginMethod
 import dev.mimir.client.DaemonLoginPoll
 import dev.mimir.client.DaemonLoginStart
 import dev.mimir.drive.auth.AccessTokenSource
+import dev.mimir.drive.auth.DevicePollStep
 import dev.mimir.drive.auth.GoogleAuthClient
 import dev.mimir.drive.auth.GoogleAuthClients
 import dev.mimir.drive.auth.RefreshingTokenSource
 import dev.mimir.drive.auth.TokenStorage
+import dev.mimir.drive.auth.toDevicePollStep
 import dev.mimir.drive.client.DriveAuthException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -50,11 +52,10 @@ class DeviceCodeLoginProvider(
         val tokens = try {
             client.pollDeviceToken(current.deviceCode)
         } catch (e: DriveAuthException) {
-            val message = e.message.orEmpty()
-            return@withLock if ("authorization_pending" in message || "slow_down" in message) {
-                DaemonLoginPoll.Pending
-            } else {
-                DaemonLoginPoll.Failed(message).also { current.result = it }
+            return@withLock when (e.toDevicePollStep()) {
+                DevicePollStep.Pending, DevicePollStep.SlowDown -> DaemonLoginPoll.Pending
+                DevicePollStep.Expired, DevicePollStep.Denied, null ->
+                    DaemonLoginPoll.Failed(e.message.orEmpty()).also { current.result = it }
             }
         }
         val email = client.emailOrNull(tokens.accessToken)

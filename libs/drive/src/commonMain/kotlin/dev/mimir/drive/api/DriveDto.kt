@@ -1,6 +1,32 @@
 package dev.mimir.drive.api
 
+import dev.mimir.core.RemoteEntry
+import dev.mimir.core.RemotePath
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlin.time.Clock
+import kotlin.time.Instant
+
+internal val driveJson = Json { ignoreUnknownKeys = true }
+
+fun GoogleDriveFile.toRemoteEntry(path: RemotePath, defaultSize: Long = 0L): RemoteEntry {
+    val instant = modifiedTime?.let {
+        try {
+            Instant.parse(it)
+        } catch (_: Exception) {
+            Clock.System.now()
+        }
+    } ?: Clock.System.now()
+
+    return RemoteEntry(
+        path = path,
+        size = size ?: defaultSize,
+        modifiedAt = instant,
+        // только md5 содержимого: у папок его нет, и это честное «ревизии нет» (план сравнит size+mtime)
+        revision = md5Checksum,
+        isDirectory = isDirectory,
+    )
+}
 
 @Serializable
 data class GoogleDriveFile(

@@ -11,6 +11,7 @@ import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import dev.mimir.core.RemoteAuthException
 import dev.mimir.core.RemoteUnavailableException
+import dev.mimir.core.testing.TestClock
 import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.get
@@ -124,9 +125,7 @@ class DriveHttpClientTest {
     }
 
     private val fixedNow = Instant.parse("2026-10-24T12:00:00Z")
-    private val fixedClock = object : Clock {
-        override fun now(): Instant = fixedNow
-    }
+    private val fixedClock = TestClock(fixedNow)
 
     /** Вызов `about`, фиксирующий виртуальное время (мс) перед каждой попыткой. */
     private suspend fun TestScope.timedCall(c: DriveHttpClient, times: MutableList<Long>) = c.executeWithRetry { token ->

@@ -265,4 +265,17 @@ class MimirRuntimeTest {
         val device = tokenSourceSeenByCloud(null, dev.mimir.drive.auth.GoogleClientKind.Device)
         kotlin.test.assertSame(lastProviders!!.second.tokenSource, device)
     }
+
+    @Test
+    fun `daemon service contract throws client SyncNotConfiguredException and InvalidPasswordException`() = run {
+        val notConfiguredService: dev.mimir.client.DaemonService = runtime(vault = false)
+        notConfiguredService.let { (it as MimirRuntime).initialize() }
+        assertFailsWith<dev.mimir.client.SyncNotConfiguredException> { notConfiguredService.triggerSync() }
+
+        signIn()
+        val readyRuntime = runtime(password = "secret")
+        readyRuntime.initialize()
+        val readyService: dev.mimir.client.DaemonService = readyRuntime
+        assertFailsWith<dev.mimir.client.InvalidPasswordException> { readyService.unlock("wrong-password") }
+    }
 }

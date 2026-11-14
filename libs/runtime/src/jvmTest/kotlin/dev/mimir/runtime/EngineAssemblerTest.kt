@@ -1,7 +1,7 @@
 package dev.mimir.runtime
 
 import dev.mimir.core.InMemoryRemoteStorage
-import dev.mimir.core.RcloneCipher
+import dev.mimir.core.testing.TestCiphers
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -43,7 +43,7 @@ class EngineAssemblerTest {
 
     @Test
     fun `returns null without credentials`() = runBlocking {
-        val assembled = assembler().assemble(vaultDir.toString(), RcloneCipher.create("secret"), FakeTokenSource(signedIn = false))
+        val assembled = assembler().assemble(vaultDir.toString(), TestCiphers.forPassword("secret"), FakeTokenSource(signedIn = false))
 
         assertNull(assembled)
         assertEquals(0, cloudCalls.get(), "no cloud client without credentials")
@@ -53,7 +53,7 @@ class EngineAssemblerTest {
     fun `uses watcher from factory`() = runBlocking {
         val watchers = FakeWatcherFactory()
 
-        val assembled = assertNotNull(assembler(watchers).assemble(vaultDir.toString(), RcloneCipher.create("secret"), FakeTokenSource()))
+        val assembled = assertNotNull(assembler(watchers).assemble(vaultDir.toString(), TestCiphers.forPassword("secret"), FakeTokenSource()))
 
         val (root, watcher) = watchers.created.single()
         assertEquals(vaultDir.toString(), root.toString())

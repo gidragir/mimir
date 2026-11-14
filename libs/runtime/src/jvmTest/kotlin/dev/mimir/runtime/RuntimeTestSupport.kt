@@ -6,10 +6,12 @@ import dev.mimir.client.DaemonLoginMethod
 import dev.mimir.client.DaemonLoginPoll
 import dev.mimir.client.DaemonLoginStart
 import dev.mimir.core.LocalVault
+import dev.mimir.core.RcloneCipher
 import dev.mimir.core.VaultChange
 import dev.mimir.core.fs.FileSystemLocalVault
 import dev.mimir.core.fs.NioWatchServiceVaultWatcher
 import dev.mimir.core.fs.VaultWatcher
+import dev.mimir.core.testing.TestCiphers
 import dev.mimir.drive.auth.AccessTokenSource
 import dev.mimir.drive.auth.GoogleAuthClient
 import dev.mimir.drive.auth.GoogleAuthClients
@@ -22,9 +24,9 @@ import dev.mimir.runtime.login.DeviceCodeLoginProvider
 import dev.mimir.runtime.login.LoginProvider
 import dev.mimir.runtime.login.LoginRegistry
 import io.ktor.client.HttpClient
-import io.ktor.client.engine.cio.CIO
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
+import io.ktor.client.engine.mock.respondError
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -60,7 +62,9 @@ internal val nioWatchers = VaultWatcherFactory { root, rules, debounce ->
     NioWatchServiceVaultWatcher(Paths.get(root.toString()), rules, debounce)
 }
 
-internal fun jsonHttpClient(): HttpClient = HttpClient(CIO) {
+internal fun jsonHttpClient(): HttpClient = HttpClient(
+    MockEngine { respondError(HttpStatusCode.NotImplemented) },
+) {
     install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
 }
 
@@ -102,6 +106,7 @@ internal fun testRuntime(
     localVaultFactory: (Path) -> LocalVault = { FileSystemLocalVault(it, ioDispatcher = Dispatchers.IO) },
     updateManager: UpdateManager? = null,
     updateSchedulerFactory: ((UpdateManager, () -> Boolean) -> UpdateScheduler)? = null,
+    cipherFactory: suspend (String) -> RcloneCipher = { TestCiphers.forPassword(it) },
 ): MimirRuntime {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val tokenStorage = FileTokenStorage(dataDir.resolve("tokens.json"))
@@ -127,6 +132,7 @@ internal fun testRuntime(
         localVaultFactory = localVaultFactory,
         updateManager = updateManager,
         updateSchedulerFactory = updateSchedulerFactory,
+        cipherFactory = cipherFactory,
     )
 }
 

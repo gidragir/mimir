@@ -1,6 +1,5 @@
 package dev.mimir.daemon
 
-import dev.mimir.drive.auth.GoogleAuthClient
 import dev.mimir.drive.auth.GoogleAuthClients
 import dev.mimir.drive.auth.GoogleClientCredentials
 import dev.mimir.drive.auth.GoogleClientKind
@@ -40,5 +39,11 @@ fun DaemonConfig.googleCredentials(
 
 internal fun DaemonConfig.authClients(httpClient: HttpClient): GoogleAuthClients {
     val (desktop, device) = googleCredentials()
-    return GoogleAuthClients(desktop?.let { GoogleAuthClient(httpClient, it) }, device?.let { GoogleAuthClient(httpClient, it) })
+    return GoogleAuthClients.fromIds(
+        httpClient,
+        desktopId = desktop?.clientId,
+        desktopSecret = desktop?.clientSecret,
+        deviceId = device?.clientId,
+        deviceSecret = device?.clientSecret,
+    )
 }

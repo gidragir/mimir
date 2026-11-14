@@ -21,7 +21,7 @@ class PortInUseTest {
             Thread.setDefaultUncaughtExceptionHandler { _, e -> uncaught += e }
             System.setErr(PrintStream(captured, true))
             val code = try {
-                runDaemon(DaemonConfig("127.0.0.1", port, null, null)).also { Thread.sleep(300) }
+                runDaemon(DaemonConfig("127.0.0.1", port, null, null))
             } finally {
                 System.setErr(originalErr)
                 Thread.setDefaultUncaughtExceptionHandler(originalHandler)
