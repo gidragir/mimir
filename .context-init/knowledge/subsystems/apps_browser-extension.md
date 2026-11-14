@@ -2,8 +2,8 @@
 directory: apps/browser-extension
 source:
   kind: git
-  blob_sha: bcb8aba681ee6846153d8691566ca382288acc2e
-  commit_sha: 1a5aa0855a928bbbb5552e63d2859864a61e21ee
+  blob_sha: 39e3c69039682a9d0869aed956d2e6c4ef8efcab
+  commit_sha: 94f3e89990c2a15554a9aeedde2c911da5828074
 generated_by:
   component: context-init
   role: update
@@ -31,11 +31,6 @@ freshness:
 | `apps/browser-extension/scripts/capture-screenshots.mjs` | Исходный код |
 | `apps/browser-extension/scripts/check-extension.mjs` | Исходный код |
 | `apps/browser-extension/webpack.config.d/performance.js` | Исходный код |
-
-## 🔑 Ключевой контракт и экспорты
-```text
-fun googleSecret(name: String) = providers.environmentVariable("MIMIR_BUILD_GOOGLE_$name")
-```
 
 ## 🧪 Запуск и тестирование
 ```bash

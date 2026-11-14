@@ -21,16 +21,15 @@ kotlin {
             jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_26)
         }
     }
+    // Библиотеки не трогают DOM: JS-тесты идут в Node.js без Karma и Chromium.
+    // scrypt (N=16384, r=8) в RcloneCipherTest на JS требует повышенного таймаута Mocha (по умолчанию 2 с).
     js {
-        browser {
+        nodejs {
             testTask {
-                useKarma {
-                    useChromeHeadless()
-                    useConfigDirectory(rootProject.file("gradle/karma.config.d"))
+                useMocha {
+                    timeout = "120s"
                 }
-                if (System.getenv("CHROME_BIN") == null && file("/usr/bin/chromium").exists()) {
-                    environment("CHROME_BIN", "/usr/bin/chromium")
-                }
+                timeout.set(Duration.ofMinutes(2))
             }
         }
     }
@@ -50,4 +49,8 @@ kotlin {
             implementation(kotlin("test"))
         }
     }
+}
+
+tasks.withType<Test>().configureEach {
+    maxParallelForks = (Runtime.getRuntime().availableProcessors() / 2).coerceAtLeast(1)
 }

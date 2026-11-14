@@ -18,13 +18,13 @@ test_reset_with_yes_reverts_and_starts() {
   run cli reset --yes
   assert_eq "$RC" 0
   local order
-  order=$(grep -nE 'shutdown win11|snapshot-revert win11 provisioned|sudo cp .*provisioned|start win11' "$FAKE_VIRSH_LOG" | sed 's/^[0-9]*://' | tr '\n' '|')
+  order=$(rg -n 'shutdown win11|snapshot-revert win11 provisioned|sudo cp .*provisioned|start win11' "$FAKE_VIRSH_LOG" | sed 's/^[0-9]*://' | tr '\n' '|')
   assert_contains "$order" "shutdown win11|snapshot-revert win11 provisioned|sudo cp"
   assert_contains "$order" "start win11"
   local sd rv st
-  sd=$(grep -n 'shutdown win11' "$FAKE_VIRSH_LOG" | head -1 | cut -d: -f1)
-  rv=$(grep -n 'snapshot-revert win11 provisioned' "$FAKE_VIRSH_LOG" | head -1 | cut -d: -f1)
-  st=$(grep -n '^start win11' "$FAKE_VIRSH_LOG" | tail -1 | cut -d: -f1)
+  sd=$(rg -n 'shutdown win11' "$FAKE_VIRSH_LOG" | head -1 | cut -d: -f1)
+  rv=$(rg -n 'snapshot-revert win11 provisioned' "$FAKE_VIRSH_LOG" | head -1 | cut -d: -f1)
+  st=$(rg -n '^start win11' "$FAKE_VIRSH_LOG" | tail -1 | cut -d: -f1)
   ((sd < rv && rv < st)) || fail "wrong order: shutdown=$sd revert=$rv start=$st"
 }
 

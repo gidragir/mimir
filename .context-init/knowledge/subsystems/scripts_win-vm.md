@@ -3,7 +3,7 @@ directory: scripts/win-vm
 source:
   kind: git
   blob_sha: 6bb4e92bbda0bb78c843ad7cd9442c91d48ab3a4
-  commit_sha: 570bdf8b131c69da889f78491ee6adaf106b3095
+  commit_sha: c830eb78221e86b5127ccb11c7990d275563caa9
 generated_by:
   component: context-init
   role: update

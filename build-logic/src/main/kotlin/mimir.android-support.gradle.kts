@@ -6,11 +6,13 @@ import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
 if (AndroidSdk.isAvailable(rootDir)) {
     apply(plugin = "com.android.kotlin.multiplatform.library")
     val group = providers.gradleProperty("mimir.group").get()
+    val catalog = extensions.getByType<VersionCatalogsExtension>().named("libs")
+    fun sdk(alias: String) = catalog.findVersion(alias).get().requiredVersion.toInt()
     extensions.configure<KotlinMultiplatformExtension> {
         (this as ExtensionAware).extensions.configure<KotlinMultiplatformAndroidLibraryTarget>("androidLibrary") {
             namespace = "$group.${project.name.replace('-', '.')}"
-            compileSdk = 37
-            minSdk = 26
+            compileSdk = sdk("androidCompileSdk")
+            minSdk = sdk("androidMinSdk")
         }
     }
 }

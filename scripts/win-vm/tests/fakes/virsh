@@ -22,7 +22,7 @@ case "$cmd" in
   start) echo running >"$vm_state_file" ;;
   shutdown | destroy) echo "shut off" >"$vm_state_file" ;;
   dumpxml) echo "<domain><os><nvram template='/usr/share/edk2/x64/OVMF_VARS.4m.fd'>${FAKE_NVRAM:-/var/lib/libvirt/qemu/nvram/win11_VARS.fd}</nvram></os></domain>" ;;
-  snapshot-list) grep -v '^$' "$snaps_file" || true ;;
+  snapshot-list) rg -v '^$' "$snaps_file" || true ;;
   snapshot-create-as) echo "${args[2]}" >>"$snaps_file" ;;
   qemu-agent-command)
     json=${args[2]}

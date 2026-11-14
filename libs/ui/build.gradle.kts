@@ -7,6 +7,9 @@ plugins {
     alias(libs.plugins.compose.compiler)
 }
 
+group = providers.gradleProperty("mimir.group").get()
+version = providers.gradleProperty("mimir.version").get()
+
 kotlin {
     jvm("desktop") {
         compilerOptions {

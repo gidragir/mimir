@@ -1,0 +1,22 @@
+name: Setup Mimir
+description: Окружение сборки Mimir - Windows (Developer Mode, длинные пути, symlinks), mise, JAVA_HOME из mise и Gradle
+
+# Вызывается после actions/checkout (локальный action лежит в репозитории); git config для symlinks/longpaths на Windows задаётся до checkout.
+runs:
+  using: composite
+  steps:
+    - name: Configure Windows environment (Developer Mode, long paths)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock" /t REG_DWORD /f /v "AllowDevelopmentWithoutDevLicense" /d "1"
+        reg add "HKLM\SYSTEM\CurrentControlSet\Control\FileSystem" /v "LongPathsEnabled" /t REG_DWORD /d 1 /f
+    - uses: jdx/mise-action@v5
+    - name: Configure Java environment from mise
+      shell: bash
+      run: |
+        java_home=$(mise where java | tr '\134' '/')
+        echo "JAVA_HOME=$java_home" >> "$GITHUB_ENV"
+        echo "$java_home/bin" >> "$GITHUB_PATH"
+    # Android SDK и лицензии уже есть в образе ubuntu-latest (ANDROID_HOME), платформу и build-tools скачает AGP.
+    - uses: gradle/actions/setup-gradle@v6

@@ -53,7 +53,6 @@ rtk mise run desktop
 | **Ui CommonMain Kotlin Dev Mimir Ui** | Модуль и компоненты директории `libs/ui/src/commonMain/kotlin/dev/mimir/ui` (15 файлов) | `-` | [subsystems/libs_ui_commonmain_kotlin_dev_mimir_ui.md](subsystems/libs_ui_commonmain_kotlin_dev_mimir_ui.md) |
 | **Ui CommonMain Kotlin Dev Mimir Ui Screens** | Модуль и компоненты директории `libs/ui/src/commonMain/kotlin/dev/mimir/ui/screens` (14 файлов) | `-` | [subsystems/libs_ui_commonmain_kotlin_dev_mimir_ui_screens.md](subsystems/libs_ui_commonmain_kotlin_dev_mimir_ui_screens.md) |
 | **Packaging** | Модуль и компоненты директории `packaging` (2 файлов) | `-` | [subsystems/packaging.md](subsystems/packaging.md) |
-| **Scripts** | Модуль и компоненты директории `scripts` (15 файлов) | `-` | [subsystems/scripts.md](subsystems/scripts.md) |
 | **Scripts Win Vm** | Модуль и компоненты директории `scripts/win-vm` (6 файлов) | `-` | [subsystems/scripts_win-vm.md](subsystems/scripts_win-vm.md) |
 | **Scripts Win Vm Tests** | Тесты для `scripts_win-vm` | `-` | [subsystems/scripts_win-vm_tests.md](subsystems/scripts_win-vm_tests.md) |
 

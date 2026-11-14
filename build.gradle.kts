@@ -31,15 +31,11 @@ dependencyAnalysis {
 
 // Быстрый агрегатор всех JVM-тестов (включая build-logic) без сборки Wasm/JS/Webpack/Android APK.
 tasks.register("ciJvmTests") {
-    val aggregator = this
     group = "verification"
     description = "Прогнать все JVM-тесты всех модулей и build-logic без Wasm/JS-бандлов"
     dependsOn(gradle.includedBuild("build-logic").task(":test"))
     subprojects.filter { it.name != "android" }.forEach { sub ->
-        sub.tasks.matching { it.name in setOf("test", "jvmTest", "desktopTest") }.all {
-            val jvmTestTask = this
-            aggregator.dependsOn(jvmTestTask)
-        }
+        dependsOn(sub.tasks.matching { it.name in setOf("test", "jvmTest", "desktopTest") })
     }
 }
 

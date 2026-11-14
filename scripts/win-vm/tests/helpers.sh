@@ -24,6 +24,12 @@ assert_no_file() { [[ ! -e "$1" ]] || fail "file unexpectedly exists: $1"; }
 # make_repo — временный git-репозиторий как рабочее дерево; печатает путь.
 make_repo() {
   local repo="$TEST_TMP/repo"
+  if [[ -n ${WINVM_TEST_TEMPLATE_REPO:-} && -d $WINVM_TEST_TEMPLATE_REPO ]]; then
+    mkdir -p "$repo"
+    cp -a "$WINVM_TEST_TEMPLATE_REPO/." "$repo/"
+    printf '%s' "$repo"
+    return
+  fi
   mkdir -p "$repo/build" "$repo/docs" "$repo/scripts/win-vm/guest"
   git -C "$repo" init -q -b main
   echo agent >"$repo/scripts/win-vm/guest/agent.ps1"

@@ -1,3 +1,6 @@
+import dev.mimir.build.configureKarmaHeadless
+import dev.mimir.build.googleSecret
+
 plugins {
     kotlin("multiplatform")
     kotlin("plugin.serialization")
@@ -7,33 +10,21 @@ plugins {
 group = providers.gradleProperty("mimir.group").get()
 version = providers.gradleProperty("mimir.version").get()
 
-fun googleSecret(name: String) = providers.environmentVariable("MIMIR_BUILD_GOOGLE_$name")
-    .orElse(providers.environmentVariable("MIMIR_GOOGLE_$name"))
-    .orElse("")
-
 buildConfig {
     packageName("dev.mimir.obsidian")
     className("PluginBuildConfig")
     buildConfigField("PLUGIN_ID", providers.gradleProperty("mimir.obsidianPluginId"))
     buildConfigField("VERSION", providers.gradleProperty("mimir.version"))
     buildConfigField("DAEMON_PORT", providers.gradleProperty("mimir.apiDefaultPort").map { it.toInt() })
-    buildConfigField("GOOGLE_DEVICE_CLIENT_ID", googleSecret("DEVICE_CLIENT_ID"))
-    buildConfigField("GOOGLE_DEVICE_CLIENT_SECRET", googleSecret("DEVICE_CLIENT_SECRET"))
+    buildConfigField("GOOGLE_DEVICE_CLIENT_ID", project.googleSecret("DEVICE_CLIENT_ID"))
+    buildConfigField("GOOGLE_DEVICE_CLIENT_SECRET", project.googleSecret("DEVICE_CLIENT_SECRET"))
 }
 
 kotlin {
     js {
         browser {
             webpackTask { mainOutputFileName = "main.js" }
-            testTask {
-                useKarma {
-                    useChromeHeadless()
-                    useConfigDirectory(rootProject.file("gradle/karma.config.d"))
-                }
-                if (System.getenv("CHROME_BIN") == null && file("/usr/bin/chromium").exists()) {
-                    environment("CHROME_BIN", "/usr/bin/chromium")
-                }
-            }
+            configureKarmaHeadless(project)
         }
         binaries.executable()
         compilerOptions { target = "es2015" } // class MimirPlugin : Plugin() должен быть настоящим ES-классом
