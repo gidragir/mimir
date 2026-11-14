@@ -7,13 +7,18 @@ internal object XSalsa20 {
         val subKey = Salsa20.hsalsa20(key, nonce24.copyOfRange(0, 16))
         val tail = nonce24.copyOfRange(16, 24)
         val out = ByteArray(length)
+        val state = IntArray(16)
+        val work = IntArray(16)
         var counter = 0L
         var pos = 0
-        while (pos < length) {
-            val block = Salsa20.streamBlock(subKey, tail, counter++)
-            val n = minOf(64, length - pos)
-            block.copyInto(out, pos, 0, n)
-            pos += n
+        while (pos + 64 <= length) {
+            Salsa20.streamBlockInto(subKey, tail, counter++, state, work, out, pos)
+            pos += 64
+        }
+        if (pos < length) {
+            val rem = ByteArray(64)
+            Salsa20.streamBlockInto(subKey, tail, counter, state, work, rem, 0)
+            rem.copyInto(out, pos, 0, length - pos)
         }
         return out
     }

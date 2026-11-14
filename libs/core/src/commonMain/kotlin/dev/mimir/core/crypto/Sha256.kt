@@ -101,4 +101,4 @@ object Sha256 {
     }
 }
 
-fun ByteArray.toHex(): String = joinToString("") { (it.toInt() and 0xFF).toString(16).padStart(2, '0') }
+fun ByteArray.toHex(): String = toHexString()

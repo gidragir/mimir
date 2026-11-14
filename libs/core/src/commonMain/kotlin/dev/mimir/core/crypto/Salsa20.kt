@@ -7,9 +7,16 @@ internal object Salsa20 {
     fun core(input: IntArray, rounds: Int): IntArray {
         require(input.size == 16 && rounds % 2 == 0) { "bad salsa20 core arguments" }
         val x = input.copyOf()
-        rounds(x, rounds)
-        for (i in 0 until 16) x[i] += input[i]
+        coreInPlace(x, IntArray(16), rounds)
         return x
+    }
+
+    /** Salsa20/[rounds] на месте: результат записывается обратно в [state]; [work] — рабочий буфер из 16 Int. */
+    fun coreInPlace(state: IntArray, work: IntArray, rounds: Int = 20) {
+        require(state.size == 16 && work.size == 16 && rounds % 2 == 0) { "bad salsa20 core arguments" }
+        state.copyInto(work)
+        rounds(work, rounds)
+        for (i in 0 until 16) state[i] += work[i]
     }
 
     /** HSalsa20: 32-байтный ключ из ключа и 16-байтного nonce (первая половина XSalsa20). */
@@ -31,20 +38,32 @@ internal object Salsa20 {
 
     /** 64-байтный блок Salsa20-потока для 16-байтного (nonce8 ‖ counter8) хвоста. */
     fun streamBlock(key: ByteArray, nonce8: ByteArray, counter: Long): ByteArray {
-        val x = IntArray(16)
-        for (i in 0 until 4) x[i * 5] = le32(SIGMA, i * 4)
-        for (i in 0 until 4) {
-            x[1 + i] = le32(key, i * 4)
-            x[11 + i] = le32(key, 16 + i * 4)
-        }
-        x[6] = le32(nonce8, 0)
-        x[7] = le32(nonce8, 4)
-        x[8] = counter.toInt()
-        x[9] = (counter ushr 32).toInt()
-        val out = core(x, 20)
         val bytes = ByteArray(64)
-        for (i in 0 until 16) putLe32(bytes, i * 4, out[i])
+        streamBlockInto(key, nonce8, counter, IntArray(16), IntArray(16), bytes, 0)
         return bytes
+    }
+
+    /** Записывает 64-байтный блок Salsa20-потока в [out] с позиции [outOffset] без аллокаций. */
+    fun streamBlockInto(
+        key: ByteArray,
+        nonce8: ByteArray,
+        counter: Long,
+        state: IntArray,
+        work: IntArray,
+        out: ByteArray,
+        outOffset: Int,
+    ) {
+        for (i in 0 until 4) state[i * 5] = le32(SIGMA, i * 4)
+        for (i in 0 until 4) {
+            state[1 + i] = le32(key, i * 4)
+            state[11 + i] = le32(key, 16 + i * 4)
+        }
+        state[6] = le32(nonce8, 0)
+        state[7] = le32(nonce8, 4)
+        state[8] = counter.toInt()
+        state[9] = (counter ushr 32).toInt()
+        coreInPlace(state, work, 20)
+        for (i in 0 until 16) putLe32(out, outOffset + i * 4, state[i])
     }
 
     private fun rounds(x: IntArray, rounds: Int) {

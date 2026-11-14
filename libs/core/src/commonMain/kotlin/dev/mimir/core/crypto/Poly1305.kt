@@ -6,8 +6,11 @@ internal object Poly1305 {
 
     private fun le(b: ByteArray, off: Int): Long = Salsa20.le32(b, off).toLong() and 0xFFFFFFFFL
 
-    fun mac(key32: ByteArray, data: ByteArray): ByteArray {
+    fun mac(key32: ByteArray, data: ByteArray, offset: Int = 0, length: Int = data.size - offset): ByteArray {
         require(key32.size == 32) { "poly1305 key must be 32 bytes" }
+        require(offset >= 0 && length >= 0 && offset + length <= data.size) {
+            "invalid poly1305 range: offset=$offset length=$length size=${data.size}"
+        }
         val t0 = le(key32, 0); val t1 = le(key32, 4); val t2 = le(key32, 8); val t3 = le(key32, 12)
         val r0 = t0 and 0x3ffffffL
         val r1 = ((t0 ushr 26) or (t1 shl 6)) and 0x3ffff03L
@@ -17,20 +20,26 @@ internal object Poly1305 {
         val s1 = r1 * 5; val s2 = r2 * 5; val s3 = r3 * 5; val s4 = r4 * 5
 
         var h0 = 0L; var h1 = 0L; var h2 = 0L; var h3 = 0L; var h4 = 0L
-        var pos = 0
+        var pos = offset
+        val end = offset + length
         val block = ByteArray(16)
-        while (pos < data.size) {
-            val n = minOf(16, data.size - pos)
-            block.fill(0)
-            data.copyInto(block, 0, pos, pos + n)
+        while (pos < end) {
+            val n = minOf(16, end - pos)
+            val m0: Long
+            val m1: Long
+            val m2: Long
+            val m3: Long
             val hibit: Long
-            if (n < 16) {
-                block[n] = 1
-                hibit = 0
-            } else {
+            if (n == 16) {
+                m0 = le(data, pos); m1 = le(data, pos + 4); m2 = le(data, pos + 8); m3 = le(data, pos + 12)
                 hibit = 1L shl 24
+            } else {
+                block.fill(0)
+                data.copyInto(block, 0, pos, pos + n)
+                block[n] = 1
+                m0 = le(block, 0); m1 = le(block, 4); m2 = le(block, 8); m3 = le(block, 12)
+                hibit = 0
             }
-            val m0 = le(block, 0); val m1 = le(block, 4); val m2 = le(block, 8); val m3 = le(block, 12)
             h0 += m0 and MASK
             h1 += ((m0 ushr 26) or (m1 shl 6)) and MASK
             h2 += ((m1 ushr 20) or (m2 shl 12)) and MASK

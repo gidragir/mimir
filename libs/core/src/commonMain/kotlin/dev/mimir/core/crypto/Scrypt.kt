@@ -22,30 +22,30 @@ internal object Scrypt {
     /** [checkCancelled] вызывается каждые [CHECK_EVERY] шагов: отмена прерывает многосекундную деривацию. */
     private fun roMix(x: IntArray, v: IntArray, scratch: IntArray, n: Int, r: Int, checkCancelled: () -> Unit) {
         val blockWords = 32 * r
+        val t = IntArray(16)
+        val work = IntArray(16)
         for (i in 0 until n) {
             if (i % CHECK_EVERY == 0) checkCancelled()
             x.copyInto(v, i * blockWords)
-            blockMix(x, scratch, r)
+            blockMix(x, scratch, r, t, work)
         }
         for (i in 0 until n) {
             if (i % CHECK_EVERY == 0) checkCancelled()
             val j = (x[blockWords - 16].toLong() and 0xFFFFFFFFL).rem(n.toLong()).toInt()
             for (w in 0 until blockWords) x[w] = x[w] xor v[j * blockWords + w]
-            blockMix(x, scratch, r)
+            blockMix(x, scratch, r, t, work)
         }
     }
 
-    /** scryptBlockMix на месте; [y] — рабочий массив того же размера. */
-    private fun blockMix(b: IntArray, y: IntArray, r: Int) {
-        val t = IntArray(16)
+    /** scryptBlockMix на месте; [y], [t], [work] — переиспользуемые рабочие массивы. */
+    private fun blockMix(b: IntArray, y: IntArray, r: Int, t: IntArray, work: IntArray) {
         b.copyInto(t, 0, (2 * r - 1) * 16, 2 * r * 16)
         for (i in 0 until 2 * r) {
             for (w in 0 until 16) t[w] = t[w] xor b[i * 16 + w]
-            val s = Salsa20.core(t, 8)
-            s.copyInto(t)
+            Salsa20.coreInPlace(t, work, 8)
             // чётные блоки — в первую половину, нечётные — во вторую
             val dst = (if (i % 2 == 0) i / 2 else r + i / 2) * 16
-            s.copyInto(y, dst)
+            t.copyInto(y, dst)
         }
         y.copyInto(b)
     }

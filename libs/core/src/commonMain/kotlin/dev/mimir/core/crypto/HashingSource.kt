@@ -7,6 +7,8 @@ import kotlinx.io.Source
 /** Пропускает байты upstream без изменений и считает их SHA-256 по ходу чтения. */
 class HashingSource(private val upstream: RawSource) : RawSource {
     private val hasher = Sha256.Hasher()
+    private val copyBuffer = Buffer()
+    private val scratch = ByteArray(8192)
     private var exhausted = false
     private var hex: String? = null
 
@@ -18,9 +20,13 @@ class HashingSource(private val upstream: RawSource) : RawSource {
             exhausted = true
             return -1
         }
-        // Новые байты — хвост sink длиной read; копируем их, не трогая sink.
-        val chunk = sink.copyTo(read, before)
-        hasher.update(chunk)
+        // Новые байты — хвост sink длиной read; копируем их во временный буфер, не трогая sink.
+        sink.copyTo(copyBuffer, before, before + read)
+        while (!copyBuffer.exhausted()) {
+            val n = copyBuffer.readAtMostTo(scratch, 0, scratch.size)
+            if (n <= 0) break
+            hasher.update(scratch, 0, n)
+        }
         return read
     }
 
@@ -31,14 +37,6 @@ class HashingSource(private val upstream: RawSource) : RawSource {
     }
 
     override fun close() = upstream.close()
-
-    private fun Buffer.copyTo(count: Long, startIndex: Long): ByteArray {
-        val bytes = ByteArray(count.toInt())
-        val copy = Buffer()
-        this.copyTo(copy, startIndex, startIndex + count)
-        copy.readAtMostTo(bytes)
-        return bytes
-    }
 }
 
 /** Потоковый SHA-256 источника блоками по 64 КиБ; источник закрывается. Не приостанавливается. */

@@ -1,7 +1,9 @@
 package dev.mimir.core
 
 import kotlinx.io.Buffer
+import kotlinx.io.RawSource
 import kotlinx.io.Source
+import kotlinx.io.buffered
 import kotlinx.io.readByteArray
 import kotlin.io.encoding.Base64
 import kotlin.test.Test
@@ -9,6 +11,7 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotEquals
+import kotlin.test.assertTrue
 
 class RcloneCipherContentTest {
     private val ciphers get() = TestCiphers.all
@@ -150,6 +153,21 @@ class RcloneCipherContentTest {
     fun `nonceSource of wrong length is rejected`() {
         val cipher = RcloneCipher("x") { ByteArray(23) }
         assertFailsWith<IllegalArgumentException> { cipher.encrypt(sourceOf(ByteArray(1))).readByteArray() }
+    }
+
+    @Test
+    fun `decrypt closes upstream source when header is invalid`() {
+        var closed = false
+        val inner = sourceOf("NOT_RCLONE_HEADER_00000000000000".encodeToByteArray())
+        val upstream = object : RawSource {
+            override fun readAtMostTo(sink: Buffer, byteCount: Long): Long = inner.readAtMostTo(sink, byteCount)
+            override fun close() {
+                closed = true
+                inner.close()
+            }
+        }.buffered()
+        assertFailsWith<CryptException> { ciphers[0].decrypt(upstream).readByteArray() }
+        assertTrue(closed)
     }
 
     @Test

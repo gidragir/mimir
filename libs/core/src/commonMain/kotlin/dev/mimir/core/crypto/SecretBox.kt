@@ -9,7 +9,7 @@ internal object SecretBox {
         val ks = XSalsa20.keystream(key, nonce24, POLY_KEY_SIZE + plain.size)
         val out = ByteArray(TAG_SIZE + plain.size)
         for (i in plain.indices) out[TAG_SIZE + i] = (plain[i].toInt() xor ks[POLY_KEY_SIZE + i].toInt()).toByte()
-        val tag = Poly1305.mac(ks.copyOfRange(0, POLY_KEY_SIZE), out.copyOfRange(TAG_SIZE, out.size))
+        val tag = Poly1305.mac(ks.copyOfRange(0, POLY_KEY_SIZE), out, offset = TAG_SIZE, length = out.size - TAG_SIZE)
         tag.copyInto(out)
         return out
     }
@@ -18,11 +18,10 @@ internal object SecretBox {
         if (box.size < TAG_SIZE) throw CryptException("encrypted block is too short")
         val bodyLen = box.size - TAG_SIZE
         val ks = XSalsa20.keystream(key, nonce24, POLY_KEY_SIZE + bodyLen)
-        val body = box.copyOfRange(TAG_SIZE, box.size)
-        val expected = Poly1305.mac(ks.copyOfRange(0, POLY_KEY_SIZE), body)
+        val expected = Poly1305.mac(ks.copyOfRange(0, POLY_KEY_SIZE), box, offset = TAG_SIZE, length = bodyLen)
         var diff = 0
         for (i in 0 until TAG_SIZE) diff = diff or (expected[i].toInt() xor box[i].toInt())
         if (diff != 0) throw CryptException("authentication failed")
-        return ByteArray(bodyLen) { (body[it].toInt() xor ks[POLY_KEY_SIZE + it].toInt()).toByte() }
+        return ByteArray(bodyLen) { (box[TAG_SIZE + it].toInt() xor ks[POLY_KEY_SIZE + it].toInt()).toByte() }
     }
 }

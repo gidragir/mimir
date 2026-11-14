@@ -138,8 +138,7 @@ class RcloneCipher internal constructor(
         fun fromKeyHex(hex: String, nonceSource: () -> ByteArray = ::randomNonce): RcloneCipher {
             require(hex.length == KEY_SIZE * 2) { "key hex must be ${KEY_SIZE * 2} characters" }
             require(hex.all { it in '0'..'9' || it in 'a'..'f' || it in 'A'..'F' }) { "key hex contains non-hex characters" }
-            val keys = ByteArray(KEY_SIZE) { hex.substring(it * 2, it * 2 + 2).toInt(16).toByte() }
-            return fromKeyBytes(keys, nonceSource)
+            return fromKeyBytes(hex.hexToByteArray(), nonceSource)
         }
     }
 }
@@ -234,10 +233,17 @@ private class DecryptingSource(
     }
 
     private fun readHeader(): ByteArray {
-        val header = encrypted.readUpTo(HEADER_SIZE)
-        if (header.size < HEADER_SIZE) throw CryptException("encrypted file header is truncated")
-        if (!header.copyOfRange(0, MAGIC.size).contentEquals(MAGIC)) throw CryptException("not an rclone crypt file")
-        return header.copyOfRange(MAGIC.size, HEADER_SIZE)
+        try {
+            val header = encrypted.readUpTo(HEADER_SIZE)
+            if (header.size < HEADER_SIZE) throw CryptException("encrypted file header is truncated")
+            for (i in MAGIC.indices) {
+                if (header[i] != MAGIC[i]) throw CryptException("not an rclone crypt file")
+            }
+            return header.copyOfRange(MAGIC.size, HEADER_SIZE)
+        } catch (e: Throwable) {
+            encrypted.close()
+            throw e
+        }
     }
 
     override fun close() = encrypted.close()
