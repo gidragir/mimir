@@ -9,25 +9,26 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import dev.mimir.ui.MimirTokens
 import dev.mimir.ui.components.MimirButton
 import dev.mimir.ui.components.MimirButtonVariant
 import dev.mimir.ui.model.MimirUiModel
-import dev.mimir.ui.model.UiDeviceCode
 import dev.mimir.ui.model.UiLoginMethod
 import dev.mimir.ui.model.UiLoginPoll
 import dev.mimir.ui.model.UiLoginStart
 import dev.mimir.ui.platform.LocalSystemAccountLogin
 import dev.mimir.ui.platform.SystemLoginResult
+import dev.mimir.ui.platform.plainTextClipEntry
 import dev.mimir.ui.screens.SyncTexts
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun GoogleStep(model: MimirUiModel, pollIntervalMillis: Long, onNext: () -> Unit) {
@@ -54,11 +55,7 @@ fun GoogleStep(model: MimirUiModel, pollIntervalMillis: Long, onNext: () -> Unit
         methodsError != null -> {
             Text("Вход через Google", style = MaterialTheme.typography.headlineSmall)
             Text(methodsError.orEmpty(), color = MimirTokens.StatusError)
-            MimirButton(
-                text = "Повторить",
-                onClick = { attempt++ },
-                variant = MimirButtonVariant.Primary,
-            )
+            MimirButton(text = "Повторить", onClick = { attempt++ }, variant = MimirButtonVariant.Primary)
         }
         available == null -> {
             Text("Вход через Google", style = MaterialTheme.typography.headlineSmall)
@@ -72,7 +69,6 @@ fun GoogleStep(model: MimirUiModel, pollIntervalMillis: Long, onNext: () -> Unit
             model, primary, available, pollIntervalMillis, onNext,
             onUseCode = if (UiLoginMethod.DeviceCode in available) ({ showCode = true }) else null,
         )
-
         else -> DeviceCodeStep(
             model, pollIntervalMillis, onNext,
             onBack = if (primary != UiLoginMethod.DeviceCode) ({ showCode = false }) else null,
@@ -96,9 +92,9 @@ private fun InteractiveLoginStep(
     var inBrowser by remember { mutableStateOf(false) }
     var openFailedUrl by remember { mutableStateOf<String?>(null) }
     val systemAccountLogin = LocalSystemAccountLogin.current
-    @Suppress("DEPRECATION")
-    val clipboard = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
     val uriHandler = LocalUriHandler.current
+    val scope = rememberCoroutineScope()
 
     if (started) {
         LaunchedEffect(attempt) {
@@ -108,10 +104,8 @@ private fun InteractiveLoginStep(
             var activeMethod = method
             try {
                 if (activeMethod == UiLoginMethod.SystemAccount) {
-                    val authResult = systemAccountLogin?.authorize() ?: SystemLoginResult.Granted
-                    when (authResult) {
+                    when (systemAccountLogin?.authorize() ?: SystemLoginResult.Granted) {
                         SystemLoginResult.Granted -> Unit
-
                         SystemLoginResult.Cancelled -> {
                             started = false
                             return@LaunchedEffect
@@ -126,7 +120,6 @@ private fun InteractiveLoginStep(
                         }
                     }
                 }
-
                 when (val start = model.startLogin(activeMethod)) {
                     is UiLoginStart.OpenUrl -> {
                         inBrowser = true
@@ -189,10 +182,7 @@ private fun InteractiveLoginStep(
                 Text(url)
                 MimirButton(
                     text = "Скопировать ссылку",
-                    onClick = {
-                        @Suppress("DEPRECATION")
-                        clipboard.setText(AnnotatedString(url))
-                    },
+                    onClick = { scope.launch { clipboard.setClipEntry(plainTextClipEntry(url)) } },
                     variant = MimirButtonVariant.Secondary,
                     modifier = Modifier.fillMaxWidth().height(44.dp),
                 )
@@ -201,78 +191,6 @@ private fun InteractiveLoginStep(
         MimirButton(
             text = "Отмена",
             onClick = { started = false; error = null; openFailedUrl = null },
-            variant = MimirButtonVariant.Ghost,
-            modifier = Modifier.fillMaxWidth(),
-        )
-    }
-}
-
-@Composable
-private fun DeviceCodeStep(model: MimirUiModel, pollIntervalMillis: Long, onNext: () -> Unit, onBack: (() -> Unit)?) {
-    var code by remember { mutableStateOf<UiDeviceCode?>(null) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var attempt by remember { mutableStateOf(0) }
-    @Suppress("DEPRECATION")
-    val clipboard = LocalClipboardManager.current
-    val uriHandler = LocalUriHandler.current
-
-    LaunchedEffect(attempt) {
-        error = null
-        code = null
-        try {
-            val start = model.startLogin(UiLoginMethod.DeviceCode)
-            code = (start as? UiLoginStart.ShowDeviceCode)?.code ?: error("Unexpected sign-in start: $start")
-            while (true) {
-                delay(pollIntervalMillis)
-                when (val poll = model.pollLogin()) {
-                    UiLoginPoll.Pending -> Unit
-                    is UiLoginPoll.Authorized -> return@LaunchedEffect onNext()
-                    is UiLoginPoll.Failed -> return@LaunchedEffect run { error = "Код истёк: ${poll.reason}" }
-                }
-            }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            error = e.userMessage()
-        }
-    }
-
-    Text("Вход через Google", style = MaterialTheme.typography.headlineSmall)
-    val issued = code
-    if (issued != null) {
-        Text("Откройте ${issued.verificationUrl} и введите код:")
-        Text(
-            issued.userCode,
-            style = MaterialTheme.typography.displaySmall,
-            color = MimirTokens.Accent,
-        )
-        MimirButton(
-            text = "Скопировать код и открыть ссылку",
-            onClick = {
-                @Suppress("DEPRECATION")
-                clipboard.setText(AnnotatedString(issued.userCode))
-                runCatching { uriHandler.openUri(issued.verificationUrl) }
-            },
-            variant = MimirButtonVariant.Primary,
-            modifier = Modifier.fillMaxWidth().height(44.dp),
-        )
-        if (error == null) Text("Ожидание подтверждения…")
-    } else if (error == null) {
-        Text("Запрашиваем код…")
-    }
-    error?.let {
-        Text(it, color = MimirTokens.StatusError)
-        MimirButton(
-            text = "Попробовать снова",
-            onClick = { attempt++ },
-            variant = MimirButtonVariant.Primary,
-            modifier = Modifier.fillMaxWidth().height(44.dp),
-        )
-    }
-    onBack?.let {
-        MimirButton(
-            text = "Назад",
-            onClick = it,
             variant = MimirButtonVariant.Ghost,
             modifier = Modifier.fillMaxWidth(),
         )

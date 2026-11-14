@@ -16,6 +16,7 @@ import dev.mimir.core.SyncItemAction
 import dev.mimir.core.SyncPhase
 import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncStatus
+import dev.mimir.core.testing.TestClock
 import dev.mimir.ui.model.FakeMimirUiModel
 import dev.mimir.ui.model.UiConflictEntry
 import dev.mimir.ui.model.UpdateInstallKind
@@ -26,15 +27,12 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
-import kotlin.time.Clock
 import kotlin.time.Instant
 
 @OptIn(ExperimentalTestApi::class)
 class TrayPopoverScreenTest {
     private val fixedNow = Instant.fromEpochSeconds(1_700_000_600L)
-    private val fixedClock = object : Clock {
-        override fun now(): Instant = fixedNow
-    }
+    private val fixedClock = TestClock(fixedNow)
 
     @Test
     fun `startup state shows loading indicator and allows open and quit`() = runComposeUiTest {
@@ -225,5 +223,40 @@ class TrayPopoverScreenTest {
         onNodeWithTag("popover_update_banner").assertIsDisplayed().performClick()
         assertEquals(2, openCalls)
         assertFalse(model.status.value is SyncStatus.Error)
+    }
+
+    @Test
+    fun `popover updates progress reactively when progress flow emits`() = runComposeUiTest {
+        val progressFlow = MutableStateFlow<SyncProgress?>(
+            SyncProgress(phase = SyncPhase.Scanning, startedAt = fixedNow, scanned = 15, foldersScanned = 3),
+        )
+        val model = FakeMimirUiModel(
+            status = SyncStatus.Syncing,
+            vaultPath = "/home/user/Notes",
+            isLocked = false,
+            progress = progressFlow,
+        )
+        setContent {
+            MimirTheme {
+                TrayPopoverScreen(
+                    model = model,
+                    onOpenMainWindow = {},
+                    onQuit = {},
+                    clock = fixedClock,
+                )
+            }
+        }
+        onNodeWithText("Проверено 15 файлов в 3 папках").assertIsDisplayed()
+
+        progressFlow.value = SyncProgress(
+            phase = SyncPhase.Applying,
+            startedAt = fixedNow,
+            done = 4,
+            total = 10,
+            current = SyncItem("notes/hello.md", SyncItemAction.Download),
+        )
+        waitForIdle()
+        onNodeWithText("4 из 10 файлов").assertIsDisplayed()
+        onNodeWithText("⬇ Загружаю: notes/hello.md").assertIsDisplayed()
     }
 }

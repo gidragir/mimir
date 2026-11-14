@@ -9,34 +9,13 @@ import dev.mimir.core.SyncErrorKind
 import dev.mimir.core.SyncStatus
 import dev.mimir.ui.model.FakeMimirUiModel
 import dev.mimir.ui.platform.LocalStorageAccess
-import dev.mimir.ui.platform.StorageAccess
 import dev.mimir.ui.screens.StatusBanners
 import dev.mimir.ui.screens.SyncTexts
-
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalTestApi::class)
 class StorageAccessBannerTest {
-
-    private class FakeStorageAccess(
-        initialGranted: Boolean = false,
-    ) : StorageAccess {
-        val grantedFlow = MutableStateFlow(initialGranted)
-        override val granted: StateFlow<Boolean> = grantedFlow
-        var requestAllFilesCalled = false
-        var requestNotificationsCalled = false
-
-        override fun requestAllFiles() {
-            requestAllFilesCalled = true
-        }
-
-        override fun requestNotifications() {
-            requestNotificationsCalled = true
-        }
-    }
 
     @Test
     fun `banner with grant button when access revoked after setup`() = runComposeUiTest {
