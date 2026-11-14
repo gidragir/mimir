@@ -345,12 +345,19 @@ class DaemonServiceUiModelTest {
     }
 
     @Test
-    fun `polls plain properties of the service`() = runTest {
+    fun `refreshes plain properties reactively without idle polling`() = runTest {
         val service = FakeDaemonService()
         val adapter = DaemonServiceUiModel(service, backgroundScope)
+        runCurrent()
+
         service.lastSyncTime = Instant.fromEpochMilliseconds(5)
         service.isLocked = false
         advanceTimeBy(2_000)
+        assertEquals(null, adapter.lastSyncTime.value)
+        assertEquals(true, adapter.isLocked.value)
+
+        service.status.value = SyncStatus.Syncing
+        runCurrent()
         assertEquals(Instant.fromEpochMilliseconds(5), adapter.lastSyncTime.value)
         assertEquals(false, adapter.isLocked.value)
     }

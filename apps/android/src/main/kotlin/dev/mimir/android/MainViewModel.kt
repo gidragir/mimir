@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlin.time.Instant
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val mimirApp = app as? MimirApplication
@@ -24,18 +25,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private val backgroundSyncFlow: StateFlow<UiBackgroundSync?> = combine(
         runtime.status,
+        runtime.vaultPathFlow,
         networkState.current,
-    ) { _, networkKind ->
-        if (runtime.vaultPath != null) {
-            val waitingForWifi = networkKind == NetworkKind.METERED && false
-            UiBackgroundSync(
-                enabled = true,
-                lastRun = runtime.lastSyncTime,
-                waitingForWifi = waitingForWifi,
-            )
-        } else {
-            null
-        }
+    ) { _, vaultPath, networkKind ->
+        backgroundSyncFor(vaultPath, runtime.lastSyncTime, networkKind)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     val model: MimirUiModel = DaemonServiceUiModel(
@@ -52,6 +45,24 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     override fun onCleared() {
         super.onCleared()
         networkState.close()
+    }
+
+    companion object {
+        internal fun backgroundSyncFor(
+            vaultPath: String?,
+            lastRun: Instant?,
+            networkKind: NetworkKind,
+        ): UiBackgroundSync? {
+            return if (vaultPath != null) {
+                UiBackgroundSync(
+                    enabled = true,
+                    lastRun = lastRun,
+                    waitingForWifi = networkKind == NetworkKind.METERED,
+                )
+            } else {
+                null
+            }
+        }
     }
 }
 

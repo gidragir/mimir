@@ -1,5 +1,6 @@
 package dev.mimir.android.auth
 
+import dev.mimir.core.testing.TestClock
 import dev.mimir.drive.client.DriveAuthException
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.test.runTest
@@ -8,20 +9,11 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
-import kotlin.time.Clock
-import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
 
 class GisTokenSourceTest {
     private val initialTime = Instant.parse("2026-10-27T10:00:00Z")
-
-    private class TestClock(var current: Instant) : Clock {
-        override fun now(): Instant = current
-        fun advance(duration: Duration) {
-            current += duration
-        }
-    }
 
     @Test
     fun `token is cached for ttl`() = runTest {
@@ -32,7 +24,7 @@ class GisTokenSourceTest {
         assertEquals("cached-token", source.token())
         assertEquals(1, authorizer.authorizeCallCount)
 
-        clock.advance(25.minutes)
+        clock.advanceBy(25.minutes)
         assertEquals("cached-token", source.token())
         assertEquals(1, authorizer.authorizeCallCount)
     }
@@ -47,7 +39,7 @@ class GisTokenSourceTest {
         assertEquals(1, authorizer.authorizeCallCount)
 
         authorizer.tokenResult = "token-2"
-        clock.advance(51.minutes)
+        clock.advanceBy(51.minutes)
 
         assertEquals("token-2", source.token())
         assertEquals(2, authorizer.authorizeCallCount)

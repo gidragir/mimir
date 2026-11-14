@@ -19,6 +19,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 
 /**
@@ -66,8 +68,9 @@ class MimirApplication : Application(), Configuration.Provider {
 
     val runtime: MimirRuntime by lazy { AndroidRuntimeFactory.create(this) }
 
-    val workScheduler: SyncWorkScheduler
-        get() = SyncWorkScheduler(WorkManager.getInstance(this)) { false }
+    val workScheduler: SyncWorkScheduler by lazy {
+        SyncWorkScheduler(WorkManager.getInstance(this)) { false }
+    }
 
     val statusNotifier: StatusNotifier by lazy { StatusNotifier(this) }
 
@@ -116,30 +119,27 @@ class MimirApplication : Application(), Configuration.Provider {
             }
         }
         applicationScope.launch {
-            runtime.status.collect { status ->
-                if (status !is SyncStatus.Syncing) {
+            combine(
+                runtime.status,
+                runtime.progress,
+                runtime.conflictsFlow,
+                runtime.pendingLocalChanges,
+            ) { status, progress, conflicts, pending ->
+                NotificationKey(status, progress?.phase == SyncPhase.Finished, conflicts.size, pending)
+            }.distinctUntilChanged().collect { key ->
+                if (key.status !is SyncStatus.Syncing || key.finished) {
                     updateNotification()
                 }
-            }
-        }
-        applicationScope.launch {
-            runtime.progress.collect { progress ->
-                if (progress?.phase == SyncPhase.Finished) {
-                    updateNotification()
-                }
-            }
-        }
-        applicationScope.launch {
-            runtime.conflictsFlow.collect {
-                updateNotification()
-            }
-        }
-        applicationScope.launch {
-            runtime.pendingLocalChanges.collect {
-                updateNotification()
             }
         }
     }
+
+    private data class NotificationKey(
+        val status: SyncStatus,
+        val finished: Boolean,
+        val conflicts: Int,
+        val pending: Boolean,
+    )
 
     fun updateNotification() {
         val status = runtime.status.value

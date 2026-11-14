@@ -33,20 +33,6 @@ class VaultChangeWorkerTest {
         workManager = WorkManager.getInstance(context)
     }
 
-    private class RecordingSyncRunner(
-        val onSync: () -> Unit = {},
-        val shouldThrow: Boolean = false,
-    ) : SyncRunner {
-        var callCount = 0
-
-        override suspend fun syncOnce(): Boolean {
-            callCount++
-            onSync()
-            if (shouldThrow) throw IllegalStateException("sync error")
-            return true
-        }
-    }
-
     private fun createFactory(
         runner: SyncRunner,
         scheduler: SyncWorkScheduler,
@@ -79,7 +65,7 @@ class VaultChangeWorkerTest {
                 executionOrder.add("scheduleVaultTrigger")
             }
         }
-        val runner = RecordingSyncRunner(onSync = {
+        val runner = FakeSyncRunner(onSync = {
             executionOrder.add("syncOnce")
         })
         val testUri = Uri.parse("content://media/external/file/101")
@@ -104,7 +90,7 @@ class VaultChangeWorkerTest {
     @Test
     fun `syncs when a relevant path changed`() = runTest {
         val scheduler = SyncWorkScheduler(workManager)
-        val runner = RecordingSyncRunner()
+        val runner = FakeSyncRunner()
         val testUri = Uri.parse("content://media/external/file/102")
         val resolver = TriggeredPathResolver { listOf("/storage/emulated/0/Vault/notes/daily.md") }
         val vaultContext = VaultContext(
@@ -127,7 +113,7 @@ class VaultChangeWorkerTest {
     @Test
     fun `worker returns success without sync when storage access is missing`() = runTest {
         val scheduler = SyncWorkScheduler(workManager)
-        val runner = RecordingSyncRunner()
+        val runner = FakeSyncRunner()
         val testUri = Uri.parse("content://media/external/file/103")
         val resolver = TriggeredPathResolver { listOf("/storage/emulated/0/Vault/notes/daily.md") }
         val vaultContext = VaultContext(
@@ -150,7 +136,7 @@ class VaultChangeWorkerTest {
     @Test
     fun `worker returns success without sync when changed path is not relevant`() = runTest {
         val scheduler = SyncWorkScheduler(workManager)
-        val runner = RecordingSyncRunner()
+        val runner = FakeSyncRunner()
         val testUri = Uri.parse("content://media/external/file/104")
         val resolver = TriggeredPathResolver { listOf("/storage/emulated/0/Other/photo.jpg") }
         val vaultContext = VaultContext(
@@ -173,7 +159,7 @@ class VaultChangeWorkerTest {
     @Test
     fun `worker returns success without sync when vault is not configured`() = runTest {
         val scheduler = SyncWorkScheduler(workManager)
-        val runner = RecordingSyncRunner()
+        val runner = FakeSyncRunner()
         val testUri = Uri.parse("content://media/external/file/105")
         val resolver = TriggeredPathResolver { listOf("/storage/emulated/0/Vault/notes/daily.md") }
 
@@ -190,7 +176,7 @@ class VaultChangeWorkerTest {
     @Test
     fun `worker retries on failure below three attempts`() = runTest {
         val scheduler = SyncWorkScheduler(workManager)
-        val runner = RecordingSyncRunner(shouldThrow = true)
+        val runner = FakeSyncRunner(shouldThrow = true)
         val testUri = Uri.parse("content://media/external/file/106")
         val resolver = TriggeredPathResolver { listOf("/storage/emulated/0/Vault/notes/daily.md") }
         val vaultContext = VaultContext(

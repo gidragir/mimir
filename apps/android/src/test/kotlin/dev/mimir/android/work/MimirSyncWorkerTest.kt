@@ -19,17 +19,6 @@ import kotlin.test.assertEquals
 class MimirSyncWorkerTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
 
-    private class FakeSyncRunner : SyncRunner {
-        var callCount = 0
-        var shouldThrow = false
-
-        override suspend fun syncOnce(): Boolean {
-            callCount++
-            if (shouldThrow) throw IllegalStateException("sync error")
-            return true
-        }
-    }
-
     private fun createFactory(runner: SyncRunner): WorkerFactory {
         return object : WorkerFactory() {
             override fun createWorker(
