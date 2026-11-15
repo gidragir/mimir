@@ -1,6 +1,7 @@
 package dev.mimir.client
 
 import dev.mimir.core.ConflictFileEntry
+import dev.mimir.core.DeletionDecision
 import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncStatus
 import kotlinx.coroutines.flow.StateFlow
@@ -17,6 +18,7 @@ interface DaemonService {
     val accountEmail: String?
 
     suspend fun triggerSync(): Boolean
+    suspend fun resolveDeletions(decision: DeletionDecision)
     suspend fun conflicts(): List<ConflictFileEntry>
     suspend fun resolveConflict(originalPath: String, conflictPath: String, keepConflict: Boolean)
     suspend fun configureVault(vaultPath: String): Int

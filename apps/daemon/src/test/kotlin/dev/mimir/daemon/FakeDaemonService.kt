@@ -55,11 +55,17 @@ class FakeDaemonService : DaemonService {
     /** `true` — запуск принят, `false` — уже идёт, `null` — не сконфигурировано. */
     var syncAccepted: Boolean? = null
     var syncCalls = 0
+    var lastDeletionDecision: dev.mimir.core.DeletionDecision? = null
     var unlockedWith: String? = null
 
     override suspend fun triggerSync(): Boolean {
         syncCalls++
         return syncAccepted ?: throw SyncNotConfiguredException("not configured")
+    }
+
+    override suspend fun resolveDeletions(decision: dev.mimir.core.DeletionDecision) {
+        if (syncAccepted == null) throw SyncNotConfiguredException("not configured")
+        lastDeletionDecision = decision
     }
 
     override suspend fun unlock(password: String) {

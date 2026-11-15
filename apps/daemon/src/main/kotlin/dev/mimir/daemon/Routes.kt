@@ -60,6 +60,7 @@ private fun SyncStatus.code(): String = when (this) {
     SyncStatus.Idle -> "idle"
     SyncStatus.Syncing -> "syncing"
     SyncStatus.Offline -> "offline"
+    is SyncStatus.NeedsConfirmation -> "needs_confirmation"
     is SyncStatus.Error -> "error"
 }
 
@@ -74,6 +75,7 @@ private fun DaemonService.toStatusDto(): DaemonStatusDto {
         activeConflicts = conflictsFlow.value.size,
         accountEmail = accountEmail,
         progress = progress.value?.toDto(Clock.System.now()),
+        pendingDeletions = (currentStatus as? SyncStatus.NeedsConfirmation)?.pendingDeletions,
     )
 }
 
@@ -173,6 +175,36 @@ fun Application.mimirRoutes(service: DaemonService, config: DaemonConfig, update
                     } else {
                         call.respond(HttpStatusCode.Conflict, DaemonStatusOnlyResponse("already_running"))
                     }
+                } catch (_: SyncNotConfiguredException) {
+                    call.respond(
+                        HttpStatusCode.PreconditionFailed,
+                        DaemonErrorBody("Vault path, encryption password or cloud storage not configured"),
+                    )
+                }
+            }
+
+            post("/sync/confirm-deletions") {
+                val request = try {
+                    call.receive<dev.mimir.client.DaemonResolveDeletionsRequest>()
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    return@post call.respond(
+                        HttpStatusCode.BadRequest,
+                        DaemonErrorBody("Expected decision: delete or keep"),
+                    )
+                }
+                val decision = when (request.decision) {
+                    "delete" -> dev.mimir.core.DeletionDecision.Delete
+                    "keep" -> dev.mimir.core.DeletionDecision.Keep
+                    else -> return@post call.respond(
+                        HttpStatusCode.BadRequest,
+                        DaemonErrorBody("Expected decision: delete or keep"),
+                    )
+                }
+                try {
+                    service.resolveDeletions(decision)
+                    call.respond(HttpStatusCode.Accepted, DaemonStatusOnlyResponse("started"))
                 } catch (_: SyncNotConfiguredException) {
                     call.respond(
                         HttpStatusCode.PreconditionFailed,

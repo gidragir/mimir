@@ -258,6 +258,12 @@ class MimirRuntime(
         return scheduler.triggerSync()
     }
 
+    override suspend fun resolveDeletions(decision: dev.mimir.core.DeletionDecision) {
+        val engine = assembled?.engine ?: throw notConfigured()
+        engine.resolvePendingDeletions(decision)
+        triggerSync()
+    }
+
     override suspend fun conflicts() = conflictTracker.refresh()
 
     override suspend fun resolveConflict(originalPath: String, conflictPath: String, keepConflict: Boolean) =
