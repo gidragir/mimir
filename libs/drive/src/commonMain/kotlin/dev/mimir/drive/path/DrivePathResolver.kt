@@ -5,6 +5,7 @@ import dev.mimir.drive.api.GoogleDriveFile
 import dev.mimir.drive.api.GoogleDriveFileList
 import dev.mimir.drive.client.DriveHttpClient
 import dev.mimir.drive.client.DriveHttpException
+import dev.mimir.drive.client.DriveOp
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.request.header
@@ -18,6 +19,7 @@ import io.ktor.http.isSuccess
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
+import kotlin.time.TimeSource
 
 class DrivePathResolver(
     private val client: DriveHttpClient,
@@ -85,7 +87,7 @@ class DrivePathResolver(
     }
 
     suspend fun fetchFileById(fileId: String): GoogleDriveFile? {
-        val response = client.executeWithRetry { token ->
+        val response = client.executeWithRetry(DriveOp.GetMeta) { token ->
             client.httpClient.get("https://www.googleapis.com/drive/v3/files/$fileId") {
                 header(HttpHeaders.Authorization, "Bearer $token")
                 parameter("fields", "id,name,mimeType,size,modifiedTime,md5Checksum,parents,trashed")
@@ -130,7 +132,12 @@ class DrivePathResolver(
             return resolveRootFolderId()
         }
         if (!createIfMissing) return walkFolders(dir, createIfMissing = false)
-        return folderCreationMutex.withLock { walkFolders(dir, createIfMissing = true) }
+        val waitMark = TimeSource.Monotonic.markNow()
+        return folderCreationMutex.withLock {
+            val waitedMs = waitMark.elapsedNow().inWholeMilliseconds
+            if (waitedMs > 0) client.metrics.onLockWait("folderCreation", waitedMs)
+            walkFolders(dir, createIfMissing = true)
+        }
     }
 
     private suspend fun walkFolders(dir: RemotePath, createIfMissing: Boolean): String? {
@@ -195,7 +202,7 @@ class DrivePathResolver(
             mimeType = FOLDER_MIME_TYPE,
             parents = listOf(parentFolderId),
         )
-        val response = client.executeWithRetry { token ->
+        val response = client.executeWithRetry(DriveOp.FolderCreate) { token ->
             client.httpClient.post("https://www.googleapis.com/drive/v3/files") {
                 header(HttpHeaders.Authorization, "Bearer $token")
                 contentType(ContentType.Application.Json)
@@ -209,7 +216,7 @@ class DrivePathResolver(
     }
 
     private suspend fun listFilesByQuery(query: String): List<GoogleDriveFile> {
-        val response = client.executeWithRetry { token ->
+        val response = client.executeWithRetry(DriveOp.ListQuery) { token ->
             client.httpClient.get("https://www.googleapis.com/drive/v3/files") {
                 header(HttpHeaders.Authorization, "Bearer $token")
                 parameter("q", query)

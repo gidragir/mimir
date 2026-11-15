@@ -12,6 +12,7 @@ import dev.mimir.drive.api.GoogleStartPageToken
 import dev.mimir.drive.api.toRemoteEntry
 import dev.mimir.drive.client.DriveHttpClient
 import dev.mimir.drive.client.DriveHttpException
+import dev.mimir.drive.client.DriveOp
 import dev.mimir.drive.path.DrivePathResolver
 import dev.mimir.drive.upload.DriveUploader
 import io.ktor.client.call.body
@@ -38,7 +39,7 @@ class GoogleDriveStorage(
     private val uploader = DriveUploader(client, pathResolver)
 
     override suspend fun getLatestChangeToken(): String {
-        val response = client.executeWithRetry { token ->
+        val response = client.executeWithRetry(DriveOp.StartToken) { token ->
             client.httpClient.get("https://www.googleapis.com/drive/v3/changes/startPageToken") {
                 header(HttpHeaders.Authorization, "Bearer $token")
                 parameter("supportsAllDrives", "false")
@@ -56,7 +57,7 @@ class GoogleDriveStorage(
         var newStartToken: String? = null
 
         do {
-            val response = client.executeWithRetry { token ->
+            val response = client.executeWithRetry(DriveOp.ChangesPage) { token ->
                 client.httpClient.get("https://www.googleapis.com/drive/v3/changes") {
                     header(HttpHeaders.Authorization, "Bearer $token")
                     parameter("pageToken", pageToken)
@@ -99,7 +100,7 @@ class GoogleDriveStorage(
         var pageToken: String? = null
 
         do {
-            val list = fetchFilesPage("'$folderId' in parents and trashed = false", 100, pageToken, "Failed to list folder $folderId")
+            val list = fetchFilesPage("'$folderId' in parents and trashed = false", 100, pageToken, "Failed to list folder $folderId", DriveOp.ListQuery)
             val deduplicated = list.files
                 .filter { !it.trashed }
                 .groupBy { it.name }
@@ -135,7 +136,7 @@ class GoogleDriveStorage(
         var pageToken: String? = null
 
         do {
-            val page = fetchFilesPage("trashed = false", 1000, pageToken, "Failed to list Drive files")
+            val page = fetchFilesPage("trashed = false", 1000, pageToken, "Failed to list Drive files", DriveOp.ListAllPage)
             for (file in page.files) {
                 if (file.trashed) continue
                 if (file.isDirectory) foldersSeen++ else filesSeen++
@@ -189,7 +190,7 @@ class GoogleDriveStorage(
     /** Файл переносится в корзину Drive, а не стирается: ошибочное удаление можно отменить в течение 30 дней. */
     override suspend fun delete(path: RemotePath) {
         val file = pathResolver.resolvePath(path) ?: return
-        val response = client.executeWithRetry { token ->
+        val response = client.executeWithRetry(DriveOp.Trash) { token ->
             client.httpClient.patch("$FILES_URL/${file.id}") {
                 header(HttpHeaders.Authorization, "Bearer $token")
                 contentType(ContentType.Application.Json)
@@ -214,8 +215,9 @@ class GoogleDriveStorage(
         pageSize: Int,
         pageToken: String?,
         errorMessage: String,
+        op: DriveOp,
     ): GoogleDriveFileList {
-        val response = client.executeWithRetry { token ->
+        val response = client.executeWithRetry(op) { token ->
             client.httpClient.get(FILES_URL) {
                 header(HttpHeaders.Authorization, "Bearer $token")
                 parameter("q", query)

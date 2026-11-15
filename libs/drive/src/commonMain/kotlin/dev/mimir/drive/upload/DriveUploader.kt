@@ -8,6 +8,7 @@ import dev.mimir.drive.api.driveJson
 import dev.mimir.drive.api.toRemoteEntry
 import dev.mimir.drive.client.DriveHttpClient
 import dev.mimir.drive.client.DriveHttpException
+import dev.mimir.drive.client.DriveOp
 import dev.mimir.drive.path.DrivePathResolver
 import io.ktor.client.call.body
 import io.ktor.client.request.HttpRequestBuilder
@@ -103,7 +104,7 @@ class DriveUploader(
         }
 
         // Обновление содержимого существующего файла в Drive v3 — только PATCH; POST на files/{id} даёт 404
-        val response = client.executeWithRetry { token ->
+        val response = client.executeWithRetry(DriveOp.UploadMultipart) { token ->
             val configure: HttpRequestBuilder.() -> Unit = {
                 header(HttpHeaders.Authorization, "Bearer $token")
                 setBody(MultiPartFormDataContent(parts))
@@ -139,7 +140,7 @@ class DriveUploader(
             "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=$UPLOADED_FILE_FIELDS"
         }
 
-        val initResponse = client.executeWithRetry { token ->
+        val initResponse = client.executeWithRetry(DriveOp.UploadInit) { token ->
             val configure: HttpRequestBuilder.() -> Unit = {
                 header(HttpHeaders.Authorization, "Bearer $token")
                 header("X-Upload-Content-Type", "application/octet-stream")
@@ -189,7 +190,7 @@ class DriveUploader(
                 val contentRange = "bytes $offset-${chunkEnd - 1}/${total ?: "*"}"
 
                 val outcome: ChunkOutcome = try {
-                    val response = client.executeWithRetry { token ->
+                    val response = client.executeWithRetry(DriveOp.UploadChunk) { token ->
                         client.httpClient.put(sessionUri) {
                             header(HttpHeaders.Authorization, "Bearer $token")
                             header("Content-Range", contentRange)
@@ -270,7 +271,7 @@ class DriveUploader(
     // Запрос состояния: Content-Range со звёздочкой вместо диапазона и размера (или с итоговым размером, если он известен).
     private suspend fun queryResumableStatus(sessionUri: String, total: Long?): SessionStatus? {
         return try {
-            val response = client.executeWithRetry { token ->
+            val response = client.executeWithRetry(DriveOp.UploadStatus) { token ->
                 client.httpClient.put(sessionUri) {
                     header(HttpHeaders.Authorization, "Bearer $token")
                     header("Content-Range", "bytes */${total ?: "*"}")
