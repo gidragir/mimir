@@ -117,7 +117,7 @@ class PluginSyncController(
         pendingConfirmationEngine = null
         scope.launch {
             engine?.resolvePendingDeletions(decision)
-            scheduleSync(Trigger.Manual)
+            scheduleSync(Trigger.Manual, followUp = decision == DeletionDecision.Keep)
         }
     }
 
@@ -202,7 +202,7 @@ class PluginSyncController(
         }
     }
 
-    private suspend fun scheduleSync(trigger: Trigger) {
+    private suspend fun scheduleSync(trigger: Trigger, followUp: Boolean = false) {
         runMutex.withLock {
             if (isSyncRunning) {
                 rerunRequested = true
@@ -213,13 +213,17 @@ class PluginSyncController(
 
         activeSyncJob = scope.launch {
             var currentTrigger = trigger
+            var remainingFollowUps = if (followUp) 1 else 0
             try {
                 while (isActive) {
                     rerunRequested = false
-                    executeSync(currentTrigger)
+                    val succeeded = executeSync(currentTrigger)
                     val shouldRerun = runMutex.withLock {
                         if (rerunRequested && isActive) {
                             rerunRequested = false
+                            true
+                        } else if (succeeded && remainingFollowUps > 0 && isActive) {
+                            remainingFollowUps--
                             true
                         } else {
                             isSyncRunning = false
@@ -239,11 +243,11 @@ class PluginSyncController(
         }
     }
 
-    private suspend fun executeSync(trigger: Trigger) {
+    private suspend fun executeSync(trigger: Trigger): Boolean {
         val pair = assembler.buildEngine()
         if (pair == null) {
             _state.value = PluginState.NotConnected
-            return
+            return false
         }
 
         val (engine, feed) = pair
@@ -259,11 +263,11 @@ class PluginSyncController(
             when (presence) {
                 DaemonPresence.ServesThisVault -> {
                     _state.value = PluginState.YieldsToDaemon
-                    return
+                    return false
                 }
                 DaemonPresence.Unauthorized -> {
                     _state.value = PluginState.PausedForDaemon
-                    return
+                    return false
                 }
                 DaemonPresence.Absent, DaemonPresence.ServesOtherVault -> {}
             }
@@ -292,7 +296,7 @@ class PluginSyncController(
                         lastUpToDate = updated
                         _state.value = updated
                     }
-                    return
+                    return true
                 }
             }
         }
@@ -305,7 +309,7 @@ class PluginSyncController(
             }
         }
 
-        try {
+        return try {
             val tokenBefore = try {
                 feed.getLatestChangeToken()
             } catch (e: CancellationException) {
@@ -331,23 +335,29 @@ class PluginSyncController(
             val upToDate = PluginState.UpToDate(at = clock.now(), problems = problems, conflicts = conflicts)
             lastUpToDate = upToDate
             _state.value = upToDate
+            true
         } catch (e: CancellationException) {
             throw e
         } catch (e: RemoteUnavailableException) {
             _state.value = PluginState.Offline
+            false
         } catch (e: DriveAuthException) {
             _state.value = PluginState.NeedsSignIn(e.message ?: "Authentication required")
+            false
         } catch (e: MassDeletionException) {
             pendingConfirmationEngine = engine
             _state.value = PluginState.NeedsConfirmation(e.count)
+            false
         } catch (e: SyncAbortedException) {
             _state.value = PluginState.Error(ABORTED_MESSAGE)
+            false
         } catch (e: Throwable) {
             if (e.isNetworkError()) {
                 _state.value = PluginState.Offline
             } else {
                 _state.value = PluginState.Error(e.message ?: "Sync error")
             }
+            false
         } finally {
             progressJob.cancel()
         }

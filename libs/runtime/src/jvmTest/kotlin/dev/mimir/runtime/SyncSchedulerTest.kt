@@ -461,4 +461,79 @@ class SyncSchedulerTest {
         assertEquals(0, getChangesCalls)
         scheduler.stop()
     }
+
+    @Test
+    fun `MassDeletionException stops tick retries until manual triggerSync`() = runTest {
+        var throwMassDeletion = true
+        val engine = FakeSyncEngine {
+            if (throwMassDeletion) {
+                throw dev.mimir.core.MassDeletionException(60)
+            }
+        }
+        val scheduler = SyncScheduler(
+            syncEngine = engine,
+            syncInterval = interval,
+            scope = backgroundScope,
+            localChanges = MutableSharedFlow(),
+            remoteFeed = null,
+        ).also { it.start() }
+
+        runCurrent()
+        assertEquals(1, engine.syncNowCalls)
+
+        advanceTimeBy(interval * 3)
+        runCurrent()
+        assertEquals(1, engine.syncNowCalls, "tick must not retry while waiting for mass deletion confirmation")
+
+        throwMassDeletion = false
+        assertTrue(scheduler.triggerSync())
+        runCurrent()
+        assertEquals(2, engine.syncNowCalls)
+
+        advanceTimeBy(interval + 1.seconds)
+        runCurrent()
+        assertEquals(3, engine.syncNowCalls, "tick must resume after confirmation is resolved")
+        scheduler.stop()
+    }
+
+    @Test
+    fun `SyncAbortedException does not set retryOnNextTick when feed has no changes`() = runTest {
+        var throwAborted = true
+        val engine = FakeSyncEngine {
+            if (throwAborted) {
+                throw dev.mimir.core.SyncAbortedException("Drive is empty")
+            }
+        }
+        val remote = InMemoryRemoteStorage()
+        val scheduler = SyncScheduler(
+            syncEngine = engine,
+            syncInterval = interval,
+            scope = backgroundScope,
+            localChanges = MutableSharedFlow(),
+            remoteFeed = remote,
+        ).also { it.start() }
+
+        runCurrent()
+        assertEquals(1, engine.syncNowCalls)
+
+        advanceTimeBy(interval * 2 + 1.seconds)
+        runCurrent()
+        assertEquals(1, engine.syncNowCalls, "SyncAbortedException must not trigger retryOnNextTick loop")
+        scheduler.stop()
+    }
+
+    @Test
+    fun `triggerSync with followUp runs second sync only when first run succeeds`() = runTest {
+        val engine = EngineControl()
+        val scheduler = scheduler(engine)
+
+        assertTrue(scheduler.triggerSync(followUp = true))
+        runCurrent()
+        assertEquals(2, engine.calls)
+
+        engine.failNext = true
+        assertTrue(scheduler.triggerSync(followUp = true))
+        runCurrent()
+        assertEquals(3, engine.calls, "follow-up run must not start if first run failed")
+    }
 }

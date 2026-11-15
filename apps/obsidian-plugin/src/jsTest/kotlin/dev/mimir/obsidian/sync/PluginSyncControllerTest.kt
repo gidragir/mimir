@@ -830,4 +830,114 @@ class PluginSyncControllerTest {
             scope.cancel()
         }
     }
+
+    @Test
+    fun resolveDeletionsKeepTriggersFollowUpUploadRun() = runTest {
+        val testDispatcher = StandardTestDispatcher(testScheduler)
+        val scope = CoroutineScope(testDispatcher)
+        val clock = TestClock()
+
+        val decisions = mutableListOf<dev.mimir.core.DeletionDecision>()
+        var syncCalls = 0
+        var failWithMassDeletion = true
+        val engine = object : SyncEngine {
+            private val _status = kotlinx.coroutines.flow.MutableStateFlow<dev.mimir.core.SyncStatus>(dev.mimir.core.SyncStatus.Idle)
+            override val status = _status
+            private val _progress = kotlinx.coroutines.flow.MutableStateFlow<dev.mimir.core.SyncProgress?>(null)
+            override val progress = _progress
+            override suspend fun resolvePendingDeletions(decision: dev.mimir.core.DeletionDecision) {
+                decisions.add(decision)
+                failWithMassDeletion = false
+            }
+            override suspend fun syncNow() {
+                syncCalls++
+                if (failWithMassDeletion) throw MassDeletionException(60)
+            }
+        }
+        val feed = FakeChangeFeed()
+        val source = FakeEngineSource(engine to feed)
+        val secrets = DeviceSecretStore(FakeLocalStorage())
+        val settings = testSettingsStore()
+        settings.update { it.copy(rootFolder = "V") }
+
+        val controller = PluginSyncController(
+            scope = scope,
+            assembler = source,
+            probe = fakeProbe(DaemonPresence.Absent),
+            secrets = secrets,
+            settings = settings,
+            vaultEvents = MutableSharedFlow(),
+            clock = clock,
+        )
+
+        try {
+            controller.start()
+            advanceTimeBy(100)
+            assertEquals(1, syncCalls)
+            assertEquals(PluginState.NeedsConfirmation(60), controller.state.value)
+
+            controller.resolveDeletions(dev.mimir.core.DeletionDecision.Keep)
+            advanceTimeBy(100)
+            assertEquals(listOf(dev.mimir.core.DeletionDecision.Keep), decisions)
+            assertEquals(3, syncCalls, "Keep must run ForgetRecord sync and then follow-up upload sync")
+            assertIs<PluginState.UpToDate>(controller.state.value)
+        } finally {
+            controller.stop()
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun resolveDeletionsDeleteRunsSingleSync() = runTest {
+        val testDispatcher = StandardTestDispatcher(testScheduler)
+        val scope = CoroutineScope(testDispatcher)
+        val clock = TestClock()
+
+        val decisions = mutableListOf<dev.mimir.core.DeletionDecision>()
+        var syncCalls = 0
+        var failWithMassDeletion = true
+        val engine = object : SyncEngine {
+            private val _status = kotlinx.coroutines.flow.MutableStateFlow<dev.mimir.core.SyncStatus>(dev.mimir.core.SyncStatus.Idle)
+            override val status = _status
+            private val _progress = kotlinx.coroutines.flow.MutableStateFlow<dev.mimir.core.SyncProgress?>(null)
+            override val progress = _progress
+            override suspend fun resolvePendingDeletions(decision: dev.mimir.core.DeletionDecision) {
+                decisions.add(decision)
+                failWithMassDeletion = false
+            }
+            override suspend fun syncNow() {
+                syncCalls++
+                if (failWithMassDeletion) throw MassDeletionException(60)
+            }
+        }
+        val feed = FakeChangeFeed()
+        val source = FakeEngineSource(engine to feed)
+        val secrets = DeviceSecretStore(FakeLocalStorage())
+        val settings = testSettingsStore()
+        settings.update { it.copy(rootFolder = "V") }
+
+        val controller = PluginSyncController(
+            scope = scope,
+            assembler = source,
+            probe = fakeProbe(DaemonPresence.Absent),
+            secrets = secrets,
+            settings = settings,
+            vaultEvents = MutableSharedFlow(),
+            clock = clock,
+        )
+
+        try {
+            controller.start()
+            advanceTimeBy(100)
+            assertEquals(1, syncCalls)
+
+            controller.resolveDeletions(dev.mimir.core.DeletionDecision.Delete)
+            advanceTimeBy(100)
+            assertEquals(listOf(dev.mimir.core.DeletionDecision.Delete), decisions)
+            assertEquals(2, syncCalls, "Delete must run only once")
+        } finally {
+            controller.stop()
+            scope.cancel()
+        }
+    }
 }

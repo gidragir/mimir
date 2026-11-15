@@ -30,6 +30,9 @@ class EngineMimirUiModel(private val engine: SyncEngine) : MimirUiModel {
     override suspend fun resolveDeletions(decision: DeletionDecision) {
         engine.resolvePendingDeletions(decision)
         engine.syncNow()
+        if (decision == DeletionDecision.Keep) {
+            engine.syncNow()
+        }
     }
     override suspend fun loginMethods(): Set<UiLoginMethod> = emptySet()
     override suspend fun startLogin(method: UiLoginMethod): UiLoginStart = unsupported()
