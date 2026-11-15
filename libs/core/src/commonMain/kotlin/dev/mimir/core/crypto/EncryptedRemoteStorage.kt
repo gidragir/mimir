@@ -54,6 +54,17 @@ class EncryptedRemoteStorage(
 
     override suspend fun delete(path: RemotePath) = inner.delete(encrypt(path))
 
+    override suspend fun drainAnomalies(): List<RemoteAnomaly> =
+        inner.drainAnomalies().filterNot { it.path.isReserved() }.mapNotNull { anomaly ->
+            try {
+                anomaly.copy(path = decrypt(anomaly.path))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: CryptException) {
+                null
+            }
+        }
+
     private fun RemotePath.isReserved() = segments.singleOrNull() in reservedRootNames
 
     private fun encrypt(path: RemotePath) = RemotePath.of(path.segments.map(cipher::encryptName))

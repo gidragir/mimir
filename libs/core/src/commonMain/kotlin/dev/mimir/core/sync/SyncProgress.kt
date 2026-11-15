@@ -36,6 +36,7 @@ data class SyncProgress(
     val completed: List<CompletedItem> = emptyList(),
     val problems: List<SyncProblem> = emptyList(),
     val runStats: RunStats? = null,
+    val anomalies: List<RemoteAnomaly> = emptyList(),
 ) {
     /** Оценка оставшегося времени в секундах; null, если данных пока мало. */
     fun etaSeconds(now: Instant): Long? {

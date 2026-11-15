@@ -113,6 +113,7 @@ class DefaultSyncEngine(
         val hiddenPaths = localVault.hiddenPaths()
         _progress.update { it?.copy(scanned = localFiles.size) }
         val (remoteFiles, nextChangeToken) = fetchRemoteSnapshot(index.current, localFiles.size)
+        _progress.update { it?.copy(anomalies = remoteStorage.drainAnomalies()) }
 
         // Пустой удалённый список при непустом индексе почти наверняка означает сбой
         // (отстающий поиск Drive, пустой дубль папки хранилища, чужой аккаунт), а не то,

@@ -1,6 +1,8 @@
 package dev.mimir.drive
 
 import dev.mimir.core.ChangeFeedStorage
+import dev.mimir.core.RemoteAnomaly
+import dev.mimir.core.RemoteAnomalyKind
 import dev.mimir.core.RemoteChange
 import dev.mimir.core.RemoteChangesResult
 import dev.mimir.core.RemoteEntry
@@ -25,6 +27,8 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.io.Source
 import kotlinx.serialization.Serializable
 
@@ -37,6 +41,15 @@ class GoogleDriveStorage(
 
     private val downloader = DriveDownloader(client, pathResolver, downloadChunkBytes)
     private val uploader = DriveUploader(client, pathResolver)
+    private val anomaliesMutex = Mutex()
+    private val pendingAnomalies = mutableListOf<RemoteAnomaly>()
+
+    override suspend fun drainAnomalies(): List<RemoteAnomaly> = anomaliesMutex.withLock {
+        if (pendingAnomalies.isEmpty()) return@withLock emptyList()
+        val drained = pendingAnomalies.toList()
+        pendingAnomalies.clear()
+        drained
+    }
 
     override suspend fun getLatestChangeToken(): String {
         val response = client.executeWithRetry(DriveOp.StartToken) { token ->
@@ -95,34 +108,55 @@ class GoogleDriveStorage(
 
     override suspend fun list(dir: RemotePath): List<RemoteEntry> {
         val folderId = resolveFolderId(dir) ?: return emptyList()
-        val result = mutableListOf<RemoteEntry>()
-        val registered = mutableListOf<Pair<RemotePath, GoogleDriveFile>>()
+        val folderIds = pathResolver.aliasesOf(folderId)
+        val parentExpr = folderIds.joinToString(" or ") { "'$it' in parents" }
+        val query = if (folderIds.size > 1) "($parentExpr) and trashed = false" else "$parentExpr and trashed = false"
+
+        val rawKids = mutableListOf<GoogleDriveFile>()
         var pageToken: String? = null
-
         do {
-            val list = fetchFilesPage("'$folderId' in parents and trashed = false", 100, pageToken, "Failed to list folder $folderId", DriveOp.ListQuery)
-            val deduplicated = list.files
-                .filter { !it.trashed }
-                .groupBy { it.name }
-                .mapValues { (_, candidates) -> candidates.maxByOrNull { it.modifiedTime ?: "" } ?: candidates.first() }
-                .values
-
-            for (file in deduplicated) {
-                val childPath = if (dir.value.isEmpty()) RemotePath(file.name) else RemotePath("${dir.value}/${file.name}")
-                registered += childPath to file
-                result += file.toRemoteEntry(childPath)
+            val page = fetchFilesPage(query, 100, pageToken, "Failed to list folder $folderId", DriveOp.ListQuery)
+            for (file in page.files) {
+                if (!file.trashed) rawKids += file
             }
-            pageToken = list.nextPageToken
+            pageToken = page.nextPageToken
         } while (pageToken != null)
 
+        val result = mutableListOf<RemoteEntry>()
+        val registered = mutableListOf<Pair<RemotePath, GoogleDriveFile>>()
+        val anomalies = mutableListOf<RemoteAnomaly>()
+        val aliasesToRegister = mutableListOf<Pair<String, List<String>>>()
+
+        processDirectoryChildren(
+            dir = dir,
+            rawChildren = rawKids,
+            anomalies = anomalies,
+            onFolderGroup = { childPath, canonical, group ->
+                registered += childPath to canonical
+                result += canonical.toRemoteEntry(childPath)
+                if (group.size > 1) aliasesToRegister += canonical.id to group.map { it.id }
+            },
+            onFileGroup = { childPath, canonical ->
+                registered += childPath to canonical
+                result += canonical.toRemoteEntry(childPath)
+            },
+        )
+
+        for ((canonicalId, ids) in aliasesToRegister) {
+            pathResolver.registerAliases(canonicalId, ids)
+        }
         pathResolver.registerPaths(registered)
+        if (anomalies.isNotEmpty()) {
+            anomaliesMutex.withLock { pendingAnomalies += anomalies }
+        }
         return result
     }
 
     /**
      * Весь видимый приложению набор файлов (`drive.file`) одним постраничным запросом без фильтра по родителю,
      * затем дерево строится в памяти от папки [root]. Всё, что не происходит от неё (чужие папки, сироты,
-     * циклы), отбрасывается. Дубликаты имён в одной папке — как в [list]: остаётся самый свежий по `modifiedTime`.
+     * циклы), отбрасывается. Одноимённые папки объединяются под канонической (min `createdTime`, затем min `id`),
+     * одноимённые файлы — по max `modifiedTime`, затем min `id`; дубликаты фиксируются в [drainAnomalies].
      */
     override suspend fun listAll(root: RemotePath, onProgress: (folders: Int, files: Int) -> Unit): List<RemoteEntry> {
         val rootId = resolveFolderId(root) ?: return emptyList()
@@ -130,7 +164,7 @@ class GoogleDriveStorage(
         // больше не отдаётся из кэша: stat пойдёт живым запросом.
         pathResolver.resetPathCaches()
 
-        val children = HashMap<String, LinkedHashMap<String, GoogleDriveFile>>()
+        val childrenByParent = HashMap<String, MutableList<GoogleDriveFile>>()
         var foldersSeen = 0
         var filesSeen = 0
         var pageToken: String? = null
@@ -141,11 +175,7 @@ class GoogleDriveStorage(
                 if (file.trashed) continue
                 if (file.isDirectory) foldersSeen++ else filesSeen++
                 for (parent in file.parents) {
-                    val byName = children.getOrPut(parent) { LinkedHashMap() }
-                    val existing = byName[file.name]
-                    if (existing == null || (file.modifiedTime ?: "") > (existing.modifiedTime ?: "")) {
-                        byName[file.name] = file
-                    }
+                    childrenByParent.getOrPut(parent) { mutableListOf() }.add(file)
                 }
             }
             onProgress(foldersSeen, filesSeen)
@@ -154,31 +184,82 @@ class GoogleDriveStorage(
 
         val result = mutableListOf<RemoteEntry>()
         val registered = mutableListOf<Pair<RemotePath, GoogleDriveFile>>()
-        val visited = hashSetOf(rootId)
-        val queue = ArrayDeque<Pair<String, RemotePath>>()
-        queue.addLast(rootId to root)
+        val anomalies = mutableListOf<RemoteAnomaly>()
+        val aliasesToRegister = mutableListOf<Pair<String, List<String>>>()
+        val rootIds = pathResolver.aliasesOf(rootId)
+        val visited = HashSet<String>(rootIds)
+        val queue = ArrayDeque<Pair<List<String>, RemotePath>>()
+        queue.addLast(rootIds to root)
         var folders = 1
 
         while (queue.isNotEmpty()) {
-            val (folderId, dir) = queue.removeFirst()
-            val kids = children[folderId] ?: continue
-            for (file in kids.values) {
-                val childPath = if (dir.value.isEmpty()) RemotePath(file.name) else RemotePath("${dir.value}/${file.name}")
-                if (file.isDirectory) {
-                    if (!visited.add(file.id)) continue // цикл или уже обойдённая папка
-                    folders++
-                    registered += childPath to file
-                    queue.addLast(file.id to childPath)
-                } else {
-                    registered += childPath to file
-                    result += file.toRemoteEntry(childPath)
-                }
-            }
+            val (folderIds, dir) = queue.removeFirst()
+            val rawKids = folderIds.flatMap { childrenByParent[it].orEmpty() }
+            if (rawKids.isEmpty()) continue
+
+            processDirectoryChildren(
+                dir = dir,
+                rawChildren = rawKids,
+                anomalies = anomalies,
+                onFolderGroup = { childPath, canonical, group ->
+                    if (group.size > 1) aliasesToRegister += canonical.id to group.map { it.id }
+                    val unvisitedIds = group.map { it.id }.filter { visited.add(it) }
+                    if (unvisitedIds.isNotEmpty()) {
+                        folders++
+                        registered += childPath to canonical
+                        queue.addLast(unvisitedIds to childPath)
+                    }
+                },
+                onFileGroup = { childPath, canonical ->
+                    registered += childPath to canonical
+                    result += canonical.toRemoteEntry(childPath)
+                },
+            )
+        }
+
+        for ((canonicalId, ids) in aliasesToRegister) {
+            pathResolver.registerAliases(canonicalId, ids)
         }
         pathResolver.registerPaths(registered)
+        anomaliesMutex.withLock {
+            pendingAnomalies.clear()
+            pendingAnomalies += anomalies
+        }
         onProgress(folders, result.size)
         return result
     }
+
+    private inline fun processDirectoryChildren(
+        dir: RemotePath,
+        rawChildren: List<GoogleDriveFile>,
+        anomalies: MutableList<RemoteAnomaly>,
+        onFolderGroup: (childPath: RemotePath, canonical: GoogleDriveFile, group: List<GoogleDriveFile>) -> Unit,
+        onFileGroup: (childPath: RemotePath, canonical: GoogleDriveFile) -> Unit,
+    ) {
+        val unique = rawChildren.distinctBy { it.id }
+        val (folderItems, fileItems) = unique.partition { it.isDirectory }
+
+        for ((name, group) in folderItems.groupBy { it.name }) {
+            val childPath = childPathOf(dir, name)
+            val canonical = group.minWith(FOLDER_CANONICAL_ORDER)
+            if (group.size > 1) {
+                anomalies += RemoteAnomaly(childPath, RemoteAnomalyKind.DuplicateFolder, group.size)
+            }
+            onFolderGroup(childPath, canonical, group)
+        }
+
+        for ((name, group) in fileItems.groupBy { it.name }) {
+            val childPath = childPathOf(dir, name)
+            val canonical = group.minWith(FILE_CANONICAL_ORDER)
+            if (group.size > 1) {
+                anomalies += RemoteAnomaly(childPath, RemoteAnomalyKind.DuplicateFile, group.size)
+            }
+            onFileGroup(childPath, canonical)
+        }
+    }
+
+    private fun childPathOf(dir: RemotePath, name: String): RemotePath =
+        if (dir.value.isEmpty()) RemotePath(name) else RemotePath("${dir.value}/$name")
 
     override suspend fun stat(path: RemotePath): RemoteEntry? =
         pathResolver.resolvePath(path)?.toRemoteEntry(path)
@@ -237,6 +318,8 @@ class GoogleDriveStorage(
 
     private companion object {
         const val FILES_URL = "https://www.googleapis.com/drive/v3/files"
-        const val FILE_LIST_FIELDS = "nextPageToken,files(id,name,mimeType,size,modifiedTime,md5Checksum,parents,trashed)"
+        const val FILE_LIST_FIELDS = "nextPageToken,files(id,name,mimeType,size,modifiedTime,createdTime,md5Checksum,parents,trashed)"
+        val FOLDER_CANONICAL_ORDER = compareBy<GoogleDriveFile> { it.createdTime ?: "\uFFFF" }.thenBy { it.id }
+        val FILE_CANONICAL_ORDER = compareByDescending<GoogleDriveFile> { it.modifiedTime ?: "" }.thenBy { it.id }
     }
 }

@@ -52,6 +52,12 @@ class DrivePathResolver(
         cache.putAll(items)
     }
 
+    internal suspend fun registerAliases(canonicalId: String, aliasIds: List<String>) {
+        cache.putAliases(canonicalId, aliasIds)
+    }
+
+    internal suspend fun aliasesOf(folderId: String): List<String> = cache.aliasesOf(folderId)
+
     suspend fun resolvePathById(fileId: String): RemotePath? = cache.pathOf(fileId)
 
     suspend fun invalidateById(fileId: String): RemotePath? = cache.removeById(fileId)

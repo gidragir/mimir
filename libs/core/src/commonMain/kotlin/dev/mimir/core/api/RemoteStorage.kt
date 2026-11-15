@@ -35,12 +35,17 @@ data class RemoteChangesResult(
     val nextToken: String,
 )
 
+enum class RemoteAnomalyKind { DuplicateFolder, DuplicateFile }
+
+data class RemoteAnomaly(val path: RemotePath, val kind: RemoteAnomalyKind, val copies: Int)
+
 interface RemoteStorage {
     suspend fun list(dir: RemotePath): List<RemoteEntry>
     suspend fun stat(path: RemotePath): RemoteEntry?
     suspend fun read(path: RemotePath): Source
     suspend fun write(path: RemotePath, data: Source): RemoteEntry
     suspend fun delete(path: RemotePath)
+    suspend fun drainAnomalies(): List<RemoteAnomaly> = emptyList()
 
     /**
      * Все файлы (без каталогов) поддерева [root]; пути — ровно такие, какие вернул бы [list].

@@ -38,6 +38,7 @@ data class GoogleDriveFile(
     val md5Checksum: String? = null,
     val parents: List<String> = emptyList(),
     val trashed: Boolean = false,
+    val createdTime: String? = null,
 ) {
     val isDirectory: Boolean get() = mimeType == "application/vnd.google-apps.folder"
 }

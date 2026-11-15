@@ -137,7 +137,7 @@ class GoogleDriveStorageListAllTest {
         assertEquals(5, rec.listAllRequests.size) // 17 элементов по 4 на страницу
         val first = rec.listAllRequests.first()
         assertEquals("1000", first.url.parameters["pageSize"])
-        assertEquals("nextPageToken,files(id,name,mimeType,size,modifiedTime,md5Checksum,parents,trashed)", first.url.parameters["fields"])
+        assertEquals("nextPageToken,files(id,name,mimeType,size,modifiedTime,createdTime,md5Checksum,parents,trashed)", first.url.parameters["fields"])
         assertEquals(null, first.url.parameters["pageToken"])
         assertEquals("4", rec.listAllRequests[1].url.parameters["pageToken"])
     }
