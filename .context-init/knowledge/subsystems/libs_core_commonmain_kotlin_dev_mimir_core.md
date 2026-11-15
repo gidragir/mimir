@@ -2,8 +2,8 @@
 directory: libs/core/src/commonMain/kotlin/dev/mimir/core
 source:
   kind: git
-  blob_sha: bd5d43e9b249f4b08aa168a6d11160648cccaf68
-  commit_sha: c830eb78221e86b5127ccb11c7990d275563caa9
+  blob_sha: 2d369cfde57b080acf0c3a7ff41ba11d60170350
+  commit_sha: 973bb96afa606802a1a9c3d251d2eddc26878808
 generated_by:
   component: context-init
   role: update
@@ -28,8 +28,8 @@ freshness:
 | :--- | :--- |
 | `libs/core/src/commonMain/kotlin/dev/mimir/core/api/LocalVault.kt` | Исходный код |
 | `libs/core/src/commonMain/kotlin/dev/mimir/core/api/RemoteStorage.kt` | Исходный код |
+| `libs/core/src/commonMain/kotlin/dev/mimir/core/api/SyncMetrics.kt` | Исходный код |
 | `libs/core/src/commonMain/kotlin/dev/mimir/core/fs/FileSystemLocalVault.kt` | Исходный код |
-| `libs/core/src/commonMain/kotlin/dev/mimir/core/fs/PollingVaultWatcher.kt` | Исходный код |
 | `libs/core/src/commonMain/kotlin/dev/mimir/core/rules/GlobMatcher.kt` | Исходный код |
 | `libs/core/src/commonMain/kotlin/dev/mimir/core/testing/CountingLocalVault.kt` | Исходный код |
 | `libs/core/src/commonMain/kotlin/dev/mimir/core/testing/CountingRemoteStorage.kt` | Исходный код |

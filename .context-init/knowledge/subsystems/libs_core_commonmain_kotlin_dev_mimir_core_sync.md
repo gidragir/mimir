@@ -2,22 +2,22 @@
 directory: libs/core/src/commonMain/kotlin/dev/mimir/core/sync
 source:
   kind: git
-  blob_sha: f105777c02e8a45783997f3faf6d873e59456aa9
-  commit_sha: c830eb78221e86b5127ccb11c7990d275563caa9
+  blob_sha: b9c5b15b761c915d602ec230baf7399c549172e1
+  commit_sha: 973bb96afa606802a1a9c3d251d2eddc26878808
 generated_by:
   component: context-init
   role: update
   model: none
 freshness:
-  total_entries: 14
-  sampled_entries: 14
+  total_entries: 15
+  sampled_entries: 15
   unsampled_entries: 0
   pending_child_changes: 0
 ---
 
 # Подсистема: Core CommonMain Kotlin Dev Mimir Core Sync (L1)
 
-Модуль и компоненты директории `libs/core/src/commonMain/kotlin/dev/mimir/core/sync` (14 файлов)
+Модуль и компоненты директории `libs/core/src/commonMain/kotlin/dev/mimir/core/sync` (15 файлов)
 
 > **Идентификатор:** `libs_core_commonmain_kotlin_dev_mimir_core_sync`
 > **Теги:** Kotlin (Gradle), libs_core_commonmain_kotlin_dev_mimir_core_sync
@@ -31,6 +31,7 @@ freshness:
 | `libs/core/src/commonMain/kotlin/dev/mimir/core/sync/ConflictResolver.kt` | Исходный код |
 | `libs/core/src/commonMain/kotlin/dev/mimir/core/sync/DefaultSyncEngine.kt` | Исходный код |
 | `libs/core/src/commonMain/kotlin/dev/mimir/core/sync/IndexUpdater.kt` | Исходный код |
+| `libs/core/src/commonMain/kotlin/dev/mimir/core/sync/RecordingSyncMetrics.kt` | Исходный код |
 | `libs/core/src/commonMain/kotlin/dev/mimir/core/sync/RemoteExceptions.kt` | Исходный код |
 | `libs/core/src/commonMain/kotlin/dev/mimir/core/sync/StubSyncEngine.kt` | Исходный код |
 | `libs/core/src/commonMain/kotlin/dev/mimir/core/sync/SyncEngine.kt` | Исходный код |

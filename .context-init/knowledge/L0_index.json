@@ -3,7 +3,7 @@
   "schema_version": 4,
   "project": "mimir",
   "description": "Один открытый инструмент синхронизации Obsidian-хранилища на всех платформах (Linux, Windows, Android). Он ощущается как Google Drive Desktop: один раз указал папку vault и пароль, дальше всё синхронизируется само.",
-  "updated_at": "2026-11-14",
+  "updated_at": "2026-11-15",
   "project_type": "Kotlin (Gradle)",
   "entrypoints": [
     "mise.toml",
@@ -15,34 +15,34 @@
     "test": "rtk mise run test",
     "run": "rtk mise run desktop",
     "custom": {
-      "win:sync": "rtk mise run win:sync",
-      "tokens:check": "rtk mise run tokens:check",
-      "win:test": "rtk mise run win:test",
-      "build:extension": "rtk mise run build:extension",
-      "win:uninstall": "rtk mise run win:uninstall",
-      "screenshots": "rtk mise run screenshots",
-      "obsidian:deploy-dir": "rtk mise run obsidian:deploy-dir",
-      "desktop": "rtk mise run desktop",
-      "win:run": "rtk mise run win:run",
-      "package:extension": "rtk mise run package:extension",
-      "android": "rtk mise run android",
-      "package:arch": "rtk mise run package:arch",
-      "skills:check": "rtk mise run skills:check",
       "win:logs": "rtk mise run win:logs",
-      "win:snapshot": "rtk mise run win:snapshot",
-      "ci:fast": "rtk mise run ci:fast",
-      "plugin": "rtk mise run plugin",
-      "package:msi": "rtk mise run package:msi",
-      "extension": "rtk mise run extension",
-      "skills:sync": "rtk mise run skills:sync",
-      "package:docker": "rtk mise run package:docker",
-      "win:provision": "rtk mise run win:provision",
-      "win:msi": "rtk mise run win:msi",
+      "build:extension": "rtk mise run build:extension",
       "win:reset": "rtk mise run win:reset",
+      "desktop": "rtk mise run desktop",
       "test:fast": "rtk mise run test:fast",
+      "skills:sync": "rtk mise run skills:sync",
+      "win:test": "rtk mise run win:test",
+      "win:uninstall": "rtk mise run win:uninstall",
+      "plugin": "rtk mise run plugin",
+      "daemon": "rtk mise run daemon",
+      "win:sync": "rtk mise run win:sync",
+      "android": "rtk mise run android",
+      "tokens:check": "rtk mise run tokens:check",
+      "package:docker": "rtk mise run package:docker",
+      "package:extension": "rtk mise run package:extension",
+      "win:run": "rtk mise run win:run",
+      "win:provision": "rtk mise run win:provision",
+      "obsidian:deploy-dir": "rtk mise run obsidian:deploy-dir",
       "web": "rtk mise run web",
+      "extension": "rtk mise run extension",
+      "ci:fast": "rtk mise run ci:fast",
+      "package:arch": "rtk mise run package:arch",
+      "package:msi": "rtk mise run package:msi",
+      "screenshots": "rtk mise run screenshots",
+      "skills:check": "rtk mise run skills:check",
       "tokens:generate": "rtk mise run tokens:generate",
-      "daemon": "rtk mise run daemon"
+      "win:msi": "rtk mise run win:msi",
+      "win:snapshot": "rtk mise run win:snapshot"
     }
   },
   "subsystems": [
@@ -822,7 +822,7 @@
     {
       "id": "apps_obsidian-plugin_jsmain_kotlin_dev_mimir_obsidian_ui",
       "name": "Obsidian Plugin JsMain Kotlin Dev Mimir Obsidian Ui",
-      "summary": "Модуль и компоненты директории `apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/ui` (6 файлов)",
+      "summary": "Модуль и компоненты директории `apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/ui` (7 файлов)",
       "l1_path": "subsystems/apps_obsidian-plugin_jsmain_kotlin_dev_mimir_obsidian_ui.md",
       "tags": [
         "Kotlin (Gradle)",
@@ -832,6 +832,7 @@
         "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/ui/ConflictsModal.kt",
         "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/ui/DeviceCodeModal.kt",
         "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/ui/DomExt.kt",
+        "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/ui/MassDeletionModal.kt",
         "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/ui/MimirSettingTab.kt",
         "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/ui/PluginTexts.kt",
         "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/ui/StatusView.kt"
@@ -847,6 +848,10 @@
         },
         {
           "path": "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/ui/DomExt.kt",
+          "is_entrypoint": false
+        },
+        {
+          "path": "apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/ui/MassDeletionModal.kt",
           "is_entrypoint": false
         },
         {
@@ -870,9 +875,9 @@
         "fun HTMLElement.empty()",
         "fun HTMLElement.createEl(tag: String, o: dynamic = null): HTMLElement",
         "fun HTMLElement.createDiv(o: dynamic = null): HTMLElement",
+        "class MassDeletionModal( app: App, private val count: Int, private val texts: PluginTexts, private val onDecision: (DeletionDecision) -> Unit, ) : Modal(app)",
         "class MimirSettingTab(...) : PluginSettingTab(app, plugin)",
-        "override fun display()",
-        "data class PluginTexts( val locale: String, val statusNotConnected: String, val statusOffline: String, val statusYieldsToDaemon: String, val statusPausedForDaemon: String, val statusNeedsSignIn: String, val statusError: String, val statusUpToDate: String, val abortedNothingDel..."
+        "override fun display()"
       ],
       "parent": "apps_obsidian-plugin_jsmain_kotlin_dev_mimir_obsidian",
       "summary_source": "heuristic"
@@ -1046,15 +1051,15 @@
       ],
       "key_symbols": [
         "fun DaemonSyncProgressDto.toModel(...): SyncProgress = SyncProgress( phase = parseSnake<SyncPhase>(phase), startedAt = Instant.parse(startedAt), finishedAt = finishedAt?.let(Instant::parse), applyingStartedAt = applyingStartedAt?.let(Instant::parse), scanned = scanned, folders...",
-        "data class DaemonStatusDto( val status: String, val label: String, val vaultPath: String? = null, val lastSyncAt: String? = null, val isLocked: Boolean, val activeConflicts: Int, val accountEmail: String? = null, val progress: DaemonSyncProgressDto? = null, )",
+        "data class DaemonStatusDto(...)",
+        "data class DaemonResolveDeletionsRequest( val decision: String, // \"delete\" | \"keep\" )",
         "data class DaemonSyncProgressDto( val phase: String, val startedAt: String, val finishedAt: String? = null, val applyingStartedAt: String? = null, val scanned: Int = 0, val foldersScanned: Int = 0, val total: Int = 0, val done: Int = 0, val bytesTotal: Long = 0, val bytesDone:...",
         "data class DaemonSyncItemDto( val path: String, val action: String, )",
         "data class DaemonCompletedItemDto( val path: String, val action: String, val at: String, )",
         "data class DaemonSyncProblemDto( val path: String, val action: String, val kind: String, val detail: String, )",
         "data class DaemonConflictItemDto( val originalPath: String, val conflictPath: String, val createdAt: String, )",
         "data class DaemonConflictsResponse( val conflicts: List<DaemonConflictItemDto>, )",
-        "data class DaemonResolveConflictRequest( val originalPath: String, val conflictPath: String, val resolution: String, // \"keep_original\" | \"keep_conflict\" )",
-        "data class DaemonResolveConflictResponse( val status: String, val path: String, )"
+        "data class DaemonResolveConflictRequest( val originalPath: String, val conflictPath: String, val resolution: String, // \"keep_original\" | \"keep_conflict\" )"
       ],
       "summary_source": "heuristic"
     },
@@ -1175,8 +1180,8 @@
       "key_files": [
         "libs/core/src/commonMain/kotlin/dev/mimir/core/api/LocalVault.kt",
         "libs/core/src/commonMain/kotlin/dev/mimir/core/api/RemoteStorage.kt",
+        "libs/core/src/commonMain/kotlin/dev/mimir/core/api/SyncMetrics.kt",
         "libs/core/src/commonMain/kotlin/dev/mimir/core/fs/FileSystemLocalVault.kt",
-        "libs/core/src/commonMain/kotlin/dev/mimir/core/fs/PollingVaultWatcher.kt",
         "libs/core/src/commonMain/kotlin/dev/mimir/core/rules/GlobMatcher.kt",
         "libs/core/src/commonMain/kotlin/dev/mimir/core/testing/CountingLocalVault.kt",
         "libs/core/src/commonMain/kotlin/dev/mimir/core/testing/CountingRemoteStorage.kt",
@@ -1199,11 +1204,11 @@
           "is_entrypoint": false
         },
         {
-          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/fs/FileSystemLocalVault.kt",
+          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/api/SyncMetrics.kt",
           "is_entrypoint": false
         },
         {
-          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/fs/PollingVaultWatcher.kt",
+          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/fs/FileSystemLocalVault.kt",
           "is_entrypoint": false
         },
         {
@@ -1372,7 +1377,7 @@
     {
       "id": "libs_core_commonmain_kotlin_dev_mimir_core_sync",
       "name": "Core CommonMain Kotlin Dev Mimir Core Sync",
-      "summary": "Модуль и компоненты директории `libs/core/src/commonMain/kotlin/dev/mimir/core/sync` (14 файлов)",
+      "summary": "Модуль и компоненты директории `libs/core/src/commonMain/kotlin/dev/mimir/core/sync` (15 файлов)",
       "l1_path": "subsystems/libs_core_commonmain_kotlin_dev_mimir_core_sync.md",
       "tags": [
         "Kotlin (Gradle)",
@@ -1384,6 +1389,7 @@
         "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/ConflictResolver.kt",
         "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/DefaultSyncEngine.kt",
         "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/IndexUpdater.kt",
+        "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/RecordingSyncMetrics.kt",
         "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/RemoteExceptions.kt",
         "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/StubSyncEngine.kt",
         "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/SyncEngine.kt",
@@ -1413,6 +1419,10 @@
         },
         {
           "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/IndexUpdater.kt",
+          "is_entrypoint": false
+        },
+        {
+          "path": "libs/core/src/commonMain/kotlin/dev/mimir/core/sync/RecordingSyncMetrics.kt",
           "is_entrypoint": false
         },
         {
@@ -1562,13 +1572,13 @@
         "internal class DriveDownloader( private val client: DriveHttpClient, private val pathResolver: DrivePathResolver, private val downloadChunkBytes: Long?, )",
         "suspend fun read(path: RemotePath): Source",
         "class GoogleDriveStorage(...) : ChangeFeedStorage",
+        "override suspend fun drainAnomalies(): List<RemoteAnomaly> = anomaliesMutex.withLock",
         "override suspend fun getLatestChangeToken(): String",
+        "override suspend fun peekChanges(sinceToken: String): ChangePeek",
         "override suspend fun getChanges(sinceToken: String): RemoteChangesResult",
         "override suspend fun list(dir: RemotePath): List<RemoteEntry>",
         "override suspend fun listAll(root: RemotePath, onProgress: (folders: Int, files: Int) -> Unit): List<RemoteEntry>",
-        "override suspend fun stat(path: RemotePath): RemoteEntry? = pathResolver.resolvePath(path)?.toRemoteEntry(path)",
-        "override suspend fun read(path: RemotePath): Source = downloader.read(path)",
-        "override suspend fun write(path: RemotePath, data: Source): RemoteEntry = uploader.upload(path, data)"
+        "override suspend fun stat(path: RemotePath): RemoteEntry? = pathResolver.resolvePath(path)?.toRemoteEntry(path)"
       ],
       "summary_source": "heuristic"
     },
@@ -1606,8 +1616,8 @@
       ],
       "key_files": [
         "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/AccountStore.kt",
-        "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/AtomicFiles.kt",
         "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/Canary.kt",
+        "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/CloudStorageFactory.kt",
         "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/ConflictTracker.kt",
         "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/EngineAssembler.kt",
         "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/FileTokenStorage.kt",
@@ -1627,11 +1637,11 @@
           "is_entrypoint": false
         },
         {
-          "path": "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/AtomicFiles.kt",
+          "path": "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/Canary.kt",
           "is_entrypoint": false
         },
         {
-          "path": "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/Canary.kt",
+          "path": "libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/CloudStorageFactory.kt",
           "is_entrypoint": false
         },
         {
@@ -1689,11 +1699,11 @@
         "suspend fun method(): DaemonLoginMethod?",
         "fun save(email: String?, method: DaemonLoginMethod)",
         "fun delete()",
-        "fun writeFileAtomically(target: Path, content: String, ownerOnly: Boolean = false)",
         "typealias InvalidPasswordException = dev.mimir.client.InvalidPasswordException",
         "typealias SyncNotConfiguredException = dev.mimir.client.SyncNotConfiguredException",
         "suspend fun verifyOrInitCanary(remote: RemoteStorage, cipher: Cipher, configDir: Path)",
-        "internal class ConflictTracker( private val scope: CoroutineScope, private val watcherFactory: VaultWatcherFactory, private val localVaultFactory: (Path) -> LocalVault, private val scanInterval: Duration, private val vaultPath: () -> String?, )"
+        "fun interface CloudStorageFactory",
+        "fun create(httpClient: HttpClient, tokenSource: AccessTokenSource, config: RuntimeConfig): ChangeFeedStorage?"
       ],
       "parent": "libs_runtime_commonmain_kotlin_dev_mimir",
       "summary_source": "heuristic"

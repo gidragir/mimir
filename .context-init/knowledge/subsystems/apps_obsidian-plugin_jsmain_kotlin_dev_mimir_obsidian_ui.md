@@ -2,22 +2,22 @@
 directory: apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/ui
 source:
   kind: git
-  blob_sha: 58e94646435a68fe4d405a76c74c6d647ab65813
-  commit_sha: e735cb52ed681f464f3b8e62310c00a288fd4504
+  blob_sha: 0aba25d9b82200206dafb68b1f66871a0c5af019
+  commit_sha: 973bb96afa606802a1a9c3d251d2eddc26878808
 generated_by:
   component: context-init
   role: update
   model: none
 freshness:
-  total_entries: 6
-  sampled_entries: 6
+  total_entries: 7
+  sampled_entries: 7
   unsampled_entries: 0
   pending_child_changes: 0
 ---
 
 # Подсистема: Obsidian Plugin JsMain Kotlin Dev Mimir Obsidian Ui (L1)
 
-Модуль и компоненты директории `apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/ui` (6 файлов)
+Модуль и компоненты директории `apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/ui` (7 файлов)
 
 > **Идентификатор:** `apps_obsidian-plugin_jsmain_kotlin_dev_mimir_obsidian_ui`
 > **Теги:** Kotlin (Gradle), apps_obsidian-plugin_jsmain_kotlin_dev_mimir_obsidian_ui
@@ -29,6 +29,7 @@ freshness:
 | `apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/ui/ConflictsModal.kt` | Исходный код |
 | `apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/ui/DeviceCodeModal.kt` | Исходный код |
 | `apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/ui/DomExt.kt` | Исходный код |
+| `apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/ui/MassDeletionModal.kt` | Исходный код |
 | `apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/ui/MimirSettingTab.kt` | Исходный код |
 | `apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/ui/PluginTexts.kt` | Исходный код |
 | `apps/obsidian-plugin/src/jsMain/kotlin/dev/mimir/obsidian/ui/StatusView.kt` | Исходный код |
@@ -42,9 +43,9 @@ class DeviceCodeModal( app: App, private val signIn: DeviceSignIn, private val t
 fun HTMLElement.empty()
 fun HTMLElement.createEl(tag: String, o: dynamic = null): HTMLElement
 fun HTMLElement.createDiv(o: dynamic = null): HTMLElement
+class MassDeletionModal( app: App, private val count: Int, private val texts: PluginTexts, private val onDecision: (DeletionDecision) -> Unit, ) : Modal(app)
 class MimirSettingTab(...) : PluginSettingTab(app, plugin)
 override fun display()
-data class PluginTexts( val locale: String, val statusNotConnected: String, val statusOffline: String, val statusYieldsToDaemon: String, val statusPausedForDaemon: String, val statusNeedsSignIn: String, val statusError: String, val statusUpToDate: String, val abortedNothingDel...
 ```
 
 ## 🧪 Запуск и тестирование
