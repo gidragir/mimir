@@ -9,3 +9,6 @@ class RemoteAuthException(message: String, cause: Throwable? = null) : Exception
  * (например, удалённый список пуст при непустом индексе). Сообщение показывается пользователю.
  */
 class SyncAbortedException(message: String) : Exception(message)
+
+/** Массовое удаление локальных файлов превысило порог и требует подтверждения пользователя. */
+class MassDeletionException(val count: Int) : Exception("Mass deletion requires confirmation ($count files)")
