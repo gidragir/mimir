@@ -185,6 +185,31 @@ class ObsidianLocalVault(
         }
     }
 
+    override suspend fun trash(id: VaultFileId) {
+        val norm = id.value.trim('/')
+        if (!fs.exists(norm)) return
+        val target = resolveTrashTarget(".trash/$norm")
+        ensureParentDir(target)
+        echo.mark(norm)
+        fs.rename(norm, target)
+    }
+
+    private suspend fun resolveTrashTarget(basePath: String): String {
+        if (!fs.exists(basePath)) return basePath
+        val slash = basePath.lastIndexOf('/')
+        val dir = if (slash >= 0) basePath.substring(0, slash) else ""
+        val filename = if (slash >= 0) basePath.substring(slash + 1) else basePath
+        val dot = filename.lastIndexOf('.')
+        val (stem, ext) = if (dot > 0) filename.substring(0, dot) to filename.substring(dot) else filename to ""
+        var attempt = 2
+        while (true) {
+            val numbered = "$stem ($attempt)$ext"
+            val candidate = if (dir.isNotEmpty()) "$dir/$numbered" else numbered
+            if (!fs.exists(candidate)) return candidate
+            attempt++
+        }
+    }
+
     override fun changes(): Flow<VaultChange> = channelFlow {
         events.collect { event ->
             when (event) {

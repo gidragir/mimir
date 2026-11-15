@@ -36,6 +36,7 @@ import kotlin.concurrent.atomics.AtomicInt
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.days
 
 class DefaultSyncEngine(
     private val localVault: LocalVault,
@@ -107,6 +108,7 @@ class DefaultSyncEngine(
     private suspend fun performSync() {
         metrics.runStarted()
         _progress.value = SyncProgress(phase = SyncPhase.Scanning, startedAt = clock.now())
+        localVault.purgeTrash(clock.now() - 30.days)
 
         val index = IndexUpdater(stateStore, stateStore.load(), indexSaveEvery)
         val localFiles = localVault.list()

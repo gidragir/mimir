@@ -16,10 +16,14 @@ class CountingLocalVault(
     private val writeCount = AtomicInt(0)
     private val readCount = AtomicInt(0)
     private val listCount = AtomicInt(0)
+    private val trashCount = AtomicInt(0)
+    private val deleteCount = AtomicInt(0)
 
     val writes: Int get() = writeCount.load()
     val reads: Int get() = readCount.load()
     val lists: Int get() = listCount.load()
+    val trashCalls: Int get() = trashCount.load()
+    val deleteCalls: Int get() = deleteCount.load()
 
     override suspend fun list(): List<LocalEntry> {
         listCount.incrementAndFetch()
@@ -41,9 +45,26 @@ class CountingLocalVault(
         inner.write(id, data)
     }
 
+    override suspend fun trash(id: VaultFileId) {
+        trashCount.incrementAndFetch()
+        inner.trash(id)
+    }
+
+    override suspend fun delete(id: VaultFileId) {
+        deleteCount.incrementAndFetch()
+        inner.delete(id)
+    }
+
+    override suspend fun deleteByPath(relativePath: String) {
+        deleteCount.incrementAndFetch()
+        inner.deleteByPath(relativePath)
+    }
+
     fun reset() {
         writeCount.store(0)
         readCount.store(0)
         listCount.store(0)
+        trashCount.store(0)
+        deleteCount.store(0)
     }
 }

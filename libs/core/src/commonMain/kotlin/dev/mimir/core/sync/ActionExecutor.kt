@@ -84,7 +84,7 @@ internal class ActionExecutor(
                 // (done растёт), но не «выполнено» (в completed не попадает) и не проблема.
                 ActionResult(completedAs = null)
             } else {
-                localIo(SyncProblemKind.WriteFailed) { localVault.delete(action.localId) }
+                localIo(SyncProblemKind.WriteFailed) { localVault.trash(action.localId) }
                 ActionResult(SyncItemAction.DeleteLocal, remove = action.path)
             }
 
