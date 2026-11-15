@@ -16,6 +16,7 @@ import io.ktor.client.engine.mock.respond
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.HttpResponseData
 import io.ktor.client.request.get
+import io.ktor.client.request.prepareGet
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
@@ -77,6 +78,30 @@ class DriveHttpClientMetricsTest {
         }
         assertTrue(recorded.isNotEmpty())
         assertTrue(recorded.all { it.networkError && it.op == "get-meta" && !it.isWrite })
+    }
+
+    @Test
+    fun streamingFailureInConsumeDoesNotEmitDuplicateSample() = runTest {
+        val recorded = mutableListOf<RequestSample>()
+        val metrics = object : SyncMetrics {
+            override suspend fun onRequest(sample: RequestSample) {
+                recorded += sample
+            }
+        }
+        val client = clientWith(
+            responses = listOf { ok() },
+            metrics = metrics,
+        )
+        assertFailsWith<IllegalStateException> {
+            client.executeStreaming(
+                op = DriveOp.GetMedia,
+                request = { client.httpClient.prepareGet("https://www.googleapis.com/drive/v3/files/abc?alt=media") },
+                consume = { throw IllegalStateException("boom") },
+            )
+        }
+        assertEquals(1, recorded.size)
+        assertEquals(200, recorded[0].status)
+        assertEquals("get-media", recorded[0].op)
     }
 
     private fun clientWith(

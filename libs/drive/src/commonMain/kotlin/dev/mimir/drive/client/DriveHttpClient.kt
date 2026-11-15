@@ -181,6 +181,7 @@ class DriveHttpClient(
             var failure: String? = null
             var retryAfterHeader: String? = null
             var unauthorized = false
+            var sampleRecorded = false
             val mark = TimeSource.Monotonic.markNow()
             val result = try {
                 request(token).execute { response ->
@@ -199,6 +200,7 @@ class DriveHttpClient(
                                     networkError = false,
                                 ),
                             )
+                            sampleRecorded = true
                             unauthorized = true
                             null
                         }
@@ -216,6 +218,7 @@ class DriveHttpClient(
                                     networkError = false,
                                 ),
                             )
+                            sampleRecorded = true
                             failure = retryableFailure(response, reason)
                             if (failure != null) {
                                 retryAfterHeader = response.headers[HttpHeaders.RetryAfter]
@@ -229,18 +232,20 @@ class DriveHttpClient(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                metrics.onRequest(
-                    RequestSample(
-                        op = op.wire,
-                        isWrite = op.isWrite,
-                        durationMs = mark.elapsedNow().inWholeMilliseconds,
-                        status = null,
-                        reason = null,
-                        attempt = requestAttempt,
-                        waitedBeforeMs = waitedBeforeMs,
-                        networkError = isNetworkFailure(e),
-                    ),
-                )
+                if (!sampleRecorded) {
+                    metrics.onRequest(
+                        RequestSample(
+                            op = op.wire,
+                            isWrite = op.isWrite,
+                            durationMs = mark.elapsedNow().inWholeMilliseconds,
+                            status = null,
+                            reason = null,
+                            attempt = requestAttempt,
+                            waitedBeforeMs = waitedBeforeMs,
+                            networkError = isNetworkFailure(e),
+                        ),
+                    )
+                }
                 throw e.asRemoteUnavailableOrSelf()
             }
             if (result != null) return result.value
