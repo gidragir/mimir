@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
@@ -18,6 +19,9 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
+import dev.mimir.core.RemoteAnomaly
+import dev.mimir.core.RemoteAnomalyKind
+import dev.mimir.core.RemotePath
 import dev.mimir.core.SyncPhase
 import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncStatus
@@ -199,6 +203,62 @@ class UiScreenshotTest {
                     ),
                 ),
             )
+        }
+    }
+
+    @Test
+    fun captureStatusScreenConfirmationAndAnomalyDark() = saveScreenshot("status_screen_confirm_anomaly_dark.png") {
+        MaterialTheme(
+            colorScheme = ObsidianDarkColors,
+            shapes = ObsidianShapes,
+        ) {
+            Surface(
+                color = MaterialTheme.colorScheme.background,
+                modifier = Modifier.size(width = 400.dp, height = 520.dp),
+            ) {
+                StatusScreen(
+                    FakeMimirUiModel(
+                        accountEmail = "user@mimir.io",
+                        vaultPath = "/home/user/Notes",
+                        status = SyncStatus.NeedsConfirmation(60),
+                        progress = MutableStateFlow(
+                            SyncProgress(
+                                phase = SyncPhase.Finished,
+                                startedAt = Instant.fromEpochSeconds(1700000000),
+                                anomalies = listOf(RemoteAnomaly(RemotePath("Projects/Archive"), RemoteAnomalyKind.DuplicateFolder, 2)),
+                            ),
+                        ),
+                    ),
+                )
+            }
+        }
+    }
+
+    @Test
+    fun captureStatusScreenConfirmationAndAnomalyLight() = saveScreenshot("status_screen_confirm_anomaly_light.png") {
+        MaterialTheme(
+            colorScheme = ObsidianLightColors,
+            shapes = ObsidianShapes,
+        ) {
+            Surface(
+                color = MaterialTheme.colorScheme.background,
+                modifier = Modifier.size(width = 400.dp, height = 520.dp),
+            ) {
+                StatusScreen(
+                    FakeMimirUiModel(
+                        accountEmail = "user@mimir.io",
+                        vaultPath = "/home/user/Notes",
+                        status = SyncStatus.NeedsConfirmation(60),
+                        progress = MutableStateFlow(
+                            SyncProgress(
+                                phase = SyncPhase.Finished,
+                                startedAt = Instant.fromEpochSeconds(1700000000),
+                                anomalies = listOf(RemoteAnomaly(RemotePath("Projects/Archive"), RemoteAnomalyKind.DuplicateFolder, 2)),
+                            ),
+                        ),
+                    ),
+                )
+            }
         }
     }
 }

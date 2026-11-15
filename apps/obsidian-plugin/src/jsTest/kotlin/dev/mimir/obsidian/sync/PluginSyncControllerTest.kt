@@ -2,6 +2,7 @@ package dev.mimir.obsidian.sync
 
 import dev.mimir.core.ChangeFeedStorage
 import dev.mimir.core.ChangePeek
+import dev.mimir.core.MassDeletionException
 import dev.mimir.core.RemoteChangesResult
 import dev.mimir.core.RemoteEntry
 import dev.mimir.core.RemotePath
@@ -791,6 +792,39 @@ class PluginSyncControllerTest {
             assertEquals(0, feed.getChangesCalls)
             assertEquals(1, engine.syncNowCalls)
             assertEquals("tok-2", secrets.loadChangeToken())
+        } finally {
+            controller.stop()
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun massDeletionMovesPluginToNeedsConfirmation() = runTest {
+        val testDispatcher = StandardTestDispatcher(testScheduler)
+        val scope = CoroutineScope(testDispatcher)
+        val clock = TestClock()
+
+        val engine = FakeSyncEngine(onSync = { throw MassDeletionException(60) })
+        val feed = FakeChangeFeed()
+        val source = FakeEngineSource(engine to feed)
+        val secrets = DeviceSecretStore(FakeLocalStorage())
+        val settings = testSettingsStore()
+        settings.update { it.copy(rootFolder = "V") }
+
+        val controller = PluginSyncController(
+            scope = scope,
+            assembler = source,
+            probe = fakeProbe(DaemonPresence.Absent),
+            secrets = secrets,
+            settings = settings,
+            vaultEvents = MutableSharedFlow(),
+            clock = clock,
+        )
+
+        try {
+            controller.start()
+            advanceTimeBy(100)
+            assertEquals(PluginState.NeedsConfirmation(60), controller.state.value)
         } finally {
             controller.stop()
             scope.cancel()

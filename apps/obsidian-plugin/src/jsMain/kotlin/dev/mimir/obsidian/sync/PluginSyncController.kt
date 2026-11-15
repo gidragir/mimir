@@ -1,6 +1,8 @@
 package dev.mimir.obsidian.sync
 
 import dev.mimir.core.ChangeFeedStorage
+import dev.mimir.core.DeletionDecision
+import dev.mimir.core.MassDeletionException
 import dev.mimir.core.RemoteUnavailableException
 import dev.mimir.core.SyncAbortedException
 import dev.mimir.core.SyncEngine
@@ -49,6 +51,7 @@ sealed interface PluginState {
         val conflicts: List<String>,
     ) : PluginState
     data object Offline : PluginState
+    data class NeedsConfirmation(val count: Int) : PluginState
     data class NeedsSignIn(val message: String) : PluginState
     data class Error(val message: String) : PluginState
 }
@@ -76,6 +79,7 @@ class PluginSyncController(
 
     private var activeSyncJob: Job? = null
     private var activeEngine: SyncEngine? = null
+    private var pendingConfirmationEngine: SyncEngine? = null
     private var timerJob: Job? = null
     private var vaultEventsJob: Job? = null
     private var vaultDebounceJob: Job? = null
@@ -103,8 +107,18 @@ class PluginSyncController(
     fun resetOnDisconnect() {
         lastUpToDate = null
         hasLocalChanges = false
+        pendingConfirmationEngine = null
         cancelActiveSync()
         _state.value = PluginState.NotConnected
+    }
+
+    fun resolveDeletions(decision: DeletionDecision) {
+        val engine = pendingConfirmationEngine
+        pendingConfirmationEngine = null
+        scope.launch {
+            engine?.resolvePendingDeletions(decision)
+            scheduleSync(Trigger.Manual)
+        }
     }
 
     private fun cancelActiveSync() {
@@ -323,6 +337,9 @@ class PluginSyncController(
             _state.value = PluginState.Offline
         } catch (e: DriveAuthException) {
             _state.value = PluginState.NeedsSignIn(e.message ?: "Authentication required")
+        } catch (e: MassDeletionException) {
+            pendingConfirmationEngine = engine
+            _state.value = PluginState.NeedsConfirmation(e.count)
         } catch (e: SyncAbortedException) {
             _state.value = PluginState.Error(ABORTED_MESSAGE)
         } catch (e: Throwable) {

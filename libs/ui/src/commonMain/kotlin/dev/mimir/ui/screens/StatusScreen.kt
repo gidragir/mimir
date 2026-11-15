@@ -1,5 +1,6 @@
 package dev.mimir.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -7,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -17,10 +19,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import dev.mimir.core.BuildConfig
+import dev.mimir.core.DeletionDecision
+import dev.mimir.core.RemoteAnomaly
+import dev.mimir.core.RemoteAnomalyKind
 import dev.mimir.core.SyncErrorKind
 import dev.mimir.core.SyncStatus
 import dev.mimir.ui.MimirTheme
@@ -42,6 +48,7 @@ fun StatusScreen(
     clock: Clock = Clock.System,
 ) {
     val status by model.status.collectAsState()
+    val progress by model.progress.collectAsState()
     val email by model.accountEmail.collectAsState()
     val conflicts by model.conflicts.collectAsState()
     val vaultPath by model.vaultPath.collectAsState()
@@ -90,6 +97,30 @@ fun StatusScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
+                    is SyncStatus.NeedsConfirmation -> {
+                        Text(
+                            text = SyncTexts.CONFIRM_DELETION_HINT,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Column(
+                            modifier = Modifier.fillMaxWidth().testTag("confirmation_banner"),
+                            verticalArrangement = Arrangement.spacedBy(MimirTokens.Space8),
+                        ) {
+                            MimirButton(
+                                text = SyncTexts.CONFIRM_DELETION_KEEP,
+                                onClick = { scope.launch { model.resolveDeletions(DeletionDecision.Keep) } },
+                                variant = MimirButtonVariant.Primary,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            MimirButton(
+                                text = SyncTexts.CONFIRM_DELETION_DELETE,
+                                onClick = { scope.launch { model.resolveDeletions(DeletionDecision.Delete) } },
+                                variant = MimirButtonVariant.Secondary,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                    }
                     is SyncStatus.Error -> {
                         // Вход предлагается при любой ошибке: после отзыва/истечения refresh-токена
                         // email остаётся в account.json, и иначе вернуться ко входу было бы нельзя.
@@ -122,6 +153,11 @@ fun StatusScreen(
         }
 
         StatusSyncProblemsSection(progressFlow = model.progress)
+
+        val anomalies = progress?.anomalies.orEmpty()
+        if (anomalies.isNotEmpty()) {
+            AnomaliesBanner(anomalies = anomalies)
+        }
 
         HorizontalDivider()
 
@@ -174,6 +210,31 @@ fun StatusScreen(
             onOpenReleasePage = { url -> runCatching { uriHandler.openUri(url) } },
             onDismiss = model::dismissUpdate,
         )
+    }
+}
+
+@Composable
+private fun AnomaliesBanner(anomalies: List<RemoteAnomaly>) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(MimirTokens.Radius8))
+            .background(MimirTokens.StatusError.copy(alpha = 0.12f))
+            .padding(MimirTokens.Space12)
+            .testTag("anomalies_banner"),
+        verticalArrangement = Arrangement.spacedBy(MimirTokens.Space8),
+    ) {
+        for (anomaly in anomalies) {
+            val text = when (anomaly.kind) {
+                RemoteAnomalyKind.DuplicateFolder -> SyncTexts.duplicateFolderWarning(anomaly.path.value)
+                RemoteAnomalyKind.DuplicateFile -> SyncTexts.duplicateFileWarning(anomaly.path.value)
+            }
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
     }
 }
 

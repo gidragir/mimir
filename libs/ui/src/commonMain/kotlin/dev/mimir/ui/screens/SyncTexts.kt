@@ -37,6 +37,17 @@ object SyncTexts {
     const val STORAGE_ACCESS_REVOKED = "Нет доступа к файлам"
     const val GRANT = "Выдать"
     const val GOOGLE_UNAVAILABLE = "Вход через Google недоступен на этом устройстве"
+    const val CONFIRM_DELETION_HINT = "Удалённое попадёт в корзину Mimir (.mimir/trash) и хранится 30 дней."
+    const val CONFIRM_DELETION_DELETE = "Удалить"
+    const val CONFIRM_DELETION_KEEP = "Оставить и загрузить обратно"
+
+    fun confirmDeletionTitle(n: Int) = "В облаке удалено ${files(n)}. Удалить их и на этом устройстве?"
+
+    fun duplicateFolderWarning(path: String) =
+        "В Google Drive несколько папок «$path». Mimir показывает их содержимое вместе — объедините их вручную в Drive."
+
+    fun duplicateFileWarning(path: String) =
+        "В Google Drive несколько файлов «$path». Используется самый свежий, остальные не тронуты."
 
     fun backgroundSyncText(bg: UiBackgroundSync, timeZone: TimeZone = TimeZone.currentSystemDefault()): String {
         if (bg.waitingForWifi) {
@@ -86,6 +97,7 @@ object SyncTexts {
             SyncErrorKind.Other -> if (needsSignIn) SIGN_IN_AGAIN else FAILED
         }
         SyncStatus.Idle -> DONE
+        is SyncStatus.NeedsConfirmation -> confirmDeletionTitle(status.pendingDeletions)
         SyncStatus.Syncing -> when (progress?.phase) {
             SyncPhase.Scanning, SyncPhase.Comparing -> SCANNING
             SyncPhase.Finished -> DONE

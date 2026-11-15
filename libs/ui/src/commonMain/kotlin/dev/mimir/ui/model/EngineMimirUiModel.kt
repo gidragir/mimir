@@ -1,5 +1,6 @@
 package dev.mimir.ui.model
 
+import dev.mimir.core.DeletionDecision
 import dev.mimir.core.SyncEngine
 import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncStatus
@@ -26,6 +27,10 @@ class EngineMimirUiModel(private val engine: SyncEngine) : MimirUiModel {
     override suspend fun inspectVault(): UiVaultInspection = unsupported()
     override suspend fun unlock(password: String, rememberOnDevice: Boolean) = unsupported()
     override suspend fun resolveConflict(originalPath: String, conflictPath: String, keepConflict: Boolean) = unsupported()
+    override suspend fun resolveDeletions(decision: DeletionDecision) {
+        engine.resolvePendingDeletions(decision)
+        engine.syncNow()
+    }
     override suspend fun loginMethods(): Set<UiLoginMethod> = emptySet()
     override suspend fun startLogin(method: UiLoginMethod): UiLoginStart = unsupported()
     override suspend fun pollLogin(): UiLoginPoll = unsupported()

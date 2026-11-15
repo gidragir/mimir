@@ -50,6 +50,16 @@ fun notificationFor(
         return null
     }
 
+    if (status is SyncStatus.NeedsConfirmation) {
+        return NotificationContent(
+            channel = Channel.Attention,
+            title = SyncTexts.confirmDeletionTitle(status.pendingDeletions),
+            text = SyncTexts.CONFIRM_DELETION_HINT,
+            destination = Destination.Status,
+            severity = 6,
+        )
+    }
+
     if (status is SyncStatus.Error) {
         return when (status.kind) {
             SyncErrorKind.SignInRequired -> NotificationContent(

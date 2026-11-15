@@ -101,4 +101,18 @@ class NotificationContentTest {
         )
         assertNull(content)
     }
+
+    @Test
+    fun needsConfirmationNotification() {
+        val content = notificationFor(
+            status = SyncStatus.NeedsConfirmation(60),
+            conflicts = 0,
+            pendingLocal = false,
+            lastSync = null,
+        )
+        assertNotNull(content)
+        assertEquals(Channel.Attention, content.channel)
+        assertEquals(Destination.Status, content.destination)
+        assertEquals(SyncTexts.confirmDeletionTitle(60), content.title)
+    }
 }

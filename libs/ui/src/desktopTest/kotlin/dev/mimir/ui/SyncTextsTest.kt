@@ -100,4 +100,24 @@ class SyncTextsTest {
             ),
         )
     }
+
+    @Test
+    fun needsConfirmationTitle() {
+        assertEquals(
+            "В облаке удалено 60 файлов. Удалить их и на этом устройстве?",
+            SyncTexts.phaseTitle(SyncStatus.NeedsConfirmation(60), null),
+        )
+    }
+
+    @Test
+    fun duplicateWarningsMatchSpec() {
+        assertEquals(
+            "В Google Drive несколько папок «A». Mimir показывает их содержимое вместе — объедините их вручную в Drive.",
+            SyncTexts.duplicateFolderWarning("A"),
+        )
+        assertEquals(
+            "В Google Drive несколько файлов «B/c.md». Используется самый свежий, остальные не тронуты.",
+            SyncTexts.duplicateFileWarning("B/c.md"),
+        )
+    }
 }
