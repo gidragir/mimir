@@ -1,6 +1,7 @@
 package dev.mimir.drive
 
 import dev.mimir.core.ChangeFeedStorage
+import dev.mimir.core.ChangePeek
 import dev.mimir.core.RemoteAnomaly
 import dev.mimir.core.RemoteAnomalyKind
 import dev.mimir.core.RemoteChange
@@ -62,6 +63,47 @@ class GoogleDriveStorage(
             throw DriveHttpException(response.status, "Failed to get start page token")
         }
         return response.body<GoogleStartPageToken>().startPageToken
+    }
+
+    override suspend fun peekChanges(sinceToken: String): ChangePeek {
+        var hasChanges = false
+        var pageToken: String? = sinceToken
+        var newStartToken: String? = null
+
+        do {
+            val response = client.executeWithRetry(DriveOp.ChangesPage) { token ->
+                client.httpClient.get("https://www.googleapis.com/drive/v3/changes") {
+                    header(HttpHeaders.Authorization, "Bearer $token")
+                    parameter("pageToken", pageToken)
+                    parameter("includeRemoved", "true")
+                    parameter("supportsAllDrives", "false")
+                    parameter("pageSize", 1000)
+                    parameter("fields", "newStartPageToken,nextPageToken,changes(fileId,removed,file(md5Checksum,trashed,mimeType))")
+                }
+            }
+            if (!response.status.isSuccess()) {
+                throw DriveHttpException(response.status, "Failed to peek changes for token: $pageToken")
+            }
+
+            val result = response.body<GoogleDriveChangeList>()
+            newStartToken = result.newStartPageToken
+            if (!hasChanges) {
+                for (change in result.changes) {
+                    val file = change.file
+                    val isEcho = !change.removed &&
+                        file != null &&
+                        !file.trashed &&
+                        pathResolver.isOwnEcho(change.fileId, file.md5Checksum)
+                    if (!isEcho) {
+                        hasChanges = true
+                        break
+                    }
+                }
+            }
+            pageToken = result.nextPageToken
+        } while (pageToken != null)
+
+        return ChangePeek(hasChanges = hasChanges, nextToken = newStartToken ?: sinceToken)
     }
 
     override suspend fun getChanges(sinceToken: String): RemoteChangesResult {

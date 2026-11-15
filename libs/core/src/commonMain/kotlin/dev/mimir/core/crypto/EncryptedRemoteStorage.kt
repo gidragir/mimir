@@ -18,6 +18,12 @@ class EncryptedRemoteStorage(
         return feed.getLatestChangeToken()
     }
 
+    override suspend fun peekChanges(sinceToken: String): ChangePeek {
+        val feed = inner as? ChangeFeedStorage
+            ?: throw UnsupportedOperationException("Inner storage does not support ChangeFeedStorage")
+        return feed.peekChanges(sinceToken)
+    }
+
     override suspend fun getChanges(sinceToken: String): RemoteChangesResult {
         val feed = inner as? ChangeFeedStorage
             ?: throw UnsupportedOperationException("Inner storage does not support ChangeFeedStorage")

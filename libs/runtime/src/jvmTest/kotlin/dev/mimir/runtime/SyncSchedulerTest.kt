@@ -204,6 +204,9 @@ class SyncSchedulerTest {
     fun `tick network failure schedules full sync`() = runTest {
         val engine = EngineControl()
         val feed = object : dev.mimir.core.ChangeFeedStorage by InMemoryRemoteStorage() {
+            override suspend fun peekChanges(sinceToken: String): dev.mimir.core.ChangePeek =
+                throw dev.mimir.core.RemoteUnavailableException("network down")
+
             override suspend fun getChanges(sinceToken: String): dev.mimir.core.RemoteChangesResult =
                 throw dev.mimir.core.RemoteUnavailableException("network down")
         }
@@ -420,6 +423,42 @@ class SyncSchedulerTest {
 
         assertEquals(2, engine.calls, "interrupted sync must be retried on next start even if remote feed has no new changes")
         assertNotNull(scheduler.lastSyncTime)
+        scheduler.stop()
+    }
+
+    @Test
+    fun `tick uses peekChanges not getChanges`() = runTest {
+        val engine = EngineControl()
+        val inner = InMemoryRemoteStorage()
+        var peekCalls = 0
+        var getChangesCalls = 0
+        val feed = object : dev.mimir.core.ChangeFeedStorage by inner {
+            override suspend fun peekChanges(sinceToken: String): dev.mimir.core.ChangePeek {
+                peekCalls++
+                return inner.peekChanges(sinceToken)
+            }
+
+            override suspend fun getChanges(sinceToken: String): dev.mimir.core.RemoteChangesResult {
+                getChangesCalls++
+                return inner.getChanges(sinceToken)
+            }
+        }
+        val scheduler = SyncScheduler(
+            syncEngine = engine.engine,
+            syncInterval = interval,
+            scope = backgroundScope,
+            localChanges = MutableSharedFlow(),
+            remoteFeed = feed,
+        ).also { it.start() }
+
+        runCurrent()
+        assertEquals(1, engine.calls)
+        assertEquals(0, peekCalls)
+
+        advanceTimeBy(interval + 1.seconds)
+        runCurrent()
+        assertEquals(1, peekCalls)
+        assertEquals(0, getChangesCalls)
         scheduler.stop()
     }
 }

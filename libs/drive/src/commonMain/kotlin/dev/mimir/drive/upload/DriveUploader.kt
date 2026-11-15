@@ -72,6 +72,7 @@ class DriveUploader(
         }
 
         pathResolver.registerPath(path, uploadedFile)
+        pathResolver.recordOwnWrite(uploadedFile.id, uploadedFile.md5Checksum)
         return uploadedFile.toRemoteEntry(path, defaultSize = sentBytes)
     }
 

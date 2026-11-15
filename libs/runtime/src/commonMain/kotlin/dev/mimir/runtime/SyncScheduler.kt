@@ -205,9 +205,9 @@ class SyncScheduler(
                     triggerSync()
                 }
             } else {
-                val result = feed.getChanges(token)
+                val result = feed.peekChanges(token)
                 changeToken = result.nextToken
-                if (result.changes.isNotEmpty()) requestSync()
+                if (result.hasChanges) requestSync()
             }
         } catch (e: CancellationException) {
             throw e

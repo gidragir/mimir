@@ -33,6 +33,24 @@ class DrivePathResolver(
      * и создают дубликаты с одним именем.
      */
     private val folderCreationMutex = Mutex()
+    private val ownWritesMutex = Mutex()
+    private val ownWrites = mutableMapOf<String, String?>()
+
+    suspend fun recordOwnWrite(fileId: String, md5: String?) {
+        ownWritesMutex.withLock {
+            ownWrites.remove(fileId)
+            if (ownWrites.size >= MAX_OWN_WRITES) {
+                val oldestKey = ownWrites.keys.firstOrNull()
+                if (oldestKey != null) ownWrites.remove(oldestKey)
+            }
+            ownWrites[fileId] = md5
+        }
+    }
+
+    suspend fun isOwnEcho(fileId: String, md5: String?): Boolean = ownWritesMutex.withLock {
+        if (!ownWrites.containsKey(fileId)) return@withLock false
+        ownWrites[fileId] == md5
+    }
 
     suspend fun resolveRootFolderId(): String {
         cache.rootId()?.let { return it }
@@ -232,7 +250,9 @@ class DrivePathResolver(
         if (!response.status.isSuccess()) {
             throw DriveHttpException(response.status, "Failed to create folder $folderName")
         }
-        return response.body<GoogleDriveFile>().id
+        val created = response.body<GoogleDriveFile>()
+        recordOwnWrite(created.id, null)
+        return created.id
     }
 
     private suspend fun listFilesByQuery(query: String): List<GoogleDriveFile> {
@@ -262,5 +282,6 @@ class DrivePathResolver(
 
     companion object {
         const val FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
+        private const val MAX_OWN_WRITES = 10_000
     }
 }

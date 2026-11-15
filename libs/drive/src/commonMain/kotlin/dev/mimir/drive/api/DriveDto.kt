@@ -30,9 +30,9 @@ fun GoogleDriveFile.toRemoteEntry(path: RemotePath, defaultSize: Long = 0L): Rem
 
 @Serializable
 data class GoogleDriveFile(
-    val id: String,
-    val name: String,
-    val mimeType: String,
+    val id: String = "",
+    val name: String = "",
+    val mimeType: String = "",
     val size: Long? = null,
     val modifiedTime: String? = null,
     val md5Checksum: String? = null,
