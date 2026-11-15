@@ -259,14 +259,19 @@ class PluginSyncController(
         if ((trigger == Trigger.Timer || trigger == Trigger.Resume) && !hasLocalChanges) {
             val changeToken = secrets.loadChangeToken()
             if (changeToken != null) {
-                val remoteChanges = try {
-                    feed.getChanges(changeToken).changes
+                val peek = try {
+                    feed.peekChanges(changeToken)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (_: Throwable) {
                     null // Ошибка ленты -> выполняем прогон
                 }
-                if (remoteChanges != null && remoteChanges.isEmpty()) {
+                if (peek != null && !peek.hasChanges) {
+                    try {
+                        secrets.saveChangeToken(peek.nextToken)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (_: Throwable) {}
                     val current = lastUpToDate
                     if (current != null) {
                         val updated = current.copy(at = clock.now())
@@ -287,12 +292,24 @@ class PluginSyncController(
         }
 
         try {
+            val tokenBefore = try {
+                feed.getLatestChangeToken()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Throwable) {
+                null
+            }
+
             hasLocalChanges = false
             engine.syncNow()
 
-            try {
-                secrets.saveChangeToken(feed.getLatestChangeToken())
-            } catch (_: Throwable) {}
+            if (tokenBefore != null) {
+                try {
+                    secrets.saveChangeToken(tokenBefore)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Throwable) {}
+            }
 
             val p = engine.progress.value
             val problems = p?.problems ?: emptyList()
