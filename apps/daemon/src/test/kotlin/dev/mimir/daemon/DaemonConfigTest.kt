@@ -277,4 +277,11 @@ class DaemonConfigTest {
         DaemonConfig(updateCheck = false).save(dir.toString())
         assertFalse(DaemonConfig.readFile(dir.toString()).updateCheck)
     }
+
+    @Test
+    fun syncTraceFromEnv() {
+        assertTrue(DaemonConfig.fromEnv(mapOf("MIMIR_SYNC_TRACE" to "TRUE")).syncTrace)
+        assertTrue(DaemonConfig.fromEnv(mapOf("MIMIR_SYNC_TRACE" to "1")).syncTrace)
+        assertFalse(DaemonConfig.fromEnv(emptyMap()).syncTrace)
+    }
 }

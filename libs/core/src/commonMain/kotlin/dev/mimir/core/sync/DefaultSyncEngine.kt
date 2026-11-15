@@ -8,9 +8,11 @@ import dev.mimir.core.RemoteEntry
 import dev.mimir.core.RemotePath
 import dev.mimir.core.RemoteStorage
 import dev.mimir.core.RemoteUnavailableException
+import dev.mimir.core.RunStats
 import dev.mimir.core.SyncEngine
 import dev.mimir.core.SyncItem
 import dev.mimir.core.SyncItemAction
+import dev.mimir.core.SyncMetrics
 import dev.mimir.core.SyncPhase
 import dev.mimir.core.SyncProblem
 import dev.mimir.core.SyncProgress
@@ -45,6 +47,7 @@ class DefaultSyncEngine(
     private val parallelism: Int = 4,
     dispatcher: CoroutineDispatcher = Dispatchers.Default,
     private val indexSaveEvery: Int = 100,
+    private val metrics: SyncMetrics = SyncMetrics.None,
 ) : SyncEngine {
 
     init {
@@ -65,10 +68,18 @@ class DefaultSyncEngine(
     override suspend fun syncNow() {
         syncMutex.withLock {
             _status.value = SyncStatus.Syncing
+            var outcome = "ok"
             try {
                 performSync()
                 _status.value = SyncStatus.Idle
             } catch (e: Throwable) {
+                outcome = when (e) {
+                    is CancellationException -> "cancelled"
+                    is RemoteUnavailableException -> "offline"
+                    is RemoteAuthException -> "auth"
+                    is SyncAbortedException -> "aborted"
+                    else -> "error"
+                }
                 _status.value = when (e) {
                     // Отмена (stop/пауза планировщика) — не ошибка: статус без сбоя.
                     is CancellationException -> SyncStatus.Idle
@@ -79,12 +90,14 @@ class DefaultSyncEngine(
                 }
                 throw e
             } finally {
+                val stats: RunStats? = withContext(NonCancellable) { metrics.runFinished(outcome) }
                 _progress.update { current ->
                     current?.copy(
                         phase = SyncPhase.Finished,
                         finishedAt = clock.now(),
                         current = null,
                         upcoming = emptyList(),
+                        runStats = stats,
                     )
                 }
             }
@@ -92,6 +105,7 @@ class DefaultSyncEngine(
     }
 
     private suspend fun performSync() {
+        metrics.runStarted()
         _progress.value = SyncProgress(phase = SyncPhase.Scanning, startedAt = clock.now())
 
         val index = IndexUpdater(stateStore, stateStore.load(), indexSaveEvery)

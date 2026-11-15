@@ -2,6 +2,7 @@ package dev.mimir.runtime
 
 import dev.mimir.core.Cipher
 import dev.mimir.core.EncryptedRemoteStorage
+import dev.mimir.core.RecordingSyncMetrics
 import dev.mimir.core.fs.FileSystemLocalVault
 import dev.mimir.core.fs.VaultWatcher
 import dev.mimir.core.rules.SyncRules
@@ -40,7 +41,8 @@ class EngineAssembler(
     suspend fun assemble(vaultPath: String, cipher: Cipher, tokenSource: AccessTokenSource): AssembledEngine? {
         if (!tokenSource.hasCredentials()) return null
         val config = config()
-        val remote = cloudFactory.create(httpClient, tokenSource, config) ?: return null
+        val metrics = RecordingSyncMetrics()
+        val remote = cloudFactory.create(httpClient, tokenSource, config, metrics) ?: return null
         verifyOrInitCanary(remote, cipher, config.dataDir)
 
         val rules = SyncRules()
@@ -54,6 +56,7 @@ class EngineAssembler(
             rules = rules,
             parallelism = config.syncParallelism,
             dispatcher = ioDispatcher,
+            metrics = metrics,
         )
         val scheduler = SyncScheduler(
             syncEngine = engine,
