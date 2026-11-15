@@ -163,27 +163,29 @@ class DefaultSyncEngine(
             index.records.isNotEmpty()
         ) {
             val feed = remoteStorage.getChanges(token)
-            val remoteMap = HashMap<String, RemoteEntry>(index.records.size)
-            for (r in index.records.values) {
-                remoteMap[r.remotePath.value] = RemoteEntry(
-                    path = r.remotePath,
-                    size = r.remoteSize,
-                    modifiedAt = r.remoteModifiedAt,
-                    revision = r.remoteRevision,
-                    isDirectory = false,
-                )
-            }
-            for (change in feed.changes) {
-                val key = change.path.value
-                val entry = change.entry
-                if (change.isDeleted || entry == null) {
-                    val prefix = "$key/"
-                    remoteMap.keys.removeAll { it == key || it.startsWith(prefix) }
-                } else if (!entry.isDirectory) {
-                    remoteMap[key] = entry
+            if (!feed.unresolved) {
+                val remoteMap = HashMap<String, RemoteEntry>(index.records.size)
+                for (r in index.records.values) {
+                    remoteMap[r.remotePath.value] = RemoteEntry(
+                        path = r.remotePath,
+                        size = r.remoteSize,
+                        modifiedAt = r.remoteModifiedAt,
+                        revision = r.remoteRevision,
+                        isDirectory = false,
+                    )
                 }
+                for (change in feed.changes) {
+                    val key = change.path.value
+                    val entry = change.entry
+                    if (change.isDeleted || entry == null) {
+                        val prefix = "$key/"
+                        remoteMap.keys.removeAll { it == key || it.startsWith(prefix) }
+                    } else if (!entry.isDirectory) {
+                        remoteMap[key] = entry
+                    }
+                }
+                return remoteMap.values.toList() to feed.nextToken
             }
-            return remoteMap.values.toList() to feed.nextToken
         }
         val tokenBeforeList = if (remoteStorage is ChangeFeedStorage && remoteStorage.isChangeFeedSupported) {
             remoteStorage.getLatestChangeToken()

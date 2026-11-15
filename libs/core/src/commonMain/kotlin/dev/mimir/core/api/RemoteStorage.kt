@@ -33,6 +33,7 @@ data class RemoteChange(
 data class RemoteChangesResult(
     val changes: List<RemoteChange>,
     val nextToken: String,
+    val unresolved: Boolean = false,
 )
 
 data class ChangePeek(

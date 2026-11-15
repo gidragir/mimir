@@ -85,6 +85,25 @@ class DrivePathResolver(
         return resolveNodePath(file, rootId, visited = mutableSetOf())
     }
 
+    suspend fun resolvePathFromMetadata(file: GoogleDriveFile): RemotePath? {
+        val rootId = resolveRootFolderId()
+        if (file.id == rootId) return RemotePath("")
+        if (file.parents.isEmpty()) return null
+
+        val parentId = file.parents.first()
+        val parentPath = if (parentId == rootId) {
+            RemotePath("")
+        } else {
+            cache.pathOf(parentId) ?: run {
+                val parent = fetchFileById(parentId) ?: return null
+                if (!parent.isDirectory) return null
+                resolveNodePath(parent, rootId, visited = mutableSetOf()) ?: return null
+            }
+        }
+
+        return if (parentPath.value.isEmpty()) RemotePath(file.name) else RemotePath("${parentPath.value}/${file.name}")
+    }
+
     private suspend fun resolveNodePath(
         file: GoogleDriveFile,
         rootId: String,

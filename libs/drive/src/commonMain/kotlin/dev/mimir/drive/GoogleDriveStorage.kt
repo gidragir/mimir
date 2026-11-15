@@ -110,6 +110,7 @@ class GoogleDriveStorage(
         val changes = mutableListOf<RemoteChange>()
         var pageToken: String? = sinceToken
         var newStartToken: String? = null
+        var unresolved = false
 
         do {
             val response = client.executeWithRetry(DriveOp.ChangesPage) { token ->
@@ -132,20 +133,32 @@ class GoogleDriveStorage(
                 val file = change.file
                 if (change.removed || file?.trashed == true) {
                     val path = pathResolver.resolvePathById(change.fileId)
-                        ?: pathResolver.invalidateById(change.fileId)
-                        ?: RemotePath(change.fileId)
-                    changes.add(RemoteChange(path, isDeleted = true, entry = null))
-                    pathResolver.invalidate(path)
+                    if (path != null) {
+                        changes.add(RemoteChange(path, isDeleted = true, entry = null))
+                        pathResolver.invalidate(path)
+                        pathResolver.invalidateById(change.fileId)
+                    } else {
+                        unresolved = true
+                    }
                 } else if (file != null) {
-                    val path = pathResolver.resolveRemotePathForFile(file) ?: RemotePath(file.name)
-                    changes.add(RemoteChange(path, isDeleted = false, entry = file.toRemoteEntry(path)))
-                    pathResolver.registerPath(path, file)
+                    if (file.isDirectory) {
+                        unresolved = true
+                    } else {
+                        val newPath = pathResolver.resolvePathFromMetadata(file) ?: continue
+                        val oldPath = pathResolver.resolvePathById(file.id)
+                        if (oldPath != null && oldPath != newPath) {
+                            changes.add(RemoteChange(oldPath, isDeleted = true, entry = null))
+                            pathResolver.invalidate(oldPath)
+                        }
+                        changes.add(RemoteChange(newPath, isDeleted = false, entry = file.toRemoteEntry(newPath)))
+                        pathResolver.registerPath(newPath, file)
+                    }
                 }
             }
             pageToken = result.nextPageToken
         } while (pageToken != null)
 
-        return RemoteChangesResult(changes, newStartToken ?: sinceToken)
+        return RemoteChangesResult(changes, newStartToken ?: sinceToken, unresolved = unresolved)
     }
 
     override suspend fun list(dir: RemotePath): List<RemoteEntry> {

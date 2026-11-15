@@ -84,10 +84,10 @@ class GoogleDriveChangeFeedTest {
 
         val changes = feedStorage.getChanges(token)
         assertEquals("start_token_2", changes.nextToken)
-        assertEquals(2, changes.changes.size)
+        assertTrue(changes.unresolved)
+        assertEquals(1, changes.changes.size)
         assertEquals(RemotePath("updated.md"), changes.changes[0].path)
         assertEquals(false, changes.changes[0].isDeleted)
-        assertTrue(changes.changes[1].isDeleted)
     }
 
     @Test
@@ -160,5 +160,209 @@ class GoogleDriveChangeFeedTest {
         // Удаленный файл восстановил свой зарегистрированный путь
         assertEquals(RemotePath("docs/old.md"), changes.changes[1].path)
         assertTrue(changes.changes[1].isDeleted)
+    }
+
+    private fun createDrive(mockEngine: MockEngine): Pair<GoogleDriveStorage, DrivePathResolver> {
+        val http = HttpClient(mockEngine) {
+            install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+        }
+        val authClient = GoogleAuthClient(http, GoogleClientCredentials(GoogleClientKind.Device, "client-id", null))
+        val storage = InMemoryTokenStorage(OAuthTokens("access", "refresh", 2000000000L))
+        val driveClient = DriveHttpClient(http, storage, GoogleAuthClients(null, authClient))
+        val resolver = DrivePathResolver(driveClient, "Mimir")
+        return GoogleDriveStorage(driveClient, resolver) to resolver
+    }
+
+    @Test
+    fun unknownRemovalMarksUnresolvedInsteadOfFakePath() = runTest {
+        val mockEngine = MockEngine { request ->
+            val jsonHeaders = headersOf(HttpHeaders.ContentType, "application/json")
+            when {
+                request.url.encodedPath == "/drive/v3/changes" && request.url.parameters["pageToken"] == "t1" -> {
+                    respond(
+                        """
+                        {
+                            "newStartPageToken": "t2",
+                            "changes": [
+                                {
+                                    "fileId": "file_ch2",
+                                    "removed": true
+                                }
+                            ]
+                        }
+                        """.trimIndent(),
+                        HttpStatusCode.OK,
+                        jsonHeaders,
+                    )
+                }
+                else -> respond("""{"files":[]}""", HttpStatusCode.OK, jsonHeaders)
+            }
+        }
+        val (drive, _) = createDrive(mockEngine)
+        val r = drive.getChanges("t1")
+        assertTrue(r.unresolved)
+        assertTrue(r.changes.none { it.isDeleted })
+    }
+
+    @Test
+    fun fileOutsideRootIsSkipped() = runTest {
+        val mockEngine = MockEngine { request ->
+            val jsonHeaders = headersOf(HttpHeaders.ContentType, "application/json")
+            when {
+                request.url.parameters["q"]?.contains("'root' in parents") == true -> {
+                    respond(
+                        """{"files":[{"id":"mimir_root","name":"Mimir","mimeType":"application/vnd.google-apps.folder"}]}""",
+                        HttpStatusCode.OK,
+                        jsonHeaders,
+                    )
+                }
+                request.url.encodedPath == "/drive/v3/changes" && request.url.parameters["pageToken"] == "t1" -> {
+                    respond(
+                        """
+                        {
+                            "newStartPageToken": "t2",
+                            "changes": [
+                                {
+                                    "fileId": "foreign_file",
+                                    "removed": false,
+                                    "file": {
+                                        "id": "foreign_file",
+                                        "name": "secret.md",
+                                        "mimeType": "text/markdown",
+                                        "parents": ["otherApp"],
+                                        "trashed": false
+                                    }
+                                }
+                            ]
+                        }
+                        """.trimIndent(),
+                        HttpStatusCode.OK,
+                        jsonHeaders,
+                    )
+                }
+                request.url.encodedPath == "/drive/v3/files/otherApp" -> {
+                    respond(
+                        """
+                        {
+                            "id": "otherApp",
+                            "name": "OtherApp",
+                            "mimeType": "application/vnd.google-apps.folder",
+                            "parents": ["my_drive"],
+                            "trashed": false
+                        }
+                        """.trimIndent(),
+                        HttpStatusCode.OK,
+                        jsonHeaders,
+                    )
+                }
+                request.url.encodedPath == "/drive/v3/files/my_drive" -> {
+                    respond(
+                        """
+                        {
+                            "id": "my_drive",
+                            "name": "My Drive",
+                            "mimeType": "application/vnd.google-apps.folder",
+                            "parents": [],
+                            "trashed": false
+                        }
+                        """.trimIndent(),
+                        HttpStatusCode.OK,
+                        jsonHeaders,
+                    )
+                }
+                else -> respond("""{"files":[]}""", HttpStatusCode.OK, jsonHeaders)
+            }
+        }
+        val (drive, _) = createDrive(mockEngine)
+        val r = drive.getChanges("t1")
+        assertTrue(r.changes.isEmpty())
+        assertEquals(false, r.unresolved)
+    }
+
+    @Test
+    fun folderChangeMarksUnresolved() = runTest {
+        val mockEngine = MockEngine { request ->
+            val jsonHeaders = headersOf(HttpHeaders.ContentType, "application/json")
+            when {
+                request.url.encodedPath == "/drive/v3/changes" && request.url.parameters["pageToken"] == "t1" -> {
+                    respond(
+                        """
+                        {
+                            "newStartPageToken": "t2",
+                            "changes": [
+                                {
+                                    "fileId": "dir1",
+                                    "removed": false,
+                                    "file": {
+                                        "id": "dir1",
+                                        "name": "RenamedFolder",
+                                        "mimeType": "application/vnd.google-apps.folder",
+                                        "parents": ["mimir_root"],
+                                        "trashed": false
+                                    }
+                                }
+                            ]
+                        }
+                        """.trimIndent(),
+                        HttpStatusCode.OK,
+                        jsonHeaders,
+                    )
+                }
+                else -> respond("""{"files":[]}""", HttpStatusCode.OK, jsonHeaders)
+            }
+        }
+        val (drive, _) = createDrive(mockEngine)
+        val r = drive.getChanges("t1")
+        assertTrue(r.unresolved)
+        assertTrue(r.changes.isEmpty())
+    }
+
+    @Test
+    fun renamedKnownFileYieldsDeleteOldAndCreateNew() = runTest {
+        val mockEngine = MockEngine { request ->
+            val jsonHeaders = headersOf(HttpHeaders.ContentType, "application/json")
+            when {
+                request.url.parameters["q"]?.contains("'root' in parents") == true -> {
+                    respond(
+                        """{"files":[{"id":"mimir_root","name":"Mimir","mimeType":"application/vnd.google-apps.folder"}]}""",
+                        HttpStatusCode.OK,
+                        jsonHeaders,
+                    )
+                }
+                request.url.encodedPath == "/drive/v3/changes" && request.url.parameters["pageToken"] == "t1" -> {
+                    respond(
+                        """
+                        {
+                            "newStartPageToken": "t2",
+                            "changes": [
+                                {
+                                    "fileId": "f1",
+                                    "removed": false,
+                                    "file": {
+                                        "id": "f1",
+                                        "name": "new.md",
+                                        "mimeType": "text/markdown",
+                                        "parents": ["mimir_root"],
+                                        "trashed": false
+                                    }
+                                }
+                            ]
+                        }
+                        """.trimIndent(),
+                        HttpStatusCode.OK,
+                        jsonHeaders,
+                    )
+                }
+                else -> respond("""{"files":[]}""", HttpStatusCode.OK, jsonHeaders)
+            }
+        }
+        val (drive, resolver) = createDrive(mockEngine)
+        resolver.registerPath(
+            RemotePath("old.md"),
+            dev.mimir.drive.api.GoogleDriveFile("f1", "old.md", "text/markdown", parents = listOf("mimir_root")),
+        )
+
+        val r = drive.getChanges("t1")
+        assertEquals(listOf("old.md" to true, "new.md" to false), r.changes.map { it.path.value to it.isDeleted })
     }
 }

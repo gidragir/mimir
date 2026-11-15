@@ -40,7 +40,7 @@ class EncryptedRemoteStorage(
                 null
             }
         }
-        return RemoteChangesResult(decryptedChanges, raw.nextToken)
+        return RemoteChangesResult(decryptedChanges, raw.nextToken, unresolved = raw.unresolved)
     }
 
     override suspend fun list(dir: RemotePath): List<RemoteEntry> =
