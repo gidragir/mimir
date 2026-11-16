@@ -10,14 +10,9 @@ on:
       - '.context-init/**'
       - '.github/.release-please-manifest.json'
       - '.github/release-please-config.json'
+  # Без paths-ignore: гейт `CI status` обязан отчитаться в каждом PR, иначе обязательная проверка
+  # висит в Expected. Мета-файлы отсекает фильтр non_meta в detect-changes (os_matrix=[]).
   pull_request:
-    paths-ignore:
-      - 'docs/**'
-      - 'README.md'
-      - 'CHANGELOG.md'
-      - '.context-init/**'
-      - '.github/.release-please-manifest.json'
-      - '.github/release-please-config.json'
   schedule:
     - cron: '0 3 * * *'
   workflow_dispatch:
@@ -126,6 +121,20 @@ jobs:
               - 'apps/browser-extension/**'
               - 'design/**'
               - 'gradle/yarn/**'
+      # Отдельный шаг: predicate-quantifier every нужен только для исключений и сломал бы фильтры выше.
+      - uses: dorny/paths-filter@v4
+        id: meta
+        with:
+          predicate-quantifier: every
+          filters: |
+            non_meta:
+              - '**'
+              - '!**/*.md'
+              - '!docs/**'
+              - '!.context-init/**'
+              - '!LICENSE'
+              - '!.github/.release-please-manifest.json'
+              - '!.github/release-please-config.json'
       - id: matrix
         env:
           HEAD_REF: ${{ github.head_ref }}
@@ -137,6 +146,7 @@ jobs:
           JS_OR_WEB: ${{ steps.filter.outputs.js_or_web }}
           SCRIPTS_OR_SKILLS: ${{ steps.filter.outputs.scripts_or_skills }}
           MSI_PACKAGING: ${{ steps.filter.outputs.msi_packaging }}
+          NON_META: ${{ steps.meta.outputs.non_meta }}
           COMMIT_SUBJECT: ${{ github.event.head_commit.message }}
         run: |
           {
@@ -162,7 +172,10 @@ jobs:
               else
                 echo "package_msi=false"
               fi
-              if [ "$CORE_OR_LIBS" = "true" ] || [ "$DESKTOP" = "true" ]; then
+              if [ "$NON_META" != "true" ]; then
+                # Только документация, *.md, .context-init и конфиги release-please: собирать нечего.
+                echo 'os_matrix=[]'
+              elif [ "$CORE_OR_LIBS" = "true" ] || [ "$DESKTOP" = "true" ]; then
                 echo 'os_matrix=["ubuntu-latest","windows-latest"]'
               elif [ "$ANDROID" != "true" ] && [ "$JS_OR_WEB" != "true" ] && [ "$SCRIPTS_OR_SKILLS" = "true" ]; then
                 # Только scripts/.agents/.claude: их проверяют шаги detect-changes (win:test, skills:check), сборка не нужна.
@@ -245,6 +258,30 @@ jobs:
             **/build/reports/problems/
           retention-days: 7
           if-no-files-found: ignore
+
+  # Единственная обязательная проверка в защите main. Матрица build меняется от PR к PR
+  # (ubuntu, ubuntu+windows или пропуск), поэтому требовать её джобы по именам нельзя:
+  # отсутствующая проверка висит в Expected. skipped считается успехом, failure/cancelled — нет.
+  ci-status:
+    name: CI status
+    if: always()
+    needs: [detect-changes, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check required jobs
+        env:
+          DETECT_RESULT: ${{ needs.detect-changes.result }}
+          BUILD_RESULT: ${{ needs.build.result }}
+          OS_MATRIX: ${{ needs.detect-changes.outputs.os_matrix }}
+        run: |
+          echo "detect-changes: $DETECT_RESULT; build: $BUILD_RESULT; os_matrix: ${OS_MATRIX:-n/a}"
+          for result in "$DETECT_RESULT" "$BUILD_RESULT"; do
+            case "$result" in
+              success|skipped) ;;
+              *) echo "::error::Required job finished with '$result'"; exit 1 ;;
+            esac
+          done
 
   arch-dry-run:
     name: arch (dry-run)
