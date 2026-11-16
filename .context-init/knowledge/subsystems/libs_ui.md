@@ -2,8 +2,8 @@
 directory: libs/ui
 source:
   kind: git
-  blob_sha: 98bab88e4275dbac48edc0bca9e596db51da2529
-  commit_sha: 973bb96afa606802a1a9c3d251d2eddc26878808
+  blob_sha: 52f5b229a265d29a586ac76cdd876d48c2d6807e
+  commit_sha: 13a556b98dd7648b1a29b431a4425aff97b80b8b
 generated_by:
   component: context-init
   role: update
