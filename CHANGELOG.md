@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/gidragir/mimir/compare/v0.6.0...v0.7.0) (2026-11-16)
+
+
+### Features
+
+* **sync:** add sync metrics and data-safety guards (phase A) ([#12](https://github.com/gidragir/mimir/issues/12)) ([131178a](https://github.com/gidragir/mimir/commit/131178a5ab9623ce3a56686a42922373d6c2de60))
+
 ## [0.6.0](https://github.com/gidragir/mimir/compare/v0.5.0...v0.6.0) (2026-11-14)
 
 
