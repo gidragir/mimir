@@ -136,12 +136,17 @@ Mimir — клиент синхронизации Obsidian-хранилища с
 
 ### ⚡ MCP-First Protocol (context-init)
 
+Во все вызовы передавайте `"path": "<repo_root>"`.
+
 1. `context_get_subsystems` — карта подсистем проекта (L0).
 2. `context_get_subsystem(subsystem_id)` — компактная L1-карточка подсистемы.
-3. `context_pack(subsystem_id, compress=true)` — AST-сжатый код подсистемы.
-4. `context_check` — проверка архитектурного дрейфа перед сдачей задачи.
+3. `context_pack(subsystem_id, mode="toc")` — символы со строками; `context_pack(subsystem_id, compress=true)` — AST-сжатый код (`style="compact"` по умолчанию).
+4. `context_pack(subsystem_id, files=["<file>"], compress=false)` — точный код нужных файлов.
+5. `context_check` — проверка архитектурного дрейфа перед сдачей задачи.
 
-Без доступа к MCP (субагенты, скрипты): `rtk context-init pack <subsystem_id> --compress` и `rtk context-init check --compact`.
+Ответ с `truncated: true` — повторите вызов с `cursor` из футера или сузьте `files`.
+
+Без доступа к MCP (субагенты, скрипты): `rtk context-init pack <subsystem_id> --compress --max-lines 200` (`--toc`, `--files <f> --no-compress`, `--cursor "cur_..."`) и `rtk context-init check --compact`.
 
 ### 📦 Доступные подсистемы:
 - `apps_android` (Android) — Подсистема `apps/android` с ключевыми точками входа: apps/android/build.gradle.kts
