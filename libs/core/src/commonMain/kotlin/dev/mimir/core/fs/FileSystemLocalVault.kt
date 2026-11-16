@@ -12,11 +12,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.withContext
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import kotlinx.io.Source
 import kotlinx.io.buffered
 import kotlinx.io.files.Path
 import kotlinx.io.files.SystemFileSystem
 import kotlin.concurrent.Volatile
+import kotlin.time.Clock
 import kotlin.time.Instant
 
 class FileSystemLocalVault(
@@ -28,6 +32,7 @@ class FileSystemLocalVault(
      * поэтому JVM/Android-вызовы передают `Dispatchers.IO` явно.
      */
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.Default,
+    private val clock: Clock = Clock.System,
 ) : LocalVault {
     private val filter = VaultPathFilter(rules)
 
@@ -106,6 +111,61 @@ class FileSystemLocalVault(
         SystemFileSystem.delete(absolute(normalized), mustExist = false)
     }
 
+    override suspend fun trash(id: VaultFileId) = withContext(ioDispatcher) {
+        val normalized = requireNoSymbolicLink(normalize(pathOf(id)))
+        val source = absolute(normalized)
+        if (SystemFileSystem.metadataOrNull(source) == null) return@withContext
+
+        val dt = clock.now().toLocalDateTime(TimeZone.UTC)
+        val dateFolder = "${dt.year.toString().padStart(4, '0')}-" +
+            "${(dt.month.ordinal + 1).toString().padStart(2, '0')}-" +
+            dt.day.toString().padStart(2, '0')
+        val target = resolveTrashTarget("$TRASH_DIR/$dateFolder/$normalized")
+        target.parent?.let { SystemFileSystem.createDirectories(it) }
+        watcher?.markWrittenBySync(normalized)
+        SystemFileSystem.atomicMove(source, target)
+    }
+
+    override suspend fun purgeTrash(olderThan: Instant) = withContext(ioDispatcher) {
+        val trashRoot = Path(rootPath, ".mimir", "trash")
+        if (SystemFileSystem.metadataOrNull(trashRoot)?.isDirectory != true) return@withContext
+        val cutoffDate = olderThan.toLocalDateTime(TimeZone.UTC).date
+        for (child in SystemFileSystem.list(trashRoot)) {
+            if (isSymbolicLink(child)) continue
+            val dirDate = runCatching { LocalDate.parse(child.name) }.getOrNull() ?: continue
+            if (dirDate < cutoffDate) {
+                deleteRecursively(child)
+            }
+        }
+    }
+
+    private fun resolveTrashTarget(baseRelative: String): Path {
+        val first = absolute(baseRelative)
+        if (SystemFileSystem.metadataOrNull(first) == null) return first
+        val slash = baseRelative.lastIndexOf('/')
+        val dir = if (slash >= 0) baseRelative.substring(0, slash) else ""
+        val filename = if (slash >= 0) baseRelative.substring(slash + 1) else baseRelative
+        val dot = filename.lastIndexOf('.')
+        val (stem, ext) = if (dot > 0) filename.substring(0, dot) to filename.substring(dot) else filename to ""
+        var attempt = 2
+        while (true) {
+            val numbered = "$stem ($attempt)$ext"
+            val candidateRel = if (dir.isNotEmpty()) "$dir/$numbered" else numbered
+            val candidate = absolute(candidateRel)
+            if (SystemFileSystem.metadataOrNull(candidate) == null) return candidate
+            attempt++
+        }
+    }
+
+    private fun deleteRecursively(path: Path) {
+        if (!isSymbolicLink(path) && SystemFileSystem.metadataOrNull(path)?.isDirectory == true) {
+            for (child in SystemFileSystem.list(path)) {
+                deleteRecursively(child)
+            }
+        }
+        SystemFileSystem.delete(path, mustExist = false)
+    }
+
     override fun changes(): Flow<VaultChange> = watcher?.start() ?: emptyFlow()
 
     /** Обходит vault, не заходя в исключённые пути и символьные ссылки; ссылки складываются в [symbolicLinks]. */
@@ -163,5 +223,6 @@ class FileSystemLocalVault(
 
     private companion object {
         const val TEMP_PREFIX = ".mimir_tmp_"
+        const val TRASH_DIR = ".mimir/trash"
     }
 }

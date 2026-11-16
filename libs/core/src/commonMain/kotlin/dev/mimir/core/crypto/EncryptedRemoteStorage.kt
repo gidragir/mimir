@@ -18,6 +18,12 @@ class EncryptedRemoteStorage(
         return feed.getLatestChangeToken()
     }
 
+    override suspend fun peekChanges(sinceToken: String): ChangePeek {
+        val feed = inner as? ChangeFeedStorage
+            ?: throw UnsupportedOperationException("Inner storage does not support ChangeFeedStorage")
+        return feed.peekChanges(sinceToken)
+    }
+
     override suspend fun getChanges(sinceToken: String): RemoteChangesResult {
         val feed = inner as? ChangeFeedStorage
             ?: throw UnsupportedOperationException("Inner storage does not support ChangeFeedStorage")
@@ -34,7 +40,7 @@ class EncryptedRemoteStorage(
                 null
             }
         }
-        return RemoteChangesResult(decryptedChanges, raw.nextToken)
+        return RemoteChangesResult(decryptedChanges, raw.nextToken, unresolved = raw.unresolved)
     }
 
     override suspend fun list(dir: RemotePath): List<RemoteEntry> =
@@ -53,6 +59,17 @@ class EncryptedRemoteStorage(
         inner.write(encrypt(path), cipher.encrypt(data)).decrypted()
 
     override suspend fun delete(path: RemotePath) = inner.delete(encrypt(path))
+
+    override suspend fun drainAnomalies(): List<RemoteAnomaly> =
+        inner.drainAnomalies().filterNot { it.path.isReserved() }.mapNotNull { anomaly ->
+            try {
+                anomaly.copy(path = decrypt(anomaly.path))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: CryptException) {
+                null
+            }
+        }
 
     private fun RemotePath.isReserved() = segments.singleOrNull() in reservedRootNames
 

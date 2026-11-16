@@ -9,6 +9,7 @@ import dev.mimir.client.UpdateStatusDto
 import dev.mimir.client.UpdateCommandException
 import dev.mimir.client.UpdateErrorCode
 import dev.mimir.core.ConflictFileEntry
+import dev.mimir.core.DeletionDecision
 import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncStatus
 import kotlinx.coroutines.CancellationException
@@ -211,6 +212,11 @@ class DaemonServiceUiModel(
     override suspend fun resolveConflict(originalPath: String, conflictPath: String, keepConflict: Boolean) {
         service.resolveConflict(originalPath, conflictPath, keepConflict)
         service.conflicts()
+        refresh()
+    }
+
+    override suspend fun resolveDeletions(decision: DeletionDecision) {
+        service.resolveDeletions(decision)
         refresh()
     }
 

@@ -14,8 +14,10 @@ import dev.mimir.core.LocalVault
 import dev.mimir.core.RcloneCipher
 import dev.mimir.core.RemoteUnavailableException
 import dev.mimir.core.SyncItemAction
+import dev.mimir.core.SyncPhase
 import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncStatus
+import dev.mimir.core.toLogLine
 import dev.mimir.core.fs.FileSystemLocalVault
 import dev.mimir.core.update.UpdateManager
 import dev.mimir.runtime.login.LoginRegistry
@@ -73,6 +75,8 @@ class MimirRuntime(
     initialInteractive: Boolean = true,
     /** Фабрика шифратора (тесты подменяют на быстрый предвычисленный ключ без PBKDF2). */
     private val cipherFactory: suspend (String) -> RcloneCipher = { RcloneCipher.create(it) },
+    /** Приёмник строки статистики прогона (`MIMIR_SYNC_TRACE`). */
+    private val traceSink: ((String) -> Unit)? = null,
 ) : DaemonService {
     @Volatile
     private var config: RuntimeConfig = settings.load()
@@ -254,6 +258,20 @@ class MimirRuntime(
         return scheduler.triggerSync()
     }
 
+    override suspend fun resolveDeletions(decision: dev.mimir.core.DeletionDecision) {
+        val current = assembled ?: throw notConfigured()
+        current.engine.resolvePendingDeletions(decision)
+        if (decision == dev.mimir.core.DeletionDecision.Keep) {
+            if (holdInitialSync) {
+                holdInitialSync = false
+                if (interactive) current.scheduler.start()
+            }
+            current.scheduler.triggerSync(followUp = true)
+        } else {
+            triggerSync()
+        }
+    }
+
     override suspend fun conflicts() = conflictTracker.refresh()
 
     override suspend fun resolveConflict(originalPath: String, conflictPath: String, keepConflict: Boolean) =
@@ -321,7 +339,14 @@ class MimirRuntime(
                 }
             },
             // Новый движок начинает с null — не затираем им сводку последнего прогона.
-            scope.launch { built.engine.progress.filterNotNull().collect { _progress.value = it } },
+            scope.launch {
+                built.engine.progress.filterNotNull().collect { p ->
+                    _progress.value = p
+                    if (p.phase == SyncPhase.Finished) {
+                        p.runStats?.let { stats -> traceSink?.invoke(stats.toLogLine()) }
+                    }
+                }
+            },
             scope.launch { built.scheduler.pendingLocalChanges.collect { _pendingLocalChanges.value = it } },
         )
         _status.value = built.engine.status.value

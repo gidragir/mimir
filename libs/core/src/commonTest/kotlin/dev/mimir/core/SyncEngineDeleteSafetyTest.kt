@@ -2,6 +2,7 @@ package dev.mimir.core
 
 import dev.mimir.core.sync.DefaultSyncEngine
 import dev.mimir.core.sync.InMemorySyncStateStore
+import dev.mimir.core.testing.CountingLocalVault
 import dev.mimir.core.testing.InMemoryLocalVault
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -215,5 +216,25 @@ class SyncEngineDeleteSafetyTest {
         assertEquals(SyncStatus.Offline, f.engine.status.value)
         assertNotNull(f.vault.getEntry("a.md"))
         assertNotNull(f.store.load().find("a.md"))
+    }
+
+    @Test
+    fun deleteLocalGoesToTrash() = runTest {
+        val vault = CountingLocalVault()
+        val remote = FlakyRemote()
+        val store = InMemorySyncStateStore()
+        val engine = DefaultSyncEngine(vault, remote, store)
+
+        vault.write("a.md", bufferOf("A"))
+        vault.write("b.md", bufferOf("B"))
+        engine.syncNow()
+        remote.delegate.delete(RemotePath("a.md"))
+
+        engine.syncNow()
+
+        assertEquals(1, vault.trashCalls)
+        assertEquals(0, vault.deleteCalls)
+        assertNull(vault.getEntry("a.md"))
+        assertNotNull(vault.getEntry("b.md"))
     }
 }

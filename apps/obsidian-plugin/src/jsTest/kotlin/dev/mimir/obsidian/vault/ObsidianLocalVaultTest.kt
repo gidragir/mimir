@@ -386,4 +386,32 @@ class ObsidianLocalVaultTest {
         assertIs<VaultChange.Modified>(received[2])
         assertEquals("renamed.md", received[2].id.value)
     }
+
+    @Test
+    fun trashMovesFileToObsidianTrashAndDeduplicatesName() = runTest {
+        val fs = FakeVaultFs()
+        val vault = ObsidianLocalVault(
+            fs = fs,
+            resources = { Buffer() },
+            configDir = ".obsidian",
+            events = MutableSharedFlow(),
+            echo = echo,
+            clock = testClock,
+        )
+
+        vault.write("notes/a.md", Buffer().apply { write("first".encodeToByteArray()) })
+        vault.trash(VaultFileId("notes/a.md"))
+
+        assertFalse(fs.exists("notes/a.md"))
+        assertTrue(fs.exists(".trash/notes/a.md"))
+        assertEquals("first", fs.readBinary(".trash/notes/a.md").decodeToString())
+        assertTrue(echo.isRecent("notes/a.md"))
+
+        vault.write("notes/a.md", Buffer().apply { write("second".encodeToByteArray()) })
+        vault.trash(VaultFileId("notes/a.md"))
+
+        assertFalse(fs.exists("notes/a.md"))
+        assertTrue(fs.exists(".trash/notes/a (2).md"))
+        assertEquals("second", fs.readBinary(".trash/notes/a (2).md").decodeToString())
+    }
 }

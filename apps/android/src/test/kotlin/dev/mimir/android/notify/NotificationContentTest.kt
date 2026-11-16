@@ -2,6 +2,7 @@ package dev.mimir.android.notify
 
 import dev.mimir.core.SyncErrorKind
 import dev.mimir.core.SyncStatus
+import dev.mimir.ui.screens.SyncTexts
 import kotlinx.datetime.TimeZone
 import org.junit.Test
 import kotlin.test.assertEquals
@@ -100,5 +101,19 @@ class NotificationContentTest {
             lastSync = null,
         )
         assertNull(content)
+    }
+
+    @Test
+    fun needsConfirmationNotification() {
+        val content = notificationFor(
+            status = SyncStatus.NeedsConfirmation(60),
+            conflicts = 0,
+            pendingLocal = false,
+            lastSync = null,
+        )
+        assertNotNull(content)
+        assertEquals(Channel.Attention, content.channel)
+        assertEquals(Destination.Status, content.destination)
+        assertEquals(SyncTexts.confirmDeletionTitle(60), content.title)
     }
 }

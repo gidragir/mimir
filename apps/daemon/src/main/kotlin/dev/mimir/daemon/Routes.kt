@@ -39,7 +39,6 @@ import io.ktor.server.routing.routing
 import io.ktor.utils.io.writeByteArray
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.launch
@@ -60,6 +59,7 @@ private fun SyncStatus.code(): String = when (this) {
     SyncStatus.Idle -> "idle"
     SyncStatus.Syncing -> "syncing"
     SyncStatus.Offline -> "offline"
+    is SyncStatus.NeedsConfirmation -> "needs_confirmation"
     is SyncStatus.Error -> "error"
 }
 
@@ -74,6 +74,7 @@ private fun DaemonService.toStatusDto(): DaemonStatusDto {
         activeConflicts = conflictsFlow.value.size,
         accountEmail = accountEmail,
         progress = progress.value?.toDto(Clock.System.now()),
+        pendingDeletions = (currentStatus as? SyncStatus.NeedsConfirmation)?.pendingDeletions,
     )
 }
 
@@ -128,19 +129,23 @@ fun Application.mimirRoutes(service: DaemonService, config: DaemonConfig, update
             get("/events") {
                 call.response.cacheControl(CacheControl.NoCache(null))
                 call.respondBytesWriter(contentType = ContentType.Text.EventStream) {
+                    var lastPayload: String? = null
                     suspend fun sendStatus() {
                         val payload = sseJson.encodeToString(DaemonStatusDto.serializer(), service.toStatusDto())
+                        if (payload == lastPayload) return
+                        lastPayload = payload
                         writeByteArray("event: status\ndata: $payload\n\n".encodeToByteArray())
                         flush()
                     }
                     val dirty = Channel<Unit>(Channel.CONFLATED)
-                    // UNDISPATCHED регистрирует подписчиков StateFlow и сбрасывает их начальные значения до первого sendStatus(),
-                    // чтобы изменения сразу после отправки стартового кадра не терялись.
+                    // merge подписывается на источники в отдельных корутинах, возможно уже после стартового кадра,
+                    // поэтому начальные значения не отбрасываются: любое значение помечает поток «грязным»,
+                    // а sendStatus() пропускает кадр, совпадающий с последним отправленным.
                     val collector = launch(start = CoroutineStart.UNDISPATCHED) {
                         merge(
-                            service.status.drop(1).map { },
-                            service.progress.drop(1).map { },
-                            service.conflictsFlow.drop(1).map { },
+                            service.status.map { },
+                            service.progress.map { },
+                            service.conflictsFlow.map { },
                         ).collect { dirty.trySend(Unit) }
                     }
                     sendStatus()
@@ -173,6 +178,36 @@ fun Application.mimirRoutes(service: DaemonService, config: DaemonConfig, update
                     } else {
                         call.respond(HttpStatusCode.Conflict, DaemonStatusOnlyResponse("already_running"))
                     }
+                } catch (_: SyncNotConfiguredException) {
+                    call.respond(
+                        HttpStatusCode.PreconditionFailed,
+                        DaemonErrorBody("Vault path, encryption password or cloud storage not configured"),
+                    )
+                }
+            }
+
+            post("/sync/confirm-deletions") {
+                val request = try {
+                    call.receive<dev.mimir.client.DaemonResolveDeletionsRequest>()
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    return@post call.respond(
+                        HttpStatusCode.BadRequest,
+                        DaemonErrorBody("Expected decision: delete or keep"),
+                    )
+                }
+                val decision = when (request.decision) {
+                    "delete" -> dev.mimir.core.DeletionDecision.Delete
+                    "keep" -> dev.mimir.core.DeletionDecision.Keep
+                    else -> return@post call.respond(
+                        HttpStatusCode.BadRequest,
+                        DaemonErrorBody("Expected decision: delete or keep"),
+                    )
+                }
+                try {
+                    service.resolveDeletions(decision)
+                    call.respond(HttpStatusCode.Accepted, DaemonStatusOnlyResponse("started"))
                 } catch (_: SyncNotConfiguredException) {
                     call.respond(
                         HttpStatusCode.PreconditionFailed,

@@ -1,5 +1,6 @@
 package dev.mimir.ui.model
 
+import dev.mimir.core.DeletionDecision
 import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncStatus
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -67,6 +68,14 @@ class FakeMimirUiModel(
     override suspend fun resolveConflict(originalPath: String, conflictPath: String, keepConflict: Boolean) {
         onResolveConflict(originalPath, conflictPath, keepConflict)
         conflicts.value = conflicts.value.filterNot { it.conflictPath == conflictPath }
+    }
+
+    /** Последнее решение по массовому удалению, переданное в [resolveDeletions]. */
+    var lastDeletionDecision: DeletionDecision? = null
+        private set
+
+    override suspend fun resolveDeletions(decision: DeletionDecision) {
+        lastDeletionDecision = decision
     }
 
     /** Способы, которыми начинали вход, по порядку. */

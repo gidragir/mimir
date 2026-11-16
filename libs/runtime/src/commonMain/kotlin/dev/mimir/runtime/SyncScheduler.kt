@@ -1,7 +1,10 @@
 package dev.mimir.runtime
 
 import dev.mimir.core.ChangeFeedStorage
+import dev.mimir.core.MassDeletionException
+import dev.mimir.core.SyncAbortedException
 import dev.mimir.core.SyncEngine
+import dev.mimir.core.SyncStatus
 import dev.mimir.core.VaultChange
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -39,6 +42,7 @@ class SyncScheduler(
     private val syncMutex = Mutex()
     private val rerunRequested = AtomicBoolean(false)
     private val retryOnNextTick = AtomicBoolean(false)
+    private val waitingForConfirmation = AtomicBoolean(false)
     private val syncStartCount = AtomicLong(0)
     private var jobs: List<Job> = emptyList()
 
@@ -108,9 +112,13 @@ class SyncScheduler(
 
     /** Ручной запуск; `false`, если синхронизация уже идёт. Сам прогон выполняется в фоне. */
     @Suppress("RedundantSuspendModifier")
-    suspend fun triggerSync(): Boolean {
-        if (!syncMutex.tryLock()) return false
-        launchRunner()
+    suspend fun triggerSync(followUp: Boolean = false): Boolean {
+        waitingForConfirmation.set(false)
+        if (!syncMutex.tryLock()) {
+            if (followUp) rerunRequested.set(true)
+            return false
+        }
+        launchRunner(followUpRuns = if (followUp) 1 else 0)
         return true
     }
 
@@ -150,17 +158,21 @@ class SyncScheduler(
     }
 
     private fun requestSync() {
+        waitingForConfirmation.set(false)
         rerunRequested.set(true)
         if (syncMutex.tryLock()) launchRunner()
     }
 
-    private fun launchRunner() {
+    private fun launchRunner(followUpRuns: Int = 0) {
         runner = scope.launch {
+            var remainingFollowUps = followUpRuns
             try {
                 do {
                     rerunRequested.set(false)
-                    runOnce()
-                } while (rerunRequested.get())
+                    val succeeded = runOnce()
+                    val shouldFollowUp = succeeded && remainingFollowUps > 0
+                    if (shouldFollowUp) remainingFollowUps--
+                } while (rerunRequested.get() || shouldFollowUp)
             } finally {
                 syncMutex.unlock()
             }
@@ -169,10 +181,11 @@ class SyncScheduler(
         }
     }
 
-    private suspend fun runOnce(rethrow: Boolean = false) {
+    private suspend fun runOnce(rethrow: Boolean = false): Boolean {
         syncStartCount.incrementAndGet()
+        waitingForConfirmation.set(false)
         val startedAfter = localEventSeq.get()
-        try {
+        return try {
             syncEngine.syncNow()
             lastSyncTime = clock.now()
             lastError = null
@@ -180,16 +193,32 @@ class SyncScheduler(
             synchronized(pendingLock) {
                 if (localEventSeq.get() == startedAfter) _pendingLocalChanges.value = false
             }
+            true
         } catch (e: CancellationException) {
             throw e
+        } catch (e: MassDeletionException) {
+            lastError = e.message ?: e::class.simpleName
+            retryOnNextTick.set(false)
+            waitingForConfirmation.set(true)
+            if (rethrow) throw e
+            false
+        } catch (e: SyncAbortedException) {
+            lastError = e.message ?: e::class.simpleName
+            retryOnNextTick.set(false)
+            if (rethrow) throw e
+            false
         } catch (e: Exception) {
             lastError = e.message ?: e::class.simpleName
             retryOnNextTick.set(true)
             if (rethrow) throw e
+            false
         }
     }
 
     private suspend fun tick() {
+        if (waitingForConfirmation.get() || syncEngine.status.value is SyncStatus.NeedsConfirmation) {
+            return
+        }
         val feed = remoteFeed
         // без рабочего watcher'а локальные правки видны только полной сверкой
         if (feed == null || retryOnNextTick.get() || watcherError != null || _pendingLocalChanges.value) {
@@ -205,9 +234,9 @@ class SyncScheduler(
                     triggerSync()
                 }
             } else {
-                val result = feed.getChanges(token)
+                val result = feed.peekChanges(token)
                 changeToken = result.nextToken
-                if (result.changes.isNotEmpty()) requestSync()
+                if (result.hasChanges) requestSync()
             }
         } catch (e: CancellationException) {
             throw e

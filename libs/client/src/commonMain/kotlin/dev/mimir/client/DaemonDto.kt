@@ -37,6 +37,7 @@ fun DaemonSyncProgressDto.toModel(): SyncProgress = SyncProgress(
     },
 )
 
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 data class DaemonStatusDto(
     val status: String,
@@ -47,6 +48,13 @@ data class DaemonStatusDto(
     val activeConflicts: Int,
     val accountEmail: String? = null,
     val progress: DaemonSyncProgressDto? = null,
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val pendingDeletions: Int? = null,
+)
+
+@Serializable
+data class DaemonResolveDeletionsRequest(
+    val decision: String, // "delete" | "keep"
 )
 
 @Serializable

@@ -18,6 +18,7 @@ import dev.mimir.obsidian.sync.PluginSyncController
 import dev.mimir.obsidian.sync.SyncAssembler
 import dev.mimir.obsidian.sync.Trigger
 import dev.mimir.obsidian.ui.ConflictsModal
+import dev.mimir.obsidian.ui.MassDeletionModal
 import dev.mimir.obsidian.ui.MimirSettingTab
 import dev.mimir.obsidian.ui.PluginTexts
 import dev.mimir.obsidian.ui.statusLabel
@@ -184,8 +185,19 @@ class MimirPlugin(app: App, manifest: PluginManifest) : Plugin(app, manifest) {
 
         statusBarItem.textContent = statusLabel(PluginState.NotConnected, texts, Clock.System.now())
         scope.launch {
+            var lastPromptedCount: Int? = null
             syncController.state.collect { state ->
                 statusBarItem.textContent = statusLabel(state, texts, Clock.System.now())
+                if (state is PluginState.NeedsConfirmation) {
+                    if (lastPromptedCount != state.count) {
+                        lastPromptedCount = state.count
+                        MassDeletionModal(app, state.count, texts) { decision ->
+                            syncController.resolveDeletions(decision)
+                        }.open()
+                    }
+                } else {
+                    lastPromptedCount = null
+                }
             }
         }
         try {

@@ -76,12 +76,12 @@ internal suspend fun checkChangeFeed(storage: RemoteStorage, cachedToken: String
     val feed = (storage as? ChangeFeedStorage)?.takeIf { it.isChangeFeedSupported }
         ?: return IncrementalSyncCheck.NeedsFullList(preListToken = null)
     if (cachedToken != null) {
-        val result = ignoreNonAuthErrors { feed.getChanges(cachedToken) }
-        if (result != null) {
-            return if (result.changes.isEmpty()) {
-                IncrementalSyncCheck.Unchanged(result.nextToken)
+        val peek = ignoreNonAuthErrors { feed.peekChanges(cachedToken) }
+        if (peek != null) {
+            return if (!peek.hasChanges) {
+                IncrementalSyncCheck.Unchanged(peek.nextToken)
             } else {
-                IncrementalSyncCheck.NeedsFullList(result.nextToken)
+                IncrementalSyncCheck.NeedsFullList(peek.nextToken)
             }
         }
     }

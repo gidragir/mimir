@@ -1,5 +1,6 @@
 package dev.mimir.ui.model
 
+import dev.mimir.core.DeletionDecision
 import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncStatus
 import dev.mimir.client.DaemonConnectionStatus
@@ -63,6 +64,9 @@ interface MimirUiModel {
     /** Бросает [IllegalArgumentException] с понятным сообщением, если пароль не подходит. */
     suspend fun unlock(password: String, rememberOnDevice: Boolean = true)
     suspend fun resolveConflict(originalPath: String, conflictPath: String, keepConflict: Boolean)
+
+    /** Подтверждает или отклоняет массовое удаление и запускает повторную синхронизацию. */
+    suspend fun resolveDeletions(decision: DeletionDecision)
 
     /** Какие способы входа в Google доступны в этой сборке. */
     suspend fun loginMethods(): Set<UiLoginMethod>

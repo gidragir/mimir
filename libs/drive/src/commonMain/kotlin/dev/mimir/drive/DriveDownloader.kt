@@ -3,6 +3,7 @@ package dev.mimir.drive
 import dev.mimir.core.RemotePath
 import dev.mimir.drive.client.DriveHttpClient
 import dev.mimir.drive.client.DriveHttpException
+import dev.mimir.drive.client.DriveOp
 import dev.mimir.drive.path.DrivePathResolver
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
@@ -40,6 +41,7 @@ internal class DriveDownloader(
                 val chunk = downloadChunkBytes
                 if (chunk == null) {
                     client.executeStreaming(
+                        op = DriveOp.GetMedia,
                         request = { token ->
                             client.httpClient.prepareGet("https://www.googleapis.com/drive/v3/files/${file.id}") {
                                 header(HttpHeaders.Authorization, "Bearer $token")
@@ -87,6 +89,7 @@ internal class DriveDownloader(
             var received = 0L
             var total: Long? = null
             client.executeStreaming(
+                op = DriveOp.GetMedia,
                 request = { token ->
                     client.httpClient.prepareGet("https://www.googleapis.com/drive/v3/files/$fileId") {
                         header(HttpHeaders.Authorization, "Bearer $token")

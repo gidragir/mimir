@@ -2,8 +2,8 @@
 directory: libs/drive
 source:
   kind: git
-  blob_sha: 3f0b215ffc844b59921c8a288d215063cfe583d2
-  commit_sha: e735cb52ed681f464f3b8e62310c00a288fd4504
+  blob_sha: aa76c1109056defa4a851ce6be6122bdc1f372f4
+  commit_sha: 973bb96afa606802a1a9c3d251d2eddc26878808
 generated_by:
   component: context-init
   role: update
@@ -47,13 +47,13 @@ freshness:
 internal class DriveDownloader( private val client: DriveHttpClient, private val pathResolver: DrivePathResolver, private val downloadChunkBytes: Long?, )
 suspend fun read(path: RemotePath): Source
 class GoogleDriveStorage(...) : ChangeFeedStorage
+override suspend fun drainAnomalies(): List<RemoteAnomaly> = anomaliesMutex.withLock
 override suspend fun getLatestChangeToken(): String
+override suspend fun peekChanges(sinceToken: String): ChangePeek
 override suspend fun getChanges(sinceToken: String): RemoteChangesResult
 override suspend fun list(dir: RemotePath): List<RemoteEntry>
 override suspend fun listAll(root: RemotePath, onProgress: (folders: Int, files: Int) -> Unit): List<RemoteEntry>
 override suspend fun stat(path: RemotePath): RemoteEntry? = pathResolver.resolvePath(path)?.toRemoteEntry(path)
-override suspend fun read(path: RemotePath): Source = downloader.read(path)
-override suspend fun write(path: RemotePath, data: Source): RemoteEntry = uploader.upload(path, data)
 ```
 
 ## 🧪 Запуск и тестирование

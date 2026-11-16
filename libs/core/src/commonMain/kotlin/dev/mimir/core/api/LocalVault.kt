@@ -31,6 +31,13 @@ interface LocalVault {
     suspend fun write(relativePath: String, data: Source): LocalEntry
     suspend fun delete(id: VaultFileId)
     suspend fun deleteByPath(relativePath: String)
+
+    /** Убирает файл из vault с возможностью восстановления; по умолчанию — обычное удаление. */
+    suspend fun trash(id: VaultFileId) = delete(id)
+
+    /** Удаляет из корзины всё, что старше [olderThan]; по умолчанию ничего не делает. */
+    suspend fun purgeTrash(olderThan: Instant) {}
+
     fun changes(): Flow<VaultChange>
 
     /**

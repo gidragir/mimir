@@ -14,34 +14,34 @@
 
 | Скрипт | Выполняемая команда |
 | :--- | :--- |
-| `win:sync` | `rtk mise run win:sync` |
-| `tokens:check` | `rtk mise run tokens:check` |
-| `win:test` | `rtk mise run win:test` |
-| `build:extension` | `rtk mise run build:extension` |
-| `win:uninstall` | `rtk mise run win:uninstall` |
-| `screenshots` | `rtk mise run screenshots` |
-| `obsidian:deploy-dir` | `rtk mise run obsidian:deploy-dir` |
-| `desktop` | `rtk mise run desktop` |
-| `win:run` | `rtk mise run win:run` |
-| `package:extension` | `rtk mise run package:extension` |
-| `android` | `rtk mise run android` |
-| `package:arch` | `rtk mise run package:arch` |
-| `skills:check` | `rtk mise run skills:check` |
 | `win:logs` | `rtk mise run win:logs` |
-| `win:snapshot` | `rtk mise run win:snapshot` |
-| `ci:fast` | `rtk mise run ci:fast` |
-| `plugin` | `rtk mise run plugin` |
-| `package:msi` | `rtk mise run package:msi` |
-| `extension` | `rtk mise run extension` |
-| `skills:sync` | `rtk mise run skills:sync` |
-| `package:docker` | `rtk mise run package:docker` |
-| `win:provision` | `rtk mise run win:provision` |
-| `win:msi` | `rtk mise run win:msi` |
+| `build:extension` | `rtk mise run build:extension` |
 | `win:reset` | `rtk mise run win:reset` |
+| `desktop` | `rtk mise run desktop` |
 | `test:fast` | `rtk mise run test:fast` |
-| `web` | `rtk mise run web` |
-| `tokens:generate` | `rtk mise run tokens:generate` |
+| `skills:sync` | `rtk mise run skills:sync` |
+| `win:test` | `rtk mise run win:test` |
+| `win:uninstall` | `rtk mise run win:uninstall` |
+| `plugin` | `rtk mise run plugin` |
 | `daemon` | `rtk mise run daemon` |
+| `win:sync` | `rtk mise run win:sync` |
+| `android` | `rtk mise run android` |
+| `tokens:check` | `rtk mise run tokens:check` |
+| `package:docker` | `rtk mise run package:docker` |
+| `package:extension` | `rtk mise run package:extension` |
+| `win:run` | `rtk mise run win:run` |
+| `win:provision` | `rtk mise run win:provision` |
+| `obsidian:deploy-dir` | `rtk mise run obsidian:deploy-dir` |
+| `web` | `rtk mise run web` |
+| `extension` | `rtk mise run extension` |
+| `ci:fast` | `rtk mise run ci:fast` |
+| `package:arch` | `rtk mise run package:arch` |
+| `package:msi` | `rtk mise run package:msi` |
+| `screenshots` | `rtk mise run screenshots` |
+| `skills:check` | `rtk mise run skills:check` |
+| `tokens:generate` | `rtk mise run tokens:generate` |
+| `win:msi` | `rtk mise run win:msi` |
+| `win:snapshot` | `rtk mise run win:snapshot` |
 
 ## Быстрый запуск
 ```bash

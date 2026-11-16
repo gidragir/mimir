@@ -33,7 +33,17 @@ data class RemoteChange(
 data class RemoteChangesResult(
     val changes: List<RemoteChange>,
     val nextToken: String,
+    val unresolved: Boolean = false,
 )
+
+data class ChangePeek(
+    val hasChanges: Boolean,
+    val nextToken: String,
+)
+
+enum class RemoteAnomalyKind { DuplicateFolder, DuplicateFile }
+
+data class RemoteAnomaly(val path: RemotePath, val kind: RemoteAnomalyKind, val copies: Int)
 
 interface RemoteStorage {
     suspend fun list(dir: RemotePath): List<RemoteEntry>
@@ -41,6 +51,7 @@ interface RemoteStorage {
     suspend fun read(path: RemotePath): Source
     suspend fun write(path: RemotePath, data: Source): RemoteEntry
     suspend fun delete(path: RemotePath)
+    suspend fun drainAnomalies(): List<RemoteAnomaly> = emptyList()
 
     /**
      * Все файлы (без каталогов) поддерева [root]; пути — ровно такие, какие вернул бы [list].
@@ -75,4 +86,6 @@ interface ChangeFeedStorage : RemoteStorage {
     val isChangeFeedSupported: Boolean get() = true
     suspend fun getLatestChangeToken(): String
     suspend fun getChanges(sinceToken: String): RemoteChangesResult
+    suspend fun peekChanges(sinceToken: String): ChangePeek =
+        getChanges(sinceToken).let { ChangePeek(it.changes.isNotEmpty(), it.nextToken) }
 }

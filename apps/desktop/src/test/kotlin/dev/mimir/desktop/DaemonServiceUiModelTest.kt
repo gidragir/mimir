@@ -10,6 +10,7 @@ import dev.mimir.client.DaemonLoginStart
 import dev.mimir.client.DaemonService
 import dev.mimir.client.DaemonVaultInspectionDto
 import dev.mimir.core.ConflictFileEntry
+import dev.mimir.core.DeletionDecision
 import dev.mimir.core.SyncProgress
 import dev.mimir.core.SyncStatus
 import dev.mimir.client.InvalidPasswordException
@@ -64,6 +65,10 @@ class DaemonServiceUiModelTest {
         override suspend fun conflicts(): List<ConflictFileEntry> = conflictsFlow.value
         override suspend fun resolveConflict(originalPath: String, conflictPath: String, keepConflict: Boolean) {
             resolved = Triple(originalPath, conflictPath, keepConflict)
+        }
+        var lastDeletionDecision: DeletionDecision? = null
+        override suspend fun resolveDeletions(decision: DeletionDecision) {
+            lastDeletionDecision = decision
         }
         override suspend fun startLogin(method: DaemonLoginMethod): DaemonLoginStart {
             started += method

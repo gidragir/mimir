@@ -474,4 +474,66 @@ class HttpDaemonClientTest {
         )
         assertEquals(DaemonDeviceCodeDto("dc", "UC", "https://g/device", 900, 7), camel)
     }
+
+    @Test
+    fun needsConfirmationStatusIsParsed() = runTest {
+        val mockEngine = MockEngine { request ->
+            val key = "${request.method.value} ${request.url.encodedPath}"
+            when (key) {
+                "GET /api/v1/status" -> respond(
+                    """{"status":"needs_confirmation","label":"Mimir: confirm deletion of 60 files","isLocked":false,"activeConflicts":0,"pendingDeletions":60}""",
+                    HttpStatusCode.OK,
+                    jsonHeaders,
+                )
+                else -> respond("""{"error":"unexpected $key"}""", HttpStatusCode.NotFound, jsonHeaders)
+            }
+        }
+        val client = HttpDaemonClient(
+            baseUrl = "http://127.0.0.1:1",
+            scope = backgroundScope,
+            httpClient = HttpClient(mockEngine),
+            pollInterval = 20.milliseconds,
+        )
+        withTimeout(5_000) {
+            while (client.status.value !is SyncStatus.NeedsConfirmation) delay(20)
+        }
+        assertEquals(SyncStatus.NeedsConfirmation(60), client.status.value)
+    }
+
+    @Test
+    fun idleStatusOmitsPendingDeletions() {
+        val encoded = Json.encodeToString(
+            DaemonStatusDto.serializer(),
+            DaemonStatusDto(status = "idle", label = "Mimir: up to date", isLocked = false, activeConflicts = 0),
+        )
+        assertFalse(encoded.contains("pendingDeletions"), "pendingDeletions must be omitted when null: $encoded")
+    }
+
+    @Test
+    fun resolveDeletionsPostsDecision() = runTest {
+        var sentBody: String? = null
+        val mockEngine = MockEngine { request ->
+            val key = "${request.method.value} ${request.url.encodedPath}"
+            when (key) {
+                "GET /api/v1/status" -> respond(
+                    """{"status":"idle","label":"Mimir: up to date","isLocked":false,"activeConflicts":0}""",
+                    HttpStatusCode.OK,
+                    jsonHeaders,
+                )
+                "POST /api/v1/sync/confirm-deletions" -> {
+                    sentBody = request.body.toByteArray().decodeToString()
+                    respond("""{"status":"started"}""", HttpStatusCode.Accepted, jsonHeaders)
+                }
+                else -> respond("""{"error":"unexpected $key"}""", HttpStatusCode.NotFound, jsonHeaders)
+            }
+        }
+        val client = HttpDaemonClient(
+            baseUrl = "http://127.0.0.1:1",
+            scope = backgroundScope,
+            httpClient = HttpClient(mockEngine),
+            pollInterval = 60_000.milliseconds,
+        )
+        client.resolveDeletions(dev.mimir.core.DeletionDecision.Keep)
+        assertEquals("""{"decision":"keep"}""", sentBody)
+    }
 }

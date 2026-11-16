@@ -216,6 +216,7 @@ fun MimirStatusBadge(
         SyncStatus.Idle -> MimirTokens.StatusSuccess
         SyncStatus.Syncing -> MimirTokens.Accent
         SyncStatus.Offline -> MimirTokens.StatusOffline
+        is SyncStatus.NeedsConfirmation -> MimirTokens.StatusError
         is SyncStatus.Error -> MimirTokens.StatusError
         SyncStatus.NotConfigured -> MimirTokens.StatusOffline
     }

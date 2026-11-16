@@ -108,6 +108,7 @@ fun createRuntime(
         updateManager = updateManager,
         updateSchedulerFactory = updateSchedulerFactory,
         cipherFactory = cipherFactory,
+        traceSink = if (config.syncTrace) ({ System.err.println(it) }) else null,
     )
 }
 

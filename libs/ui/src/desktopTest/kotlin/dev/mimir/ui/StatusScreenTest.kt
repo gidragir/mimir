@@ -9,6 +9,10 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
 import dev.mimir.core.CompletedItem
+import dev.mimir.core.DeletionDecision
+import dev.mimir.core.RemoteAnomaly
+import dev.mimir.core.RemoteAnomalyKind
+import dev.mimir.core.RemotePath
 import dev.mimir.core.StubSyncEngine
 import dev.mimir.core.SyncItem
 import dev.mimir.core.SyncItemAction
@@ -21,9 +25,11 @@ import dev.mimir.core.testing.TestClock
 import dev.mimir.ui.model.FakeMimirUiModel
 import dev.mimir.ui.screens.StatusScreen
 import dev.mimir.ui.screens.StatusSyncProgressSection
+import dev.mimir.ui.screens.SyncTexts
 import dev.mimir.ui.model.UiConflictEntry
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
@@ -294,5 +300,33 @@ class StatusScreenTest {
         waitForIdle()
         onNodeWithText("3 из 8 файлов").assertExists()
         onNodeWithText("⬆ Отправляю в Google Drive: notes/test.md").assertExists()
+    }
+
+    @Test
+    fun confirmationBannerButtonsCallModel() = runComposeUiTest {
+        val model = FakeMimirUiModel(status = SyncStatus.NeedsConfirmation(60))
+        setContent { MimirTheme { StatusScreen(model) } }
+        onNodeWithText("Оставить и загрузить обратно").performClick()
+        waitForIdle()
+        assertEquals(DeletionDecision.Keep, model.lastDeletionDecision)
+
+        onNodeWithText("Удалить").performClick()
+        waitForIdle()
+        assertEquals(DeletionDecision.Delete, model.lastDeletionDecision)
+    }
+
+    @Test
+    fun duplicateFolderAnomalyShowsWarning() = runComposeUiTest {
+        val progress = SyncProgress(
+            phase = SyncPhase.Finished,
+            startedAt = Clock.System.now(),
+            anomalies = listOf(RemoteAnomaly(RemotePath("A"), RemoteAnomalyKind.DuplicateFolder, 2)),
+        )
+        setContent {
+            MimirTheme {
+                StatusScreen(FakeMimirUiModel(status = SyncStatus.Idle, progress = progressOf(progress)))
+            }
+        }
+        onNodeWithText(SyncTexts.duplicateFolderWarning("A")).assertExists()
     }
 }

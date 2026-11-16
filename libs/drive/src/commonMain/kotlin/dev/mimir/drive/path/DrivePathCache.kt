@@ -9,6 +9,7 @@ internal class DrivePathCache {
     private val mutex = Mutex()
     private var rootFolderId: String? = null
     private val folderCache = mutableMapOf<String, String>()
+    private val folderAliases = mutableMapOf<String, List<String>>()
     private val fileCache = mutableMapOf<String, GoogleDriveFile>()
     private val idToPath = mutableMapOf<String, RemotePath>()
 
@@ -48,6 +49,22 @@ internal class DrivePathCache {
         }
     }
 
+    suspend fun putAliases(canonicalId: String, aliasIds: List<String>) {
+        val extras = aliasIds.filter { it != canonicalId }.distinct()
+        mutex.withLock {
+            if (extras.isEmpty()) {
+                folderAliases.remove(canonicalId)
+            } else {
+                folderAliases[canonicalId] = extras
+            }
+        }
+    }
+
+    suspend fun aliasesOf(folderId: String): List<String> = mutex.withLock {
+        val extras = folderAliases[folderId] ?: return@withLock listOf(folderId)
+        listOf(folderId) + extras
+    }
+
     suspend fun removeById(fileId: String): RemotePath? = mutex.withLock {
         val path = idToPath.remove(fileId) ?: return@withLock null
         fileCache.remove(path.value)
@@ -73,6 +90,7 @@ internal class DrivePathCache {
     suspend fun resetPaths() {
         mutex.withLock {
             folderCache.clear()
+            folderAliases.clear()
             fileCache.clear()
             idToPath.clear()
             rootFolderId?.let { id ->
@@ -86,6 +104,7 @@ internal class DrivePathCache {
         mutex.withLock {
             rootFolderId = null
             folderCache.clear()
+            folderAliases.clear()
             fileCache.clear()
             idToPath.clear()
         }

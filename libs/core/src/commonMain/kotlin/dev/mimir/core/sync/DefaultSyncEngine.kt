@@ -2,15 +2,19 @@ package dev.mimir.core.sync
 
 import dev.mimir.core.ChangeFeedStorage
 import dev.mimir.core.CompletedItem
+import dev.mimir.core.DeletionDecision
 import dev.mimir.core.LocalVault
+import dev.mimir.core.MassDeletionException
 import dev.mimir.core.RemoteAuthException
 import dev.mimir.core.RemoteEntry
 import dev.mimir.core.RemotePath
 import dev.mimir.core.RemoteStorage
 import dev.mimir.core.RemoteUnavailableException
+import dev.mimir.core.RunStats
 import dev.mimir.core.SyncEngine
 import dev.mimir.core.SyncItem
 import dev.mimir.core.SyncItemAction
+import dev.mimir.core.SyncMetrics
 import dev.mimir.core.SyncPhase
 import dev.mimir.core.SyncProblem
 import dev.mimir.core.SyncProgress
@@ -30,10 +34,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlin.concurrent.Volatile
 import kotlin.concurrent.atomics.AtomicInt
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.coroutines.cancellation.CancellationException
+import kotlin.math.ceil
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.days
 
 class DefaultSyncEngine(
     private val localVault: LocalVault,
@@ -45,6 +52,7 @@ class DefaultSyncEngine(
     private val parallelism: Int = 4,
     dispatcher: CoroutineDispatcher = Dispatchers.Default,
     private val indexSaveEvery: Int = 100,
+    private val metrics: SyncMetrics = SyncMetrics.None,
 ) : SyncEngine {
 
     init {
@@ -62,29 +70,48 @@ class DefaultSyncEngine(
     private val executor = ActionExecutor(localVault, remoteStorage, conflictResolver, dispatcher)
     private var hasListedAllInSession = false
 
+    @Volatile
+    private var pendingDecision: DeletionDecision? = null
+
+    override suspend fun resolvePendingDeletions(decision: DeletionDecision) {
+        pendingDecision = decision
+    }
+
     override suspend fun syncNow() {
         syncMutex.withLock {
             _status.value = SyncStatus.Syncing
+            var outcome = "ok"
             try {
                 performSync()
                 _status.value = SyncStatus.Idle
             } catch (e: Throwable) {
+                outcome = when (e) {
+                    is CancellationException -> "cancelled"
+                    is RemoteUnavailableException -> "offline"
+                    is RemoteAuthException -> "auth"
+                    is MassDeletionException -> "needs-confirmation"
+                    is SyncAbortedException -> "aborted"
+                    else -> "error"
+                }
                 _status.value = when (e) {
                     // Отмена (stop/пауза планировщика) — не ошибка: статус без сбоя.
                     is CancellationException -> SyncStatus.Idle
                     is RemoteUnavailableException -> SyncStatus.Offline
                     is RemoteAuthException -> SyncStatus.Error(e.message ?: "Authentication failed", SyncErrorKind.SignInRequired)
+                    is MassDeletionException -> SyncStatus.NeedsConfirmation(e.count)
                     is SyncAbortedException -> SyncStatus.Error(e.message ?: "Sync aborted", SyncErrorKind.Aborted)
                     else -> SyncStatus.Error(e.message ?: "Unknown sync error")
                 }
                 throw e
             } finally {
+                val stats: RunStats? = withContext(NonCancellable) { metrics.runFinished(outcome) }
                 _progress.update { current ->
                     current?.copy(
                         phase = SyncPhase.Finished,
                         finishedAt = clock.now(),
                         current = null,
                         upcoming = emptyList(),
+                        runStats = stats,
                     )
                 }
             }
@@ -92,13 +119,16 @@ class DefaultSyncEngine(
     }
 
     private suspend fun performSync() {
+        metrics.runStarted()
         _progress.value = SyncProgress(phase = SyncPhase.Scanning, startedAt = clock.now())
+        localVault.purgeTrash(clock.now() - 30.days)
 
         val index = IndexUpdater(stateStore, stateStore.load(), indexSaveEvery)
         val localFiles = localVault.list()
         val hiddenPaths = localVault.hiddenPaths()
         _progress.update { it?.copy(scanned = localFiles.size) }
         val (remoteFiles, nextChangeToken) = fetchRemoteSnapshot(index.current, localFiles.size)
+        _progress.update { it?.copy(anomalies = remoteStorage.drainAnomalies()) }
 
         // Пустой удалённый список при непустом индексе почти наверняка означает сбой
         // (отстающий поиск Drive, пустой дубль папки хранилища, чужой аккаунт), а не то,
@@ -112,10 +142,13 @@ class DefaultSyncEngine(
             val problem = problemOf(path, SyncItemAction.Upload, error)
             _progress.update { it?.copy(problems = it.problems + problem) }
         }
+        val decision = pendingDecision
+        pendingDecision = null
+        val effectivePlan = applyDeletionGuard(plan, index.current.records.size, decision)
 
         var failure: Throwable? = null
         try {
-            applyPlan(plan, index)
+            applyPlan(effectivePlan, index)
             val hasProblems = _progress.value?.problems?.isNotEmpty() == true
             if (!hasProblems && nextChangeToken != null && nextChangeToken != index.current.remoteChangeToken) {
                 index.update { it.copy(remoteChangeToken = nextChangeToken) }
@@ -148,27 +181,29 @@ class DefaultSyncEngine(
             index.records.isNotEmpty()
         ) {
             val feed = remoteStorage.getChanges(token)
-            val remoteMap = HashMap<String, RemoteEntry>(index.records.size)
-            for (r in index.records.values) {
-                remoteMap[r.remotePath.value] = RemoteEntry(
-                    path = r.remotePath,
-                    size = r.remoteSize,
-                    modifiedAt = r.remoteModifiedAt,
-                    revision = r.remoteRevision,
-                    isDirectory = false,
-                )
-            }
-            for (change in feed.changes) {
-                val key = change.path.value
-                val entry = change.entry
-                if (change.isDeleted || entry == null) {
-                    val prefix = "$key/"
-                    remoteMap.keys.removeAll { it == key || it.startsWith(prefix) }
-                } else if (!entry.isDirectory) {
-                    remoteMap[key] = entry
+            if (!feed.unresolved) {
+                val remoteMap = HashMap<String, RemoteEntry>(index.records.size)
+                for (r in index.records.values) {
+                    remoteMap[r.remotePath.value] = RemoteEntry(
+                        path = r.remotePath,
+                        size = r.remoteSize,
+                        modifiedAt = r.remoteModifiedAt,
+                        revision = r.remoteRevision,
+                        isDirectory = false,
+                    )
                 }
+                for (change in feed.changes) {
+                    val key = change.path.value
+                    val entry = change.entry
+                    if (change.isDeleted || entry == null) {
+                        val prefix = "$key/"
+                        remoteMap.keys.removeAll { it == key || it.startsWith(prefix) }
+                    } else if (!entry.isDirectory) {
+                        remoteMap[key] = entry
+                    }
+                }
+                return remoteMap.values.toList() to feed.nextToken
             }
-            return remoteMap.values.toList() to feed.nextToken
         }
         val tokenBeforeList = if (remoteStorage is ChangeFeedStorage && remoteStorage.isChangeFeedSupported) {
             remoteStorage.getLatestChangeToken()
@@ -292,7 +327,24 @@ class DefaultSyncEngine(
         is SyncAction.UpdateMetadata, is SyncAction.ForgetRecord, is SyncAction.NoOp -> 0L
     }
 
+    private fun applyDeletionGuard(plan: SyncPlan, indexSize: Int, decision: DeletionDecision?): SyncPlan {
+        val deleteCount = plan.actions.count { it is SyncAction.DeleteLocal }
+        val threshold = maxOf(MASS_DELETE_FLOOR, ceil(indexSize * MASS_DELETE_RATIO).toInt())
+        if (deleteCount <= threshold) return plan
+        return when (decision) {
+            null -> throw MassDeletionException(deleteCount)
+            DeletionDecision.Delete -> plan
+            DeletionDecision.Keep -> SyncPlan(
+                plan.actions.map { action ->
+                    if (action is SyncAction.DeleteLocal) SyncAction.ForgetRecord(action.path) else action
+                },
+            )
+        }
+    }
+
     private companion object {
+        const val MASS_DELETE_FLOOR = 50
+        const val MASS_DELETE_RATIO = 0.10
         const val EMPTY_REMOTE_MESSAGE =
             "Список файлов в Google Drive пуст, хотя раньше там были файлы. Синхронизация остановлена, " +
                 "чтобы не удалить ваши файлы на этом компьютере. Проверьте папку в Google Drive и аккаунт."

@@ -2,8 +2,8 @@
 directory: libs/runtime/src/commonMain/kotlin/dev/mimir/runtime
 source:
   kind: git
-  blob_sha: 11241b1b60dab442cf7a88af696e491de0ca0170
-  commit_sha: e735cb52ed681f464f3b8e62310c00a288fd4504
+  blob_sha: 6769186afb1410b0107926413dafdb62f4615a65
+  commit_sha: 973bb96afa606802a1a9c3d251d2eddc26878808
 generated_by:
   component: context-init
   role: update
@@ -27,8 +27,8 @@ freshness:
 | Файл | Статус |
 | :--- | :--- |
 | `libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/AccountStore.kt` | Исходный код |
-| `libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/AtomicFiles.kt` | Исходный код |
 | `libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/Canary.kt` | Исходный код |
+| `libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/CloudStorageFactory.kt` | Исходный код |
 | `libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/ConflictTracker.kt` | Исходный код |
 | `libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/EngineAssembler.kt` | Исходный код |
 | `libs/runtime/src/commonMain/kotlin/dev/mimir/runtime/FileTokenStorage.kt` | Исходный код |
@@ -49,11 +49,11 @@ fun email(): String? = read()?.email
 suspend fun method(): DaemonLoginMethod?
 fun save(email: String?, method: DaemonLoginMethod)
 fun delete()
-fun writeFileAtomically(target: Path, content: String, ownerOnly: Boolean = false)
 typealias InvalidPasswordException = dev.mimir.client.InvalidPasswordException
 typealias SyncNotConfiguredException = dev.mimir.client.SyncNotConfiguredException
 suspend fun verifyOrInitCanary(remote: RemoteStorage, cipher: Cipher, configDir: Path)
-internal class ConflictTracker( private val scope: CoroutineScope, private val watcherFactory: VaultWatcherFactory, private val localVaultFactory: (Path) -> LocalVault, private val scanInterval: Duration, private val vaultPath: () -> String?, )
+fun interface CloudStorageFactory
+fun create(httpClient: HttpClient, tokenSource: AccessTokenSource, config: RuntimeConfig): ChangeFeedStorage?
 ```
 
 ## 🧪 Запуск и тестирование

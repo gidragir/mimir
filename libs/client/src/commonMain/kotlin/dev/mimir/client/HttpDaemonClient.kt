@@ -124,6 +124,7 @@ class HttpDaemonClient(
             "idle" -> SyncStatus.Idle
             "syncing" -> SyncStatus.Syncing
             "offline" -> SyncStatus.Offline
+            "needs_confirmation" -> SyncStatus.NeedsConfirmation(dto.pendingDeletions ?: 0)
             "error" -> SyncStatus.Error(dto.label.removePrefix("Mimir: ").ifEmpty { "error" })
             else -> SyncStatus.NotConfigured
         }
@@ -158,6 +159,18 @@ class HttpDaemonClient(
             HttpStatusCode.Conflict -> false
             else -> throw with(transport) { response.toException() }
         }
+    }
+
+    override suspend fun resolveDeletions(decision: dev.mimir.core.DeletionDecision) {
+        val wire = when (decision) {
+            dev.mimir.core.DeletionDecision.Delete -> "delete"
+            dev.mimir.core.DeletionDecision.Keep -> "keep"
+        }
+        transport.postExpect(
+            "/api/v1/sync/confirm-deletions",
+            DaemonResolveDeletionsRequest(wire),
+            HttpStatusCode.Accepted,
+        )
     }
 
     override suspend fun unlock(password: String) =

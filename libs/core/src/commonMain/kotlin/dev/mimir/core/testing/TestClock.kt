@@ -13,4 +13,8 @@ class TestClock(
     fun advanceBy(duration: Duration) {
         now += duration
     }
+
+    fun advance(duration: Duration) {
+        advanceBy(duration)
+    }
 }

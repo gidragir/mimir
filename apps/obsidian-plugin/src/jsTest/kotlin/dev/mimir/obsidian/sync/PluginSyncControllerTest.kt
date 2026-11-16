@@ -1,6 +1,8 @@
 package dev.mimir.obsidian.sync
 
 import dev.mimir.core.ChangeFeedStorage
+import dev.mimir.core.ChangePeek
+import dev.mimir.core.MassDeletionException
 import dev.mimir.core.RemoteChangesResult
 import dev.mimir.core.RemoteEntry
 import dev.mimir.core.RemotePath
@@ -43,12 +45,22 @@ class PluginSyncControllerTest {
     private class FakeChangeFeed(
         var latestToken: String = "token-1",
         var changes: List<dev.mimir.core.RemoteChange> = emptyList(),
+        var onGetLatestToken: (() -> Unit)? = null,
+        var peekOverride: ChangePeek? = null,
     ) : ChangeFeedStorage {
         var getChangesCalls = 0
-        override suspend fun getLatestChangeToken(): String = latestToken
+        var peekCalls = 0
+        override suspend fun getLatestChangeToken(): String {
+            onGetLatestToken?.invoke()
+            return latestToken
+        }
         override suspend fun getChanges(sinceToken: String): RemoteChangesResult {
             getChangesCalls++
             return RemoteChangesResult(changes = changes, nextToken = latestToken)
+        }
+        override suspend fun peekChanges(sinceToken: String): ChangePeek {
+            peekCalls++
+            return peekOverride ?: ChangePeek(hasChanges = changes.isNotEmpty(), nextToken = latestToken)
         }
 
         override suspend fun list(dir: RemotePath): List<RemoteEntry> = emptyList()
@@ -329,7 +341,7 @@ class PluginSyncControllerTest {
             clock.advanceBy(5.minutes)
             advanceTimeBy(5.minutes.inWholeMilliseconds)
             assertEquals(1, engine.syncNowCalls) // Skipped!
-            assertTrue(feed.getChangesCalls >= 1)
+            assertTrue(feed.peekCalls >= 1)
         } finally {
             controller.stop()
             scope.cancel()
@@ -693,6 +705,236 @@ class PluginSyncControllerTest {
             advanceTimeBy(100)
             val state = assertIs<PluginState.Error>(controller.state.value)
             assertTrue("Drive is empty" in state.message || "nothing was deleted" in state.message)
+        } finally {
+            controller.stop()
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun changeTokenIsCapturedBeforeSync() = runTest {
+        val testDispatcher = StandardTestDispatcher(testScheduler)
+        val scope = CoroutineScope(testDispatcher)
+        val clock = TestClock()
+        val calls = mutableListOf<String>()
+
+        lateinit var feed: FakeChangeFeed
+        val engine = FakeSyncEngine(onSync = {
+            calls += "engine.syncNow"
+            feed.latestToken = "after"
+        })
+        feed = FakeChangeFeed(
+            latestToken = "before",
+            onGetLatestToken = { calls += "getLatestChangeToken" },
+        )
+        val source = FakeEngineSource(engine to feed)
+        val secrets = DeviceSecretStore(FakeLocalStorage())
+        val settings = testSettingsStore()
+        settings.update { it.copy(rootFolder = "V") }
+
+        val controller = PluginSyncController(
+            scope = scope,
+            assembler = source,
+            probe = fakeProbe(DaemonPresence.Absent),
+            secrets = secrets,
+            settings = settings,
+            vaultEvents = MutableSharedFlow(),
+            clock = clock,
+        )
+
+        try {
+            controller.trigger(Trigger.Manual)
+            advanceTimeBy(100)
+            assertEquals(listOf("getLatestChangeToken", "engine.syncNow"), calls.take(2))
+            assertEquals("before", secrets.loadChangeToken())
+        } finally {
+            controller.stop()
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun timerUsesPeek() = runTest {
+        val testDispatcher = StandardTestDispatcher(testScheduler)
+        val scope = CoroutineScope(testDispatcher)
+        val clock = TestClock()
+
+        val engine = FakeSyncEngine()
+        val feed = FakeChangeFeed(
+            latestToken = "tok-1",
+            peekOverride = ChangePeek(hasChanges = false, nextToken = "tok-2"),
+        )
+        val source = FakeEngineSource(engine to feed)
+        val secrets = DeviceSecretStore(FakeLocalStorage())
+        val settings = testSettingsStore()
+        settings.update { it.copy(rootFolder = "V") }
+
+        val controller = PluginSyncController(
+            scope = scope,
+            assembler = source,
+            probe = fakeProbe(DaemonPresence.Absent),
+            secrets = secrets,
+            settings = settings,
+            vaultEvents = MutableSharedFlow(),
+            clock = clock,
+        )
+
+        try {
+            controller.start()
+            advanceTimeBy(100)
+            assertEquals(1, engine.syncNowCalls)
+            assertEquals("tok-1", secrets.loadChangeToken())
+
+            clock.advanceBy(5.minutes)
+            advanceTimeBy(5.minutes.inWholeMilliseconds)
+
+            assertEquals(1, feed.peekCalls)
+            assertEquals(0, feed.getChangesCalls)
+            assertEquals(1, engine.syncNowCalls)
+            assertEquals("tok-2", secrets.loadChangeToken())
+        } finally {
+            controller.stop()
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun massDeletionMovesPluginToNeedsConfirmation() = runTest {
+        val testDispatcher = StandardTestDispatcher(testScheduler)
+        val scope = CoroutineScope(testDispatcher)
+        val clock = TestClock()
+
+        val engine = FakeSyncEngine(onSync = { throw MassDeletionException(60) })
+        val feed = FakeChangeFeed()
+        val source = FakeEngineSource(engine to feed)
+        val secrets = DeviceSecretStore(FakeLocalStorage())
+        val settings = testSettingsStore()
+        settings.update { it.copy(rootFolder = "V") }
+
+        val controller = PluginSyncController(
+            scope = scope,
+            assembler = source,
+            probe = fakeProbe(DaemonPresence.Absent),
+            secrets = secrets,
+            settings = settings,
+            vaultEvents = MutableSharedFlow(),
+            clock = clock,
+        )
+
+        try {
+            controller.start()
+            advanceTimeBy(100)
+            assertEquals(PluginState.NeedsConfirmation(60), controller.state.value)
+        } finally {
+            controller.stop()
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun resolveDeletionsKeepTriggersFollowUpUploadRun() = runTest {
+        val testDispatcher = StandardTestDispatcher(testScheduler)
+        val scope = CoroutineScope(testDispatcher)
+        val clock = TestClock()
+
+        val decisions = mutableListOf<dev.mimir.core.DeletionDecision>()
+        var syncCalls = 0
+        var failWithMassDeletion = true
+        val engine = object : SyncEngine {
+            private val _status = kotlinx.coroutines.flow.MutableStateFlow<dev.mimir.core.SyncStatus>(dev.mimir.core.SyncStatus.Idle)
+            override val status = _status
+            private val _progress = kotlinx.coroutines.flow.MutableStateFlow<dev.mimir.core.SyncProgress?>(null)
+            override val progress = _progress
+            override suspend fun resolvePendingDeletions(decision: dev.mimir.core.DeletionDecision) {
+                decisions.add(decision)
+                failWithMassDeletion = false
+            }
+            override suspend fun syncNow() {
+                syncCalls++
+                if (failWithMassDeletion) throw MassDeletionException(60)
+            }
+        }
+        val feed = FakeChangeFeed()
+        val source = FakeEngineSource(engine to feed)
+        val secrets = DeviceSecretStore(FakeLocalStorage())
+        val settings = testSettingsStore()
+        settings.update { it.copy(rootFolder = "V") }
+
+        val controller = PluginSyncController(
+            scope = scope,
+            assembler = source,
+            probe = fakeProbe(DaemonPresence.Absent),
+            secrets = secrets,
+            settings = settings,
+            vaultEvents = MutableSharedFlow(),
+            clock = clock,
+        )
+
+        try {
+            controller.start()
+            advanceTimeBy(100)
+            assertEquals(1, syncCalls)
+            assertEquals(PluginState.NeedsConfirmation(60), controller.state.value)
+
+            controller.resolveDeletions(dev.mimir.core.DeletionDecision.Keep)
+            advanceTimeBy(100)
+            assertEquals(listOf(dev.mimir.core.DeletionDecision.Keep), decisions)
+            assertEquals(3, syncCalls, "Keep must run ForgetRecord sync and then follow-up upload sync")
+            assertIs<PluginState.UpToDate>(controller.state.value)
+        } finally {
+            controller.stop()
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun resolveDeletionsDeleteRunsSingleSync() = runTest {
+        val testDispatcher = StandardTestDispatcher(testScheduler)
+        val scope = CoroutineScope(testDispatcher)
+        val clock = TestClock()
+
+        val decisions = mutableListOf<dev.mimir.core.DeletionDecision>()
+        var syncCalls = 0
+        var failWithMassDeletion = true
+        val engine = object : SyncEngine {
+            private val _status = kotlinx.coroutines.flow.MutableStateFlow<dev.mimir.core.SyncStatus>(dev.mimir.core.SyncStatus.Idle)
+            override val status = _status
+            private val _progress = kotlinx.coroutines.flow.MutableStateFlow<dev.mimir.core.SyncProgress?>(null)
+            override val progress = _progress
+            override suspend fun resolvePendingDeletions(decision: dev.mimir.core.DeletionDecision) {
+                decisions.add(decision)
+                failWithMassDeletion = false
+            }
+            override suspend fun syncNow() {
+                syncCalls++
+                if (failWithMassDeletion) throw MassDeletionException(60)
+            }
+        }
+        val feed = FakeChangeFeed()
+        val source = FakeEngineSource(engine to feed)
+        val secrets = DeviceSecretStore(FakeLocalStorage())
+        val settings = testSettingsStore()
+        settings.update { it.copy(rootFolder = "V") }
+
+        val controller = PluginSyncController(
+            scope = scope,
+            assembler = source,
+            probe = fakeProbe(DaemonPresence.Absent),
+            secrets = secrets,
+            settings = settings,
+            vaultEvents = MutableSharedFlow(),
+            clock = clock,
+        )
+
+        try {
+            controller.start()
+            advanceTimeBy(100)
+            assertEquals(1, syncCalls)
+
+            controller.resolveDeletions(dev.mimir.core.DeletionDecision.Delete)
+            advanceTimeBy(100)
+            assertEquals(listOf(dev.mimir.core.DeletionDecision.Delete), decisions)
+            assertEquals(2, syncCalls, "Delete must run only once")
         } finally {
             controller.stop()
             scope.cancel()

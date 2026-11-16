@@ -229,4 +229,40 @@ class RoutesTest {
             server.stop(50, 200)
         }
     }
+
+    @Test
+    fun `status exposes pendingDeletions`() = testApplication {
+        serve()
+        service.status.value = SyncStatus.NeedsConfirmation(60)
+        val dto = Json.decodeFromString<dev.mimir.client.DaemonStatusDto>(client.get("/api/v1/status").bodyAsText())
+        assertEquals("needs_confirmation", dto.status)
+        assertEquals(60, dto.pendingDeletions)
+    }
+
+    @Test
+    fun `confirmDeletions forwards decision and handles errors`() = testApplication {
+        serve()
+        service.syncAccepted = true
+        val accepted = client.post("/api/v1/sync/confirm-deletions") {
+            contentType(ContentType.Application.Json)
+            setBody("""{"decision":"keep"}""")
+        }
+        assertEquals(HttpStatusCode.Accepted, accepted.status)
+        assertEquals("""{"status":"started"}""", accepted.bodyAsText())
+        assertEquals(dev.mimir.core.DeletionDecision.Keep, service.lastDeletionDecision)
+
+        val bad = client.post("/api/v1/sync/confirm-deletions") {
+            contentType(ContentType.Application.Json)
+            setBody("""{"decision":"invalid"}""")
+        }
+        assertEquals(HttpStatusCode.BadRequest, bad.status)
+        assertEquals("""{"error":"Expected decision: delete or keep"}""", bad.bodyAsText())
+
+        service.syncAccepted = null
+        val notConfigured = client.post("/api/v1/sync/confirm-deletions") {
+            contentType(ContentType.Application.Json)
+            setBody("""{"decision":"delete"}""")
+        }
+        assertEquals(HttpStatusCode.PreconditionFailed, notConfigured.status)
+    }
 }

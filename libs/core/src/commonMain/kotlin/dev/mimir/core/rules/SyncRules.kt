@@ -19,6 +19,6 @@ data class SyncRules(
         BUILTIN_EXCLUDES.any { GlobMatcher.matches(it, path) } || excludedGlobs.any { glob -> GlobMatcher.matches(glob, path) }
 
     private companion object {
-        val BUILTIN_EXCLUDES = listOf(".git/**", "**/.git/**", "**/node_modules/**", "**/*.tmp", "**/*.crswap", "**/.mimir*")
+        val BUILTIN_EXCLUDES = listOf(".git/**", "**/.git/**", "**/node_modules/**", "**/*.tmp", "**/*.crswap", "**/.mimir*", ".mimir/**")
     }
 }

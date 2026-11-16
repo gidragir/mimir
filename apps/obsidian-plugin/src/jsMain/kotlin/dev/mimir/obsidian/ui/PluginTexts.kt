@@ -49,6 +49,12 @@ data class PluginTexts(
     val conflictsDesc: String,
     val conflictsCount: (Int) -> String,
     val pleaseConfigureNotice: String,
+    val statusNeedsConfirmation: (Int) -> String,
+    val confirmDeletionTitle: (Int) -> String,
+    val confirmDeletionHint: String,
+    val confirmDeletionDelete: String,
+    val confirmDeletionKeep: String,
+    val customClientIdWarning: String,
 ) {
     companion object {
         fun detect(): PluginTexts {
@@ -113,6 +119,12 @@ data class PluginTexts(
             conflictsDesc = "The following files had simultaneous edits and were saved with conflict suffixes:",
             conflictsCount = { "$it conflicting files" },
             pleaseConfigureNotice = "Mimir: please configure sync",
+            statusNeedsConfirmation = { "Mimir: confirm deletion ($it)" },
+            confirmDeletionTitle = { "$it files deleted in Drive. Delete them on this device too?" },
+            confirmDeletionHint = "Deleted files go to Mimir trash (.mimir/trash) and are kept for 30 days.",
+            confirmDeletionDelete = "Delete",
+            confirmDeletionKeep = "Keep and upload back",
+            customClientIdWarning = "A custom client ID from a different Google Cloud project cannot see files uploaded by Mimir with another client ID: Drive may appear empty.",
         )
 
         fun ru(): PluginTexts = PluginTexts(
@@ -174,6 +186,22 @@ data class PluginTexts(
             conflictsDesc = "Следующие файлы были отредактированы одновременно и сохранены с суффиксом конфликта:",
             conflictsCount = { "$it конфликтов" },
             pleaseConfigureNotice = "Mimir: настройте синхронизацию",
+            statusNeedsConfirmation = { "Mimir: подтвердите удаление ($it)" },
+            confirmDeletionTitle = { n ->
+                val mod10 = n % 10
+                val mod100 = n % 100
+                val word = when {
+                    mod100 in 11..19 -> "файлов"
+                    mod10 == 1 -> "файл"
+                    mod10 in 2..4 -> "файла"
+                    else -> "файлов"
+                }
+                "В облаке удалено $n $word. Удалить их и на этом устройстве?"
+            },
+            confirmDeletionHint = "Удалённое попадёт в корзину Mimir (.mimir/trash) и хранится 30 дней.",
+            confirmDeletionDelete = "Удалить",
+            confirmDeletionKeep = "Оставить и загрузить обратно",
+            customClientIdWarning = "Свой client ID из другого проекта Google Cloud не видит файлы, загруженные Mimir с другим client ID: облако может показаться пустым.",
         )
     }
 }

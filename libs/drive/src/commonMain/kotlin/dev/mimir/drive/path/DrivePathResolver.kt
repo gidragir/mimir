@@ -5,6 +5,7 @@ import dev.mimir.drive.api.GoogleDriveFile
 import dev.mimir.drive.api.GoogleDriveFileList
 import dev.mimir.drive.client.DriveHttpClient
 import dev.mimir.drive.client.DriveHttpException
+import dev.mimir.drive.client.DriveOp
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.request.header
@@ -18,6 +19,7 @@ import io.ktor.http.isSuccess
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
+import kotlin.time.TimeSource
 
 class DrivePathResolver(
     private val client: DriveHttpClient,
@@ -31,6 +33,24 @@ class DrivePathResolver(
      * и создают дубликаты с одним именем.
      */
     private val folderCreationMutex = Mutex()
+    private val ownWritesMutex = Mutex()
+    private val ownWrites = mutableMapOf<String, String?>()
+
+    suspend fun recordOwnWrite(fileId: String, md5: String?) {
+        ownWritesMutex.withLock {
+            ownWrites.remove(fileId)
+            if (ownWrites.size >= MAX_OWN_WRITES) {
+                val oldestKey = ownWrites.keys.firstOrNull()
+                if (oldestKey != null) ownWrites.remove(oldestKey)
+            }
+            ownWrites[fileId] = md5
+        }
+    }
+
+    suspend fun isOwnEcho(fileId: String, md5: String?): Boolean = ownWritesMutex.withLock {
+        if (!ownWrites.containsKey(fileId)) return@withLock false
+        ownWrites[fileId] == md5
+    }
 
     suspend fun resolveRootFolderId(): String {
         cache.rootId()?.let { return it }
@@ -50,6 +70,12 @@ class DrivePathResolver(
         cache.putAll(items)
     }
 
+    internal suspend fun registerAliases(canonicalId: String, aliasIds: List<String>) {
+        cache.putAliases(canonicalId, aliasIds)
+    }
+
+    internal suspend fun aliasesOf(folderId: String): List<String> = cache.aliasesOf(folderId)
+
     suspend fun resolvePathById(fileId: String): RemotePath? = cache.pathOf(fileId)
 
     suspend fun invalidateById(fileId: String): RemotePath? = cache.removeById(fileId)
@@ -57,6 +83,25 @@ class DrivePathResolver(
     suspend fun resolveRemotePathForFile(file: GoogleDriveFile): RemotePath? {
         val rootId = resolveRootFolderId()
         return resolveNodePath(file, rootId, visited = mutableSetOf())
+    }
+
+    suspend fun resolvePathFromMetadata(file: GoogleDriveFile): RemotePath? {
+        val rootId = resolveRootFolderId()
+        if (file.id == rootId) return RemotePath("")
+        if (file.parents.isEmpty()) return null
+
+        val parentId = file.parents.first()
+        val parentPath = if (parentId == rootId) {
+            RemotePath("")
+        } else {
+            cache.pathOf(parentId) ?: run {
+                val parent = fetchFileById(parentId) ?: return null
+                if (!parent.isDirectory) return null
+                resolveNodePath(parent, rootId, visited = mutableSetOf()) ?: return null
+            }
+        }
+
+        return if (parentPath.value.isEmpty()) RemotePath(file.name) else RemotePath("${parentPath.value}/${file.name}")
     }
 
     private suspend fun resolveNodePath(
@@ -85,7 +130,7 @@ class DrivePathResolver(
     }
 
     suspend fun fetchFileById(fileId: String): GoogleDriveFile? {
-        val response = client.executeWithRetry { token ->
+        val response = client.executeWithRetry(DriveOp.GetMeta) { token ->
             client.httpClient.get("https://www.googleapis.com/drive/v3/files/$fileId") {
                 header(HttpHeaders.Authorization, "Bearer $token")
                 parameter("fields", "id,name,mimeType,size,modifiedTime,md5Checksum,parents,trashed")
@@ -116,7 +161,7 @@ class DrivePathResolver(
         val parentFolderId = resolveOrCreateFolderInternal(RemotePath.of(segments.dropLast(1)), createIfMissing = false)
             ?: return null
 
-        val file = queryFileInFolder(parentFolderId, segments.last()) ?: return null
+        val file = queryFileInFolder(cache.aliasesOf(parentFolderId), segments.last()) ?: return null
         cache.put(path, file)
         return file
     }
@@ -130,7 +175,12 @@ class DrivePathResolver(
             return resolveRootFolderId()
         }
         if (!createIfMissing) return walkFolders(dir, createIfMissing = false)
-        return folderCreationMutex.withLock { walkFolders(dir, createIfMissing = true) }
+        val waitMark = TimeSource.Monotonic.markNow()
+        return folderCreationMutex.withLock {
+            val waitedMs = waitMark.elapsedNow().inWholeMilliseconds
+            if (waitedMs > 0) client.metrics.onLockWait("folderCreation", waitedMs)
+            walkFolders(dir, createIfMissing = true)
+        }
     }
 
     private suspend fun walkFolders(dir: RemotePath, createIfMissing: Boolean): String? {
@@ -145,7 +195,7 @@ class DrivePathResolver(
             if (cachedId != null) {
                 currentParentId = cachedId
             } else {
-                val found = queryFolderInFolder(currentParentId, segment)
+                val found = queryFolderInFolder(cache.aliasesOf(currentParentId), segment)
                 val folderId = when {
                     found != null -> found.id
                     createIfMissing -> createFolder(currentParentId, segment)
@@ -176,18 +226,32 @@ class DrivePathResolver(
         cache.clearAll()
     }
 
-    private suspend fun queryFileInFolder(parentFolderId: String, fileName: String): GoogleDriveFile? {
-        val query = "'$parentFolderId' in parents and name = '${escapeQuery(fileName)}' and trashed = false"
-        return listFilesByQuery(query).maxByOrNull { it.modifiedTime ?: "" }
+    private fun parentsClause(parentIds: List<String>): String {
+        val expr = parentIds.joinToString(" or ") { "'$it' in parents" }
+        return if (parentIds.size > 1) "($expr)" else expr
     }
 
-    private suspend fun queryFolderInFolder(parentFolderId: String, folderName: String): GoogleDriveFile? {
-        val query = "'$parentFolderId' in parents and name = '${escapeQuery(folderName)}' and mimeType = '$FOLDER_MIME_TYPE' and trashed = false"
-        return listFilesByQuery(query).maxByOrNull { it.modifiedTime ?: "" }
+    private suspend fun queryFileInFolder(parentIds: List<String>, fileName: String): GoogleDriveFile? {
+        val query = "${parentsClause(parentIds)} and name = '${escapeQuery(fileName)}' and trashed = false"
+        return listFilesByQuery(query).minWithOrNull(
+            compareByDescending<GoogleDriveFile> { it.modifiedTime ?: "" }.thenBy { it.id },
+        )
+    }
+
+    private suspend fun queryFolderInFolder(parentIds: List<String>, folderName: String): GoogleDriveFile? {
+        val query = "${parentsClause(parentIds)} and name = '${escapeQuery(folderName)}' and mimeType = '$FOLDER_MIME_TYPE' and trashed = false"
+        val found = listFilesByQuery(query)
+        val canonical = found.minWithOrNull(
+            compareBy<GoogleDriveFile> { it.createdTime ?: "\uFFFF" }.thenBy { it.id },
+        ) ?: return null
+        if (found.size > 1) {
+            cache.putAliases(canonical.id, found.map { it.id })
+        }
+        return canonical
     }
 
     private suspend fun findOrCreateFolder(parentFolderId: String, folderName: String): String =
-        queryFolderInFolder(parentFolderId, folderName)?.id ?: createFolder(parentFolderId, folderName)
+        queryFolderInFolder(listOf(parentFolderId), folderName)?.id ?: createFolder(parentFolderId, folderName)
 
     private suspend fun createFolder(parentFolderId: String, folderName: String): String {
         val body = FolderCreateRequest(
@@ -195,7 +259,7 @@ class DrivePathResolver(
             mimeType = FOLDER_MIME_TYPE,
             parents = listOf(parentFolderId),
         )
-        val response = client.executeWithRetry { token ->
+        val response = client.executeWithRetry(DriveOp.FolderCreate) { token ->
             client.httpClient.post("https://www.googleapis.com/drive/v3/files") {
                 header(HttpHeaders.Authorization, "Bearer $token")
                 contentType(ContentType.Application.Json)
@@ -205,15 +269,17 @@ class DrivePathResolver(
         if (!response.status.isSuccess()) {
             throw DriveHttpException(response.status, "Failed to create folder $folderName")
         }
-        return response.body<GoogleDriveFile>().id
+        val created = response.body<GoogleDriveFile>()
+        recordOwnWrite(created.id, null)
+        return created.id
     }
 
     private suspend fun listFilesByQuery(query: String): List<GoogleDriveFile> {
-        val response = client.executeWithRetry { token ->
+        val response = client.executeWithRetry(DriveOp.ListQuery) { token ->
             client.httpClient.get("https://www.googleapis.com/drive/v3/files") {
                 header(HttpHeaders.Authorization, "Bearer $token")
                 parameter("q", query)
-                parameter("fields", "files(id,name,mimeType,size,modifiedTime,md5Checksum,parents,trashed)")
+                parameter("fields", "files(id,name,mimeType,size,modifiedTime,createdTime,md5Checksum,parents,trashed)")
                 parameter("pageSize", 100)
             }
         }
@@ -235,5 +301,6 @@ class DrivePathResolver(
 
     companion object {
         const val FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
+        private const val MAX_OWN_WRITES = 10_000
     }
 }

@@ -1,6 +1,8 @@
 package dev.mimir.obsidian.sync
 
 import dev.mimir.core.ChangeFeedStorage
+import dev.mimir.core.DeletionDecision
+import dev.mimir.core.MassDeletionException
 import dev.mimir.core.RemoteUnavailableException
 import dev.mimir.core.SyncAbortedException
 import dev.mimir.core.SyncEngine
@@ -49,6 +51,7 @@ sealed interface PluginState {
         val conflicts: List<String>,
     ) : PluginState
     data object Offline : PluginState
+    data class NeedsConfirmation(val count: Int) : PluginState
     data class NeedsSignIn(val message: String) : PluginState
     data class Error(val message: String) : PluginState
 }
@@ -76,6 +79,7 @@ class PluginSyncController(
 
     private var activeSyncJob: Job? = null
     private var activeEngine: SyncEngine? = null
+    private var pendingConfirmationEngine: SyncEngine? = null
     private var timerJob: Job? = null
     private var vaultEventsJob: Job? = null
     private var vaultDebounceJob: Job? = null
@@ -103,8 +107,18 @@ class PluginSyncController(
     fun resetOnDisconnect() {
         lastUpToDate = null
         hasLocalChanges = false
+        pendingConfirmationEngine = null
         cancelActiveSync()
         _state.value = PluginState.NotConnected
+    }
+
+    fun resolveDeletions(decision: DeletionDecision) {
+        val engine = pendingConfirmationEngine
+        pendingConfirmationEngine = null
+        scope.launch {
+            engine?.resolvePendingDeletions(decision)
+            scheduleSync(Trigger.Manual, followUp = decision == DeletionDecision.Keep)
+        }
     }
 
     private fun cancelActiveSync() {
@@ -188,7 +202,7 @@ class PluginSyncController(
         }
     }
 
-    private suspend fun scheduleSync(trigger: Trigger) {
+    private suspend fun scheduleSync(trigger: Trigger, followUp: Boolean = false) {
         runMutex.withLock {
             if (isSyncRunning) {
                 rerunRequested = true
@@ -199,13 +213,17 @@ class PluginSyncController(
 
         activeSyncJob = scope.launch {
             var currentTrigger = trigger
+            var remainingFollowUps = if (followUp) 1 else 0
             try {
                 while (isActive) {
                     rerunRequested = false
-                    executeSync(currentTrigger)
+                    val succeeded = executeSync(currentTrigger)
                     val shouldRerun = runMutex.withLock {
                         if (rerunRequested && isActive) {
                             rerunRequested = false
+                            true
+                        } else if (succeeded && remainingFollowUps > 0 && isActive) {
+                            remainingFollowUps--
                             true
                         } else {
                             isSyncRunning = false
@@ -225,11 +243,11 @@ class PluginSyncController(
         }
     }
 
-    private suspend fun executeSync(trigger: Trigger) {
+    private suspend fun executeSync(trigger: Trigger): Boolean {
         val pair = assembler.buildEngine()
         if (pair == null) {
             _state.value = PluginState.NotConnected
-            return
+            return false
         }
 
         val (engine, feed) = pair
@@ -245,11 +263,11 @@ class PluginSyncController(
             when (presence) {
                 DaemonPresence.ServesThisVault -> {
                     _state.value = PluginState.YieldsToDaemon
-                    return
+                    return false
                 }
                 DaemonPresence.Unauthorized -> {
                     _state.value = PluginState.PausedForDaemon
-                    return
+                    return false
                 }
                 DaemonPresence.Absent, DaemonPresence.ServesOtherVault -> {}
             }
@@ -259,21 +277,26 @@ class PluginSyncController(
         if ((trigger == Trigger.Timer || trigger == Trigger.Resume) && !hasLocalChanges) {
             val changeToken = secrets.loadChangeToken()
             if (changeToken != null) {
-                val remoteChanges = try {
-                    feed.getChanges(changeToken).changes
+                val peek = try {
+                    feed.peekChanges(changeToken)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (_: Throwable) {
                     null // Ошибка ленты -> выполняем прогон
                 }
-                if (remoteChanges != null && remoteChanges.isEmpty()) {
+                if (peek != null && !peek.hasChanges) {
+                    try {
+                        secrets.saveChangeToken(peek.nextToken)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (_: Throwable) {}
                     val current = lastUpToDate
                     if (current != null) {
                         val updated = current.copy(at = clock.now())
                         lastUpToDate = updated
                         _state.value = updated
                     }
-                    return
+                    return true
                 }
             }
         }
@@ -286,13 +309,25 @@ class PluginSyncController(
             }
         }
 
-        try {
+        return try {
+            val tokenBefore = try {
+                feed.getLatestChangeToken()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Throwable) {
+                null
+            }
+
             hasLocalChanges = false
             engine.syncNow()
 
-            try {
-                secrets.saveChangeToken(feed.getLatestChangeToken())
-            } catch (_: Throwable) {}
+            if (tokenBefore != null) {
+                try {
+                    secrets.saveChangeToken(tokenBefore)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Throwable) {}
+            }
 
             val p = engine.progress.value
             val problems = p?.problems ?: emptyList()
@@ -300,20 +335,29 @@ class PluginSyncController(
             val upToDate = PluginState.UpToDate(at = clock.now(), problems = problems, conflicts = conflicts)
             lastUpToDate = upToDate
             _state.value = upToDate
+            true
         } catch (e: CancellationException) {
             throw e
         } catch (e: RemoteUnavailableException) {
             _state.value = PluginState.Offline
+            false
         } catch (e: DriveAuthException) {
             _state.value = PluginState.NeedsSignIn(e.message ?: "Authentication required")
+            false
+        } catch (e: MassDeletionException) {
+            pendingConfirmationEngine = engine
+            _state.value = PluginState.NeedsConfirmation(e.count)
+            false
         } catch (e: SyncAbortedException) {
             _state.value = PluginState.Error(ABORTED_MESSAGE)
+            false
         } catch (e: Throwable) {
             if (e.isNetworkError()) {
                 _state.value = PluginState.Offline
             } else {
                 _state.value = PluginState.Error(e.message ?: "Sync error")
             }
+            false
         } finally {
             progressJob.cancel()
         }

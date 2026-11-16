@@ -32,6 +32,8 @@ data class DaemonConfig(
     val rootFolder: String = "MimirVault",
     /** Фоновая проверка обновлений и маршруты `/api/v1/update`; `false` — статус `DISABLED`. Env: `MIMIR_UPDATE_CHECK`. */
     val updateCheck: Boolean = true,
+    /** Вывод одной строки статистики прогона в stderr (`MIMIR_SYNC_TRACE`). */
+    val syncTrace: Boolean = false,
     val configDir: String? = null,
 ) {
     /** Пароль шифрования: `password`, иначе содержимое `passwordFile` (без пробелов по краям). */
@@ -117,6 +119,7 @@ private fun DaemonConfig.applyEnv(env: Map<String, String>): DaemonConfig {
             ?: throw IllegalArgumentException("MIMIR_SYNC_PARALLELISM must be a number from 1 to 16, got '$it'")
     } ?: syncParallelism
     val updateCheck = env["MIMIR_UPDATE_CHECK"]?.let { parseBooleanEnv("MIMIR_UPDATE_CHECK", it) } ?: updateCheck
+    val syncTrace = env["MIMIR_SYNC_TRACE"]?.let { parseBooleanEnv("MIMIR_SYNC_TRACE", it) } ?: syncTrace
     val legacyId = deprecatedEnv(env, "MIMIR_GOOGLE_CLIENT_ID", "MIMIR_GOOGLE_DEVICE_CLIENT_ID")
     val legacySecret = deprecatedEnv(env, "MIMIR_GOOGLE_CLIENT_SECRET", "MIMIR_GOOGLE_DEVICE_CLIENT_SECRET")
     return copy(
@@ -134,6 +137,7 @@ private fun DaemonConfig.applyEnv(env: Map<String, String>): DaemonConfig {
         syncParallelism = parallelism,
         rootFolder = env["MIMIR_ROOT_FOLDER"] ?: rootFolder,
         updateCheck = updateCheck,
+        syncTrace = syncTrace,
     )
 }
 

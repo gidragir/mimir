@@ -2,6 +2,8 @@ package dev.mimir.drive.client
 
 import dev.mimir.core.RemoteAuthException
 import dev.mimir.core.RemoteUnavailableException
+import dev.mimir.core.RequestSample
+import dev.mimir.core.SyncMetrics
 import dev.mimir.drive.auth.AccessTokenSource
 import dev.mimir.drive.auth.GoogleAuthClients
 import dev.mimir.drive.auth.RefreshingTokenSource
@@ -19,6 +21,7 @@ import kotlinx.io.IOException
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.random.Random
 import kotlin.time.Clock
+import kotlin.time.TimeSource
 
 /**
  * HTTP-клиент Drive: токены, повторы, сетевые ошибки.
@@ -35,6 +38,7 @@ class DriveHttpClient(
     val clock: Clock = Clock.System,
     private val retryPolicy: RetryPolicy = RetryPolicy(),
     private val random: Random = Random.Default,
+    val metrics: SyncMetrics = SyncMetrics.None,
 ) {
     val httpClient: HttpClient = httpClient.config {
         install(HttpTimeout) {
@@ -51,7 +55,8 @@ class DriveHttpClient(
         clock: Clock = Clock.System,
         retryPolicy: RetryPolicy = RetryPolicy(),
         random: Random = Random.Default,
-    ) : this(httpClient, RefreshingTokenSource(tokenStorage, authClients, clock), clock, retryPolicy, random)
+        metrics: SyncMetrics = SyncMetrics.None,
+    ) : this(httpClient, RefreshingTokenSource(tokenStorage, authClients, clock), clock, retryPolicy, random, metrics)
 
     private inline fun <T> mapTokenErrors(block: () -> T): T = try {
         block()
@@ -78,33 +83,80 @@ class DriveHttpClient(
      * Прочие ответы, включая нерейтлимитные 403, возвращаются вызывающему как есть.
      */
     suspend fun executeWithRetry(
+        op: DriveOp = DriveOp.Other,
         block: suspend (token: String) -> HttpResponse,
     ): HttpResponse {
         var token = getValidToken()
-        var attempt = 0
+        var retryAttempt = 0
+        var requestAttempt = 0
+        var waitedBeforeMs = 0L
         var refreshedOn401 = false
 
         while (true) {
+            requestAttempt++
+            val mark = TimeSource.Monotonic.markNow()
             val response = try {
                 block(token)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                metrics.onRequest(
+                    RequestSample(
+                        op = op.wire,
+                        isWrite = op.isWrite,
+                        durationMs = mark.elapsedNow().inWholeMilliseconds,
+                        status = null,
+                        reason = null,
+                        attempt = requestAttempt,
+                        waitedBeforeMs = waitedBeforeMs,
+                        networkError = isNetworkFailure(e),
+                    ),
+                )
                 throw e.asRemoteUnavailableOrSelf()
             }
+            val durationMs = mark.elapsedNow().inWholeMilliseconds
             if (response.status == HttpStatusCode.Unauthorized && !refreshedOn401) {
+                metrics.onRequest(
+                    RequestSample(
+                        op = op.wire,
+                        isWrite = op.isWrite,
+                        durationMs = durationMs,
+                        status = response.status.value,
+                        reason = null,
+                        attempt = requestAttempt,
+                        waitedBeforeMs = waitedBeforeMs,
+                        networkError = false,
+                    ),
+                )
                 refreshedOn401 = true
+                waitedBeforeMs = 0L
                 token = forceRefreshToken()
                 continue
             }
 
-            val failure = retryableFailure(response) ?: return response
-            attempt++
-            if (attempt >= retryPolicy.maxAttempts) {
+            val reason = rateLimitReason(response)
+            metrics.onRequest(
+                RequestSample(
+                    op = op.wire,
+                    isWrite = op.isWrite,
+                    durationMs = durationMs,
+                    status = response.status.value,
+                    reason = reason,
+                    attempt = requestAttempt,
+                    waitedBeforeMs = waitedBeforeMs,
+                    networkError = false,
+                ),
+            )
+
+            val failure = retryableFailure(response, reason) ?: return response
+            retryAttempt++
+            if (retryAttempt >= retryPolicy.maxAttempts) {
                 throw RemoteUnavailableException(failure)
             }
             val retryAfter = parseRetryAfter(response.headers[HttpHeaders.RetryAfter], clock.now())
-            delay(retryAfter?.let { minOf(it, retryPolicy.maxDelay) } ?: retryPolicy.backoff(attempt, random))
+            val wait = retryAfter?.let { minOf(it, retryPolicy.maxDelay) } ?: retryPolicy.backoff(retryAttempt, random)
+            waitedBeforeMs = wait.inWholeMilliseconds
+            delay(wait)
         }
     }
 
@@ -114,26 +166,60 @@ class DriveHttpClient(
      * Ответ, подлежащий повтору (401 до refresh, 429, 5xx), в [consume] не попадает.
      */
     suspend fun <T> executeStreaming(
+        op: DriveOp = DriveOp.Other,
         request: suspend (token: String) -> HttpStatement,
         consume: suspend (HttpResponse) -> T,
     ): T {
         var token = getValidToken()
-        var attempt = 0
+        var retryAttempt = 0
+        var requestAttempt = 0
+        var waitedBeforeMs = 0L
         var refreshedOn401 = false
 
         while (true) {
+            requestAttempt++
             var failure: String? = null
             var retryAfterHeader: String? = null
             var unauthorized = false
+            var sampleRecorded = false
+            val mark = TimeSource.Monotonic.markNow()
             val result = try {
                 request(token).execute { response ->
+                    val durationMs = mark.elapsedNow().inWholeMilliseconds
                     when {
                         response.status == HttpStatusCode.Unauthorized && !refreshedOn401 -> {
+                            metrics.onRequest(
+                                RequestSample(
+                                    op = op.wire,
+                                    isWrite = op.isWrite,
+                                    durationMs = durationMs,
+                                    status = response.status.value,
+                                    reason = null,
+                                    attempt = requestAttempt,
+                                    waitedBeforeMs = waitedBeforeMs,
+                                    networkError = false,
+                                ),
+                            )
+                            sampleRecorded = true
                             unauthorized = true
                             null
                         }
                         else -> {
-                            failure = retryableFailure(response)
+                            val reason = rateLimitReason(response)
+                            metrics.onRequest(
+                                RequestSample(
+                                    op = op.wire,
+                                    isWrite = op.isWrite,
+                                    durationMs = durationMs,
+                                    status = response.status.value,
+                                    reason = reason,
+                                    attempt = requestAttempt,
+                                    waitedBeforeMs = waitedBeforeMs,
+                                    networkError = false,
+                                ),
+                            )
+                            sampleRecorded = true
+                            failure = retryableFailure(response, reason)
                             if (failure != null) {
                                 retryAfterHeader = response.headers[HttpHeaders.RetryAfter]
                                 null
@@ -146,18 +232,35 @@ class DriveHttpClient(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                if (!sampleRecorded) {
+                    metrics.onRequest(
+                        RequestSample(
+                            op = op.wire,
+                            isWrite = op.isWrite,
+                            durationMs = mark.elapsedNow().inWholeMilliseconds,
+                            status = null,
+                            reason = null,
+                            attempt = requestAttempt,
+                            waitedBeforeMs = waitedBeforeMs,
+                            networkError = isNetworkFailure(e),
+                        ),
+                    )
+                }
                 throw e.asRemoteUnavailableOrSelf()
             }
             if (result != null) return result.value
             if (unauthorized) {
                 refreshedOn401 = true
+                waitedBeforeMs = 0L
                 token = forceRefreshToken()
                 continue
             }
-            attempt++
-            if (attempt >= retryPolicy.maxAttempts) throw RemoteUnavailableException(failure!!)
+            retryAttempt++
+            if (retryAttempt >= retryPolicy.maxAttempts) throw RemoteUnavailableException(failure!!)
             val retryAfter = parseRetryAfter(retryAfterHeader, clock.now())
-            delay(retryAfter?.let { minOf(it, retryPolicy.maxDelay) } ?: retryPolicy.backoff(attempt, random))
+            val wait = retryAfter?.let { minOf(it, retryPolicy.maxDelay) } ?: retryPolicy.backoff(retryAttempt, random)
+            waitedBeforeMs = wait.inWholeMilliseconds
+            delay(wait)
         }
     }
 
@@ -169,12 +272,12 @@ class DriveHttpClient(
     }
 
     /** Описание повторяемого сбоя (для сообщения об исчерпании) или `null`, если ответ возвращается вызывающему. */
-    private suspend fun retryableFailure(response: HttpResponse): String? {
+    private fun retryableFailure(response: HttpResponse, rateLimitReason: String?): String? {
         val status = response.status
         return when {
             status == HttpStatusCode.TooManyRequests -> "Google Drive rate limit exceeded (429 Too Many Requests)"
             status.value in 500..599 -> "Google Drive is unavailable ($status)"
-            status == HttpStatusCode.Forbidden && isRateLimit403(response) ->
+            status == HttpStatusCode.Forbidden && rateLimitReason != null ->
                 "Google Drive rate limit exceeded (403 ${status.description})"
             else -> null
         }

@@ -2,6 +2,7 @@ package dev.mimir.drive.client
 
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
+import io.ktor.http.HttpStatusCode
 import io.ktor.http.fromHttpToGmtDate
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -65,21 +66,24 @@ internal fun parseRetryAfter(header: String?, now: Instant): Duration? {
 private val RATE_LIMIT_REASONS = setOf("rateLimitExceeded", "userRateLimitExceeded")
 
 /** Тело 403 Drive — `{"error":{"errors":[{"reason":"rateLimitExceeded"}]}}`: ограничение частоты, а не отказ в правах. */
-internal suspend fun isRateLimit403(response: HttpResponse): Boolean {
+internal suspend fun rateLimitReason(response: HttpResponse): String? {
+    if (response.status != HttpStatusCode.Forbidden) return null
     val body = try {
         response.bodyAsText()
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
-        return false
+        return null
     }
     return try {
         val errors = (Json.parseToJsonElement(body).jsonObject["error"] as? JsonObject)?.get("errors") as? JsonArray
-        errors.orEmpty().any { item ->
+        errors.orEmpty().firstNotNullOfOrNull { item ->
             val reason = ((item as? JsonObject)?.get("reason") as? JsonPrimitive)?.contentOrNull
-            reason in RATE_LIMIT_REASONS
+            reason?.takeIf { it in RATE_LIMIT_REASONS }
         }
     } catch (e: Exception) {
-        false
+        null
     }
 }
+
+internal suspend fun isRateLimit403(response: HttpResponse): Boolean = rateLimitReason(response) != null

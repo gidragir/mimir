@@ -96,6 +96,19 @@ class MimirSettingTab(
                 }
         }
 
+        Setting(container)
+            .setName("Custom Google OAuth Client ID")
+            .setDesc(texts.customClientIdWarning)
+            .addText { text ->
+                text.setPlaceholder("Default Mimir client ID")
+                text.setValue(currentSettings.customClientId)
+                text.onChange { value: String ->
+                    tabScope.launch {
+                        settings.update { it.copy(customClientId = value.trim()) }
+                    }
+                }
+            }
+
         // 2. Блок Папка Drive и пароль (активен, если выполнен вход)
         if (currentTokens != null) {
             container.createEl("h3", json("text" to texts.vaultSection))

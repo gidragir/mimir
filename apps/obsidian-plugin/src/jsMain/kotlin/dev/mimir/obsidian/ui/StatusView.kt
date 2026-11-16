@@ -11,6 +11,7 @@ fun statusLabel(state: PluginState, texts: PluginTexts, now: Instant): String {
         is PluginState.YieldsToDaemon -> texts.statusYieldsToDaemon
         is PluginState.PausedForDaemon -> texts.statusPausedForDaemon
         is PluginState.NeedsSignIn -> texts.statusNeedsSignIn
+        is PluginState.NeedsConfirmation -> texts.statusNeedsConfirmation(state.count)
         is PluginState.Error -> texts.statusError
         is PluginState.Syncing -> texts.statusSyncing(state.done, state.total)
         is PluginState.UpToDate -> {
