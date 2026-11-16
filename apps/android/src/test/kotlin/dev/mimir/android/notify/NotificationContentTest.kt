@@ -2,6 +2,7 @@ package dev.mimir.android.notify
 
 import dev.mimir.core.SyncErrorKind
 import dev.mimir.core.SyncStatus
+import dev.mimir.ui.screens.SyncTexts
 import kotlinx.datetime.TimeZone
 import org.junit.Test
 import kotlin.test.assertEquals

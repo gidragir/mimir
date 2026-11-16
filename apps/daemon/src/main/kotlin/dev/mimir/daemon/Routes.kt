@@ -39,7 +39,6 @@ import io.ktor.server.routing.routing
 import io.ktor.utils.io.writeByteArray
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.launch
@@ -130,19 +129,23 @@ fun Application.mimirRoutes(service: DaemonService, config: DaemonConfig, update
             get("/events") {
                 call.response.cacheControl(CacheControl.NoCache(null))
                 call.respondBytesWriter(contentType = ContentType.Text.EventStream) {
+                    var lastPayload: String? = null
                     suspend fun sendStatus() {
                         val payload = sseJson.encodeToString(DaemonStatusDto.serializer(), service.toStatusDto())
+                        if (payload == lastPayload) return
+                        lastPayload = payload
                         writeByteArray("event: status\ndata: $payload\n\n".encodeToByteArray())
                         flush()
                     }
                     val dirty = Channel<Unit>(Channel.CONFLATED)
-                    // UNDISPATCHED регистрирует подписчиков StateFlow и сбрасывает их начальные значения до первого sendStatus(),
-                    // чтобы изменения сразу после отправки стартового кадра не терялись.
+                    // merge подписывается на источники в отдельных корутинах, возможно уже после стартового кадра,
+                    // поэтому начальные значения не отбрасываются: любое значение помечает поток «грязным»,
+                    // а sendStatus() пропускает кадр, совпадающий с последним отправленным.
                     val collector = launch(start = CoroutineStart.UNDISPATCHED) {
                         merge(
-                            service.status.drop(1).map { },
-                            service.progress.drop(1).map { },
-                            service.conflictsFlow.drop(1).map { },
+                            service.status.map { },
+                            service.progress.map { },
+                            service.conflictsFlow.map { },
                         ).collect { dirty.trySend(Unit) }
                     }
                     sendStatus()
